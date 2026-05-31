@@ -273,39 +273,6 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const pipelineLogStatusEnum = pgEnum("pipeline_log_status", [
-  "success",
-  "skipped_not_event",
-  "duplicate",
-  "error",
-]);
-
-export const listservConfigs = pgTable("listserv_configs", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  address: varchar("address", { length: 255 }).notNull().unique(),
-  label: varchar("label", { length: 255 }).notNull(),
-  orgId: uuid("org_id").references(() => organizations.id, {
-    onDelete: "set null",
-  }),
-  gmailLabel: varchar("gmail_label", { length: 255 }),
-  enabled: boolean("enabled").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const pipelineLogs = pgTable("pipeline_logs", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  messageId: varchar("message_id", { length: 255 }).notNull(),
-  listservConfigId: uuid("listserv_config_id").references(() => listservConfigs.id, {
-    onDelete: "set null",
-  }),
-  status: pipelineLogStatusEnum("status").notNull(),
-  errorText: text("error_text"),
-  extractedEventId: uuid("extracted_event_id").references(() => events.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 // ── Listserv email archive ───────────────────────────────
 
 export const listservEmails = pgTable("listserv_emails", {
@@ -477,24 +444,6 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
-export const listservConfigsRelations = relations(listservConfigs, ({ one }) => ({
-  org: one(organizations, {
-    fields: [listservConfigs.orgId],
-    references: [organizations.id],
-  }),
-}));
-
-export const pipelineLogsRelations = relations(pipelineLogs, ({ one }) => ({
-  listservConfig: one(listservConfigs, {
-    fields: [pipelineLogs.listservConfigId],
-    references: [listservConfigs.id],
-  }),
-  extractedEvent: one(events, {
-    fields: [pipelineLogs.extractedEventId],
-    references: [events.id],
-  }),
-}));
-
 export const interactionsRelations = relations(interactions, ({ one }) => ({
   user: one(users, {
     fields: [interactions.userId],
@@ -520,10 +469,6 @@ export type NewOrganization = typeof organizations.$inferInsert;
 export type CampusLocation = typeof campusLocations.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
-export type ListservConfig = typeof listservConfigs.$inferSelect;
-export type NewListservConfig = typeof listservConfigs.$inferInsert;
-export type PipelineLog = typeof pipelineLogs.$inferSelect;
-export type NewPipelineLog = typeof pipelineLogs.$inferInsert;
 export type Interaction = typeof interactions.$inferSelect;
 export type NewInteraction = typeof interactions.$inferInsert;
 export type UserPreferenceVector = typeof userPreferenceVectors.$inferSelect;
