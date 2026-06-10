@@ -1,0 +1,21 @@
+name: Enforce staging → main
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  enforce-staging-source:
+    name: enforce-staging-source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR source branch is staging
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "staging" ]; then
+            echo "::error::Pull requests into main must come from 'staging' (got '$HEAD_REF')."
+            echo "Merge your branch into staging first, then open a PR from staging into main."
+            exit 1
+          fi
+          echo "OK: PR source is staging."
