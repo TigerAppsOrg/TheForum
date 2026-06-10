@@ -59,25 +59,42 @@ Then fill in `apps/web/.env.local`. Env vars are validated at startup by
 [`apps/web/src/env.ts`](apps/web/src/env.ts) — the app won't boot if a required
 one is missing, and that file is the source of truth for what's required.
 
+> **Can't obtain a value yourself? Ask Ibraheem.** He is the contact for all
+> credentials that aren't self-serve (Entra ID, Mapbox tokens, AWS, etc.).
+
 | Variable | Where to get it |
 |---|---|
 | `DATABASE_URL` | Default in the example file works as-is with the Docker database (port **5434**) |
 | `AUTH_SECRET` | Generate your own: `openssl rand -base64 32` |
-| `AUTH_AZURE_AD_CLIENT_ID` / `AUTH_AZURE_AD_CLIENT_SECRET` | **Ask the project lead (Ibraheem)** — these are the Microsoft Entra ID app credentials for Princeton CAS login |
+| `AUTH_AZURE_AD_CLIENT_ID` / `AUTH_AZURE_AD_CLIENT_SECRET` | **Ask Ibraheem** — these are the Microsoft Entra ID app credentials for Princeton CAS login |
 | `AUTH_AZURE_AD_TENANT_ID` | Princeton's tenant ID — already filled in the example file |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_STYLE` | **Ask the project lead (Ibraheem)** — Mapbox tokens + the Princeton campus map style URL |
-| `AWS_S3_BUCKET` / `AWS_REGION` | Optional (image uploads) — ask if you're working on that feature |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_STYLE` | **Ask Ibraheem** — Mapbox tokens + the Princeton campus map style URL |
+| `AWS_S3_BUCKET` / `AWS_REGION` | Optional (image uploads) — ask Ibraheem if you're working on that feature |
 
 ### 3. Start the database
+
+Make sure **Docker Desktop is running**, then from the repo root:
 
 ```bash
 bun run db:up      # starts Postgres 17 in Docker (container: the-forum-db, host port 5434)
 bun run db:push    # push the Drizzle schema into the fresh database
 ```
 
-Sanity checks: `docker compose ps` should show the container healthy;
-`bun run db:logs` tails its logs. The database URL is
-`postgresql://forum:forum_password@localhost:5434/the_forum`.
+Sanity checks:
+
+```bash
+docker compose ps   # the-forum-db should show "Up (healthy)"
+bun run db:logs     # tail the Postgres logs if something looks wrong
+```
+
+The database URL is `postgresql://forum:forum_password@localhost:5434/the_forum`
+(also reachable with any Postgres client, e.g. `psql`, TablePlus, or `bun run db:studio`).
+
+Optionally fill the database with realistic demo data:
+
+```bash
+cd apps/database && bun run db:seed
+```
 
 ### 4. Run the app
 
