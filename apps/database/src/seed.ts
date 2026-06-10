@@ -10,12 +10,15 @@ import {
   campusLocations,
   eventTags,
   friendships,
+  interactions,
+  notifications,
   orgFollowers,
   orgMembers,
   organizations,
   rsvps,
   savedEvents,
   userInterests,
+  userRegions,
   users,
 } from "./schema";
 
@@ -355,6 +358,33 @@ async function seed() {
   }
   console.log("  User interests seeded");
 
+  /* ═══ 3b. User Regions (set during onboarding) ═══ */
+  const regionData: {
+    userId: string;
+    regions: ("central" | "east" | "west" | "south" | "north" | "off-campus")[];
+  }[] = [
+    { userId: uid("iamin"), regions: ["central", "east"] },
+    { userId: uid("ajiang"), regions: ["central", "west"] },
+    { userId: uid("arho"), regions: ["south"] },
+    { userId: uid("pkap"), regions: ["east", "north"] },
+    { userId: uid("syou"), regions: ["central"] },
+    { userId: uid("cwang"), regions: ["west", "central"] },
+    { userId: uid("gkash"), regions: ["south", "central"] },
+    { userId: uid("jlee"), regions: ["west"] },
+    { userId: uid("mkim"), regions: ["east"] },
+    { userId: uid("rsingh"), regions: ["north", "central"] },
+    { userId: uid("tchen"), regions: ["south", "west"] },
+    { userId: uid("dpatel"), regions: ["central", "east"] },
+  ];
+
+  for (const { userId, regions } of regionData) {
+    await db
+      .insert(userRegions)
+      .values(regions.map((region) => ({ userId, region })))
+      .onConflictDoNothing();
+  }
+  console.log("  User regions seeded");
+
   /* ═══ 4. Organizations ═══ */
   const orgData = [
     {
@@ -497,6 +527,8 @@ async function seed() {
       { userId: uid("rsingh"), friendId: uid("gkash"), status: "accepted" as const },
       { userId: uid("cwang"), friendId: uid("tchen"), status: "accepted" as const },
       { userId: uid("mkim"), friendId: uid("dpatel"), status: "accepted" as const },
+      // pending request so the friend-request UI has something to show
+      { userId: uid("mkim"), friendId: uid("iamin"), status: "pending" as const },
     ])
     .onConflictDoNothing();
   console.log("  Friendships seeded");
@@ -723,8 +755,15 @@ async function seed() {
     },
   ];
 
-  const insertedEvents = [];
+  // Events have no unique constraint on title, so skip ones that already
+  // exist to keep re-runs of the seed from inserting duplicates.
+  const existingTitles = new Set(
+    (await db.select({ title: events.title }).from(events)).map((e) => e.title),
+  );
+
+  const insertedEvents: { id: string; tags: Tag[] }[] = [];
   for (const e of eventList) {
+    if (existingTitles.has(e.title)) continue;
     const { tags: tagList, ...vals } = e;
     const [inserted] = await db.insert(events).values(vals).returning({ id: events.id });
     if (inserted) {
@@ -737,26 +776,120 @@ async function seed() {
       }
     }
   }
-  console.log(`  Events: ${insertedEvents.length}`);
+  console.log(
+    `  Events: ${insertedEvents.length} inserted, ${existingTitles.size} already present`,
+  );
 
   /* ═══ 9. RSVPs ═══ */
   const allUserIds = [...userMap.values()];
+  const rsvpPairs: { userId: string; eventId: string }[] = [];
   for (const event of insertedEvents) {
     const attendees = pickN(allUserIds, 2 + Math.floor(Math.random() * 5));
     for (const userId of attendees) {
       await db.insert(rsvps).values({ userId, eventId: event.id }).onConflictDoNothing();
+      rsvpPairs.push({ userId, eventId: event.id });
     }
   }
   console.log("  RSVPs seeded");
 
   /* ═══ 10. Saved Events ═══ */
+  const savePairs: { userId: string; eventId: string }[] = [];
   for (const userId of allUserIds) {
     const toSave = pickN(insertedEvents, 2 + Math.floor(Math.random() * 3));
     for (const event of toSave) {
       await db.insert(savedEvents).values({ userId, eventId: event.id }).onConflictDoNothing();
+      savePairs.push({ userId, eventId: event.id });
     }
   }
   console.log("  Saved events seeded");
+
+  /* ═══ 11. Notifications ═══ */
+  // No natural unique key, so only seed when the table is empty.
+  const hasNotifications = await db.select({ id: notifications.id }).from(notifications).limit(1);
+  if (hasNotifications.length === 0) {
+    const allEvents = await db.select({ id: events.id, title: events.title }).from(events);
+    const eventIdByTitle = new Map(allEvents.map((e) => [e.title, e.id]));
+    const allHandsId = eventIdByTitle.get("TigerApps All Hands");
+    const blockchainId = eventIdByTitle.get("Blockchain 101: What is Web3?");
+
+    // payload shapes mirror apps/web/src/actions/{friends,events,notifications}.ts
+    await db.insert(notifications).values([
+      {
+        userId: uid("iamin"),
+        type: "friend_request" as const,
+        payload: {
+          fromUserId: uid("mkim"),
+          fromDisplayName: "Min-Jun Kim",
+          fromNetId: "mkim",
+        },
+      },
+      ...(allHandsId
+        ? [
+            {
+              userId: uid("arho"),
+              type: "org_new_event" as const,
+              payload: {
+                eventId: allHandsId,
+                eventTitle: "TigerApps All Hands",
+                orgId: oid("Princeton TigerApps"),
+                orgName: "Princeton TigerApps",
+              },
+            },
+          ]
+        : []),
+      ...(blockchainId
+        ? [
+            {
+              userId: uid("iamin"),
+              type: "event_reminder" as const,
+              payload: { eventId: blockchainId, eventTitle: "Blockchain 101: What is Web3?" },
+            },
+          ]
+        : []),
+    ]);
+    console.log("  Notifications seeded");
+  } else {
+    console.log("  Notifications already present — skipped");
+  }
+
+  /* ═══ 12. Interactions (implicit feedback for recommendations) ═══ */
+  // Weights mirror INTERACTION_WEIGHTS in apps/web/src/actions/interactions.ts.
+  // No natural unique key, so only seed when the table is empty.
+  const hasInteractions = await db.select({ id: interactions.id }).from(interactions).limit(1);
+  if (hasInteractions.length === 0) {
+    const rows = [
+      ...rsvpPairs.map(({ userId, eventId }) => ({
+        userId,
+        itemId: eventId,
+        itemType: "event" as const,
+        interactionType: "rsvp" as const,
+        interactionValue: 5.0,
+      })),
+      ...savePairs.map(({ userId, eventId }) => ({
+        userId,
+        itemId: eventId,
+        itemType: "event" as const,
+        interactionType: "save" as const,
+        interactionValue: 3.0,
+      })),
+      // sprinkle of views and clicks so the rec pipeline has variety
+      ...allUserIds.flatMap((userId) =>
+        pickN(insertedEvents, Math.min(4, insertedEvents.length)).map((event, i) => ({
+          userId,
+          itemId: event.id,
+          itemType: "event" as const,
+          interactionType: (i % 2 === 0 ? "view" : "click") as "view" | "click",
+          interactionValue: i % 2 === 0 ? 1.0 : 2.0,
+        })),
+      ),
+    ];
+    if (rows.length > 0) {
+      await db.insert(interactions).values(rows);
+    }
+    console.log(`  Interactions seeded: ${rows.length}`);
+  } else {
+    console.log("  Interactions already present — skipped");
+  }
 
   console.log("\nSeed complete!");
   process.exit(0);
