@@ -23,6 +23,32 @@ interface ExploreClientProps {
   userAvatarUrl?: string | null;
 }
 
+// fake temporary event for UI testing
+const demoEvent: FeedEvent = {
+  id: "demo-1",
+  title: "Fake Event",
+  description: "Practice event data for UI testing.",
+  orgId: "tigerapps",
+  orgName: "TigerApps",
+  datetime: new Date(Date.now() + 86400000).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }),
+  location: "Lewis 122",
+  tags: ["music", "free-food", "performance"],
+  flyerUrl: null,
+  rsvpCount: 42,
+  friendsAttending: [
+    { id: "user-1", displayName: "Donald Grump", avatarUrl: null },
+    { id: "user-2", displayName: "Elvis Parsley", avatarUrl: null },
+  ],
+  isRsvped: false,
+  isSaved: false,
+};
+
 function getTodayString() {
   return new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -41,8 +67,9 @@ export function ExploreClient({
   userName = "there",
   userAvatarUrl,
 }: ExploreClientProps) {
-  const [events, setEvents] = useState(initialEvents);
-  const [_total, setTotal] = useState(initialTotal);
+  const fallbackEvents = initialEvents.length > 0 ? initialEvents : [demoEvent];
+  const [events, setEvents] = useState(fallbackEvents);
+  const [_total, setTotal] = useState(initialEvents.length > 0 ? initialTotal : 1);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [isPending, startTransition] = useTransition();
@@ -94,35 +121,24 @@ export function ExploreClient({
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full py-10">
       {/* CENTER — Feed */}
-      <div className="flex-1 min-w-0 overflow-y-auto px-[20px] pt-[8px] pb-[24px]">
-        {/* Avatar */}
-        <div className="flex justify-center mb-[2px]">
-          <div className="w-[48px] h-[48px] rounded-full border-[2px] border-forum-dark-gray/50 overflow-hidden shadow">
-            {userAvatarUrl ? (
-              <img src={userAvatarUrl} alt={firstName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[17px] font-bold text-black font-serif bg-gradient-to-br from-forum-turquoise/30 to-forum-pink/30">
-                {firstName[0]?.toUpperCase()}
-              </div>
-            )}
+      <div className="flex-1 flex flex-col gap-5 overflow-y-auto px-5">
+        {/* Greeting */}
+        <div className="flex flex-col">
+          <h1 className="font-serif text-[52px]">
+            <span className="font-normal">Hi </span>
+            <span className="font-bold italic">{firstName},</span>
+          </h1>
+          <div className="flex items-center gap-[8px]">
+            <div className="w-[12px] h-[12px] rounded-full bg-forum-coral flex-shrink-0" />
+            <p className="font-serif italic text-[18px] text-black">Today is {getTodayString()}</p>
           </div>
         </div>
 
-        {/* Greeting */}
-        <h1 className="font-serif text-[52px] leading-[1] mb-[2px]">
-          <span className="font-normal">Hello</span>
-          <span className="font-bold"> {firstName},</span>
-        </h1>
-        <div className="flex items-center gap-[8px] mb-[12px]">
-          <div className="w-[12px] h-[12px] rounded-full bg-forum-coral flex-shrink-0" />
-          <p className="font-serif italic text-[18px] text-black">Today is {getTodayString()}</p>
-        </div>
-
         {/* Search */}
-        <div className="mb-[10px]">
-          <div className="flex items-center h-[36px] bg-forum-bg rounded-[8px] shadow-[3px_3px_8px_2px_rgba(0,0,0,0.04)] px-[14px]">
+        <div>
+          <div className="flex items-center h-[36px] bg-white rounded-[8px] border-1 border-forum-medium-gray px-[14px]">
             <Search size={14} className="text-forum-placeholder mr-[8px] flex-shrink-0" />
             <input
               type="text"
@@ -138,12 +154,12 @@ export function ExploreClient({
         </div>
 
         {/* Filters */}
-        <div className="mb-[16px]">
+        <div>
           <EventFilters activeFilters={activeFilters} onFilterToggle={handleFilterToggle} />
         </div>
 
         {/* Feed */}
-        <div className="flex flex-col gap-[20px]">
+        <div className="flex flex-col gap-5 px-10">
           {events.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-[60px] text-center">
               <p className="font-serif text-[22px] text-forum-dark-gray">

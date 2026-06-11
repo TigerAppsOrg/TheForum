@@ -31,6 +31,7 @@ import { auth } from "~/auth";
 export interface FeedEvent {
   id: string;
   title: string;
+  description: string | null;
   orgId: string | null;
   orgName: string | null;
   datetime: string;
@@ -240,6 +241,7 @@ export async function getFeedEvents(params?: {
       return {
         id: event.id,
         title: event.title,
+        description: event.description,
         orgId: event.orgId,
         orgName: event.orgName,
         datetime: event.datetime.toLocaleDateString("en-US", {
@@ -490,6 +492,7 @@ export async function getSimilarEvents(
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -506,6 +509,7 @@ export async function getSimilarEvents(
   return rawEvents.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
     datetime: event.datetime.toLocaleDateString("en-US", {
@@ -712,6 +716,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -729,6 +734,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -747,6 +753,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -763,6 +770,7 @@ export async function getMyEvents(): Promise<{
   const mapEvent = (e: (typeof createdEvents)[0]): FeedEvent => ({
     id: e.id,
     title: e.title,
+    description: e.description,
     orgId: e.orgId,
     orgName: e.orgName,
     datetime: e.datetime.toLocaleDateString("en-US", {
@@ -811,6 +819,7 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -828,6 +837,7 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
   return saved.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
     datetime: event.datetime.toLocaleDateString("en-US", {
@@ -878,6 +888,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -905,6 +916,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
   return friendsEvents.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
     datetime: event.datetime.toLocaleDateString("en-US", {
