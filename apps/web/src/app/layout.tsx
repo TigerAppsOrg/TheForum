@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Mono, DM_Sans, Inter, Source_Serif_4 } from "next/font/google";
+import { DM_Mono, DM_Sans, Inter, Kalnia, Source_Serif_4 } from "next/font/google";
 import { Toaster } from "~/components/ui/sonner";
 import "./globals.css";
 
@@ -27,6 +27,11 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const kalnia = Kalnia({
+  subsets: ["latin"],
+  variable: "--font-kalnia",
+});
+
 export const metadata: Metadata = {
   title: "Forum — Princeton Campus Events",
   description: "Your social life, curated. Discover campus events personalized for you.",
@@ -40,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${sourceSerif.variable} ${dmSans.variable} ${dmMono.variable} ${inter.variable} font-dm-sans antialiased`}
+        className={`${sourceSerif.variable} ${dmSans.variable} ${dmMono.variable} ${inter.variable} ${kalnia.variable} font-dm-sans antialiased`}
       >
         {children}
         <Toaster />
