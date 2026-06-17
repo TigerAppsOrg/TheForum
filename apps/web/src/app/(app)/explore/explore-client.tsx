@@ -12,6 +12,7 @@ import {
 } from "~/actions/events";
 import { EventCard } from "~/components/events/event-card";
 import { EventFilters } from "~/components/events/event-filters";
+import { formatEventDateTime } from "~/lib/date-format";
 
 interface ExploreClientProps {
   initialEvents: FeedEvent[];
@@ -32,13 +33,7 @@ const demoEvent: FeedEvent = {
   orgId: "tigerapps",
   orgName: "TigerApps",
   // Use a fixed demo timestamp so server and client HTML match during hydration
-  datetime: new Date("2026-06-17T22:25:00Z").toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }),
+  datetime: formatEventDateTime(new Date("2026-06-17T22:25:00Z")),
   location: "Lewis 122",
   tags: ["music", "free-food", "performance"],
   flyerUrl: null,

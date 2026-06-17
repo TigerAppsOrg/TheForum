@@ -20,6 +20,7 @@ import {
 } from "@the-forum/database";
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
+import { formatEventDateTime } from "~/lib/date-format";
 
 export interface OrgListItem {
   id: string;
@@ -176,13 +177,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
       return {
         id: e.id,
         title: e.title,
-        datetime: e.datetime.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
+        datetime: formatEventDateTime(e.datetime),
         locationName: e.locationName ?? "TBD",
         flyerUrl: e.flyerUrl,
         tags: tags.map((t) => t.tag),

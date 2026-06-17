@@ -27,6 +27,7 @@ import {
 } from "@the-forum/database";
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
+import { formatEventDateTime } from "~/lib/date-format";
 
 export interface FeedEvent {
   id: string;
@@ -244,13 +245,7 @@ export async function getFeedEvents(params?: {
         description: event.description,
         orgId: event.orgId,
         orgName: event.orgName,
-        datetime: event.datetime.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
+        datetime: formatEventDateTime(event.datetime),
         location: event.locationName ?? "TBD",
         tags: tagNames,
         flyerUrl: event.flyerUrl,
@@ -525,13 +520,7 @@ export async function getSimilarEvents(
     description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,
@@ -786,13 +775,7 @@ export async function getMyEvents(): Promise<{
     description: e.description,
     orgId: e.orgId,
     orgName: e.orgName,
-    datetime: e.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(e.datetime),
     location: e.locationName ?? "TBD",
     tags: [],
     flyerUrl: e.flyerUrl,
@@ -853,13 +836,7 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
     description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,
@@ -932,13 +909,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
     description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,
