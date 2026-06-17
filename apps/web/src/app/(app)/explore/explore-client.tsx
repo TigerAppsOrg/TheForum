@@ -25,12 +25,14 @@ interface ExploreClientProps {
 
 // fake temporary event for UI testing
 const demoEvent: FeedEvent = {
-  id: "demo-1",
+  // Use a valid UUID so server-side DB operations don't error on demo data
+  id: "00000000-0000-0000-0000-000000000000",
   title: "Fake Event",
   description: "Practice event data for UI testing.",
   orgId: "tigerapps",
   orgName: "TigerApps",
-  datetime: new Date(Date.now() + 86400000).toLocaleDateString("en-US", {
+  // Use a fixed demo timestamp so server and client HTML match during hydration
+  datetime: new Date("2026-06-17T22:25:00Z").toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",

@@ -278,6 +278,13 @@ export async function toggleRsvp(eventId: string): Promise<{ rsvped: boolean; co
 
   const userId = session.user.id;
 
+  // If the event doesn't exist in the DB (e.g. a demo/local-only event), no-op
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  if (!eventRow) {
+    // Return zero count and no-op rsvp change to avoid FK constraint errors
+    return { rsvped: false, count: 0 };
+  }
+
   const [existing] = await db
     .select()
     .from(rsvps)
@@ -308,6 +315,12 @@ export async function toggleSave(eventId: string): Promise<{ saved: boolean }> {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+
+  // If the event doesn't exist in the DB (e.g. demo/local-only event), no-op
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  if (!eventRow) {
+    return { saved: false };
+  }
 
   const [existing] = await db
     .select()
