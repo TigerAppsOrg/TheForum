@@ -27,10 +27,12 @@ import {
 } from "@the-forum/database";
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
+import { formatEventDateTime } from "~/lib/date-format";
 
 export interface FeedEvent {
   id: string;
   title: string;
+  description: string | null;
   orgId: string | null;
   orgName: string | null;
   datetime: string;
@@ -240,15 +242,10 @@ export async function getFeedEvents(params?: {
       return {
         id: event.id,
         title: event.title,
+        description: event.description,
         orgId: event.orgId,
         orgName: event.orgName,
-        datetime: event.datetime.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
+        datetime: formatEventDateTime(event.datetime),
         location: event.locationName ?? "TBD",
         tags: tagNames,
         flyerUrl: event.flyerUrl,
@@ -275,6 +272,13 @@ export async function toggleRsvp(eventId: string): Promise<{ rsvped: boolean; co
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+
+  // If the event doesn't exist in the DB (e.g. a demo/local-only event), no-op
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  if (!eventRow) {
+    // Return zero count and no-op rsvp change to avoid FK constraint errors
+    return { rsvped: false, count: 0 };
+  }
 
   const [existing] = await db
     .select()
@@ -306,6 +310,12 @@ export async function toggleSave(eventId: string): Promise<{ saved: boolean }> {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+
+  // If the event doesn't exist in the DB (e.g. demo/local-only event), no-op
+  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+  if (!eventRow) {
+    return { saved: false };
+  }
 
   const [existing] = await db
     .select()
@@ -490,6 +500,7 @@ export async function getSimilarEvents(
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -506,15 +517,10 @@ export async function getSimilarEvents(
   return rawEvents.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,
@@ -712,6 +718,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -729,6 +736,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -747,6 +755,7 @@ export async function getMyEvents(): Promise<{
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -763,15 +772,10 @@ export async function getMyEvents(): Promise<{
   const mapEvent = (e: (typeof createdEvents)[0]): FeedEvent => ({
     id: e.id,
     title: e.title,
+    description: e.description,
     orgId: e.orgId,
     orgName: e.orgName,
-    datetime: e.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(e.datetime),
     location: e.locationName ?? "TBD",
     tags: [],
     flyerUrl: e.flyerUrl,
@@ -811,6 +815,7 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -828,15 +833,10 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
   return saved.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,
@@ -878,6 +878,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
     .select({
       id: events.id,
       title: events.title,
+      description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
@@ -905,15 +906,10 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
   return friendsEvents.map((event) => ({
     id: event.id,
     title: event.title,
+    description: event.description,
     orgId: event.orgId,
     orgName: event.orgName,
-    datetime: event.datetime.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatEventDateTime(event.datetime),
     location: event.locationName ?? "TBD",
     tags: [],
     flyerUrl: event.flyerUrl,

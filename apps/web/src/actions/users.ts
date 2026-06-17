@@ -106,13 +106,51 @@ export interface UserProfile {
   regions: string[];
 }
 
-export async function getUserProfile(): Promise<UserProfile> {
+async function getCurrentUser() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
+  const [userById] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
+  if (userById) return userById;
 
-  if (!user) throw new Error("User not found");
+  if (session.user.netId) {
+    const [userByNetId] = await db
+      .select()
+      .from(users)
+      .where(eq(users.netId, session.user.netId))
+      .limit(1);
+    if (userByNetId) return userByNetId;
+  }
+
+  if (session.user.email) {
+    const [userByEmail] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, session.user.email))
+      .limit(1);
+    if (userByEmail) return userByEmail;
+  }
+
+  const netId = session.user.netId ?? session.user.email?.split("@")[0]?.toLowerCase();
+  if (!netId || !session.user.email) throw new Error("User not found");
+
+  const [createdUser] = await db
+    .insert(users)
+    .values({
+      id: session.user.id,
+      netId,
+      email: session.user.email,
+      displayName: session.user.name ?? netId,
+    })
+    .returning();
+
+  if (!createdUser) throw new Error("User not found");
+
+  return createdUser;
+}
+
+export async function getUserProfile(): Promise<UserProfile> {
+  const user = await getCurrentUser();
 
   const interests = await db
     .select({ tag: userInterests.tag })
@@ -145,10 +183,8 @@ export async function updateProfile(data: {
   interests?: string[];
   regions?: string[];
 }): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const userId = session.user.id;
+  const user = await getCurrentUser();
+  const userId = user.id;
 
   await db
     .update(users)
@@ -185,18 +221,16 @@ export async function updateProfile(data: {
   }
 
   revalidatePath("/settings");
+  revalidatePath("/profile");
   revalidatePath("/explore");
 }
 
 export async function updateAvatar(avatarUrl: string): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const user = await getCurrentUser();
 
-  await db
-    .update(users)
-    .set({ avatarUrl, updatedAt: new Date() })
-    .where(eq(users.id, session.user.id));
+  await db.update(users).set({ avatarUrl, updatedAt: new Date() }).where(eq(users.id, user.id));
 
   revalidatePath("/settings");
+  revalidatePath("/profile");
   revalidatePath("/explore");
 }
