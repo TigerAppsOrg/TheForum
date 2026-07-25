@@ -19,6 +19,7 @@ build/
 !.env.example
 !**/.env.example
 !**/env.local.example
+.forum_venv/
 
 # ---- Database ----
 drizzle/

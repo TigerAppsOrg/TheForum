@@ -1,0 +1,41 @@
+name: Scrape WhitmanWire
+
+on:
+  schedule:
+    # Runs at 8:00 AM UTC (4:00 AM Eastern Time) every day
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allows you to click a "Run workflow" button in GitHub's UI
+
+jobs:
+  scrape-and-commit:
+    runs-on: ubuntu-latest
+    # This permission is required so the bot can push the JSON file back to your repo
+    permissions:
+      contents: write 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # The script uses standard libraries, so this is fine
+
+      - name: Run Scraper
+        env:
+          # Pulls securely from GitHub Secrets
+          LISTSERV_EMAIL: ${{ secrets.LISTSERV_EMAIL }}
+          LISTSERV_PASSWORD: ${{ secrets.LISTSERV_PASSWORD }}
+        run: |
+          python3 apps/listserv-scraper/src/scrape_listserv.py --list WHITMANWIRE --limit 100 --fetch-bodies
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage the specific data folder where the script saves its output
+          git add apps/listserv-scraper/data/
+          # Commit the changes; if there are no new emails, it fails gracefully instead of crashing
+          git commit -m "chore: update WhitmanWire scraped data" || echo "No changes to commit"
+          git push

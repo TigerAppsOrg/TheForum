@@ -10,29 +10,35 @@ import {
   timestamp,
   uuid,
   varchar,
+  vector,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ─────────────────────────────────────────────────
 
+// YUBI has modified event tags
 export const eventTagEnum = pgEnum("event_tag", [
-  "free-food",
-  "workshop",
-  "performance",
-  "speaker",
-  "social",
+  "free food",
   "career",
-  "sports",
-  "music",
-  "art",
-  "academic",
-  "cultural",
-  "community-service",
-  "religious",
-  "political",
+  "research",
+  "academics",
   "tech",
+  "entrepreneurship",
+  "politics",
+  "visual arts",
+  "performing arts",
+  "literature",
+  "culture",
+  "music",
   "gaming",
-  "outdoor",
+  "athletics",
+  "religion",
+  "sustainability",
+  "outdoors",
   "wellness",
+  "community service",
+  "speaker event",
+  "social event",
+  "stem",
 ]);
 
 export const campusRegionEnum = pgEnum("campus_region", [
@@ -59,14 +65,14 @@ export const notificationTypeEnum = pgEnum("notification_type", [
 export const orgCategoryEnum = pgEnum("org_category", [
   "career",
   "affinity",
-  "performance",
-  "academic",
-  "athletic",
-  "social",
-  "cultural",
-  "religious",
-  "political",
-  "service",
+  "performing arts",
+  "academics",
+  "athletics",
+  "social event",
+  "culture",
+  "religion",
+  "politics",
+  "community service",
 ]);
 
 export const orgRoleEnum = pgEnum("org_role", ["owner", "officer", "member"]);
@@ -219,6 +225,11 @@ export const eventTags = pgTable(
   (t) => [primaryKey({ columns: [t.eventId, t.tag] })],
 );
 
+export const eventTagEmbeddings = pgTable("event_tag_embeddings", {
+  tagName: eventTagEnum("tag_name").primaryKey(),
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+});
+
 export const rsvps = pgTable(
   "rsvps",
   {
@@ -278,6 +289,7 @@ export const pipelineLogStatusEnum = pgEnum("pipeline_log_status", [
   "skipped_not_event",
   "duplicate",
   "error",
+  "needs_review",
 ]);
 
 export const listservConfigs = pgTable("listserv_configs", {

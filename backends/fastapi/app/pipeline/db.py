@@ -294,3 +294,21 @@ def get_pipeline_status() -> dict:
                 "FROM pipeline_logs"
             )
             return dict(cur.fetchone())
+
+# YUBI ADD FUNCTION TO GET EMBEDDINGS OF CATEGORY TAGS FROM DATABASE
+def get_tag_embeddings() -> list[dict]:
+    """
+    Returns:
+    [
+        {"tag": "music", "embedding": [...]},
+        {"tag": "career", "embedding": [...]}
+    ]
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Cast to float[] so psycopg2 parses the pgvector type into a Python list automatically
+            cur.execute(
+                "SELECT tag_name AS tag, embedding::real[] AS embedding "
+                "FROM event_tag_embeddings;"
+            )
+            return [dict(r) for r in cur.fetchall()]
