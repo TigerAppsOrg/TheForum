@@ -385,12 +385,10 @@ export async function getFeedEvents(params?: {
     return a._rawDatetime.getTime() - b._rawDatetime.getTime();
   });
 
-  // Cap events per org — anything past the cap keeps its score order, just later.
+  // Cap events per org
   const ranked = diversifyByOrg(enriched, ORG_DIVERSITY_CAP);
 
-  // Guarantee SOON_QUOTA imminent events on the first page by merging them
-  // in rather than overriding score order outright — this only backfills
-  // what score order left out.
+  // Guarantee SOON_QUOTA imminent events on the first page
   let page = ranked.slice(offset, offset + limit);
   if (offset === 0) {
     const isSoon = (e: (typeof ranked)[number]) =>
