@@ -131,16 +131,3 @@ live at the top of `events.ts`.
 
 None of these throw or produce an empty feed — a brand-new user with zero signals still gets
 a full feed, ranked by time proximity, recency, popularity, and the random nudge alone.
-
-## Not implemented (deferred)
-
-- **Cursor-based pagination** — the API still uses offset/limit; Explore doesn't paginate
-  past the first page today, so this hasn't been needed yet.
-- **Behavioral tag-weight blending & nightly aggregation job** — `user_preference_vectors`
-  exists in the schema but is never read or written. Blending onboarding interests with
-  interaction history needs a batch job — real added infrastructure, deliberately out of
-  scope for this MVP pass. Popularity above is the lightweight, no-batch-job alternative.
-- **Similar Events / co-RSVP item-item similarity** — a separate feature, not part of
-  `getFeedEvents()`.
-- **Position-bias correction** (downweighting previously-seen items) — would need
-  per-request interaction-log reads; not implemented.
