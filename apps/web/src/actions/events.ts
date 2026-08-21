@@ -12,6 +12,7 @@ import {
   gt,
   ilike,
   inArray,
+  interactions,
   lt,
   ne,
   notifications,
@@ -43,6 +44,61 @@ export interface FeedEvent {
   friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[];
   isRsvped: boolean;
   isSaved: boolean;
+}
+
+// Upcoming events scored before slicing out the requested page — must be
+// well above any realistic page size so personalization has real candidates
+// to work with. See docs/ranking.md.
+const CANDIDATE_POOL_SIZE = 100;
+
+// An event is "soon" if it's within this many days. The first page always
+// includes at least SOON_QUOTA such events, even if their score is weak.
+const SOON_WINDOW_DAYS = 1;
+const SOON_QUOTA = 3;
+
+// Max events from one org before the rest get pushed later in the ranking.
+const ORG_DIVERSITY_CAP = 3;
+
+// Org affinity when you've RSVP'd to the org before but don't follow/belong
+// to it (full affinity is 1.0).
+const ORG_PAST_INTERACTION_AFFINITY = 0.5;
+
+// View count treated as "maximally popular" (log-scaled, caps at 1.0).
+const POPULARITY_VIEW_CAP = 50;
+const POPULARITY_WEIGHT = 0.5;
+
+// Small per-event nudge, seeded per user-per-day (not per request) so it
+// varies the feed over time without ever reshuffling on refresh.
+const RANDOM_WEIGHT = 0.5;
+
+// Deterministic pseudo-random value in [0, 1) for a seed string.
+function seededRandom(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0) / 0xffffffff;
+}
+
+function diversifyByOrg<T extends { orgId: string | null }>(list: T[], cap: number): T[] {
+  const counts = new Map<string, number>();
+  const primary: T[] = [];
+  const deferred: T[] = [];
+  for (const item of list) {
+    if (!item.orgId) {
+      primary.push(item);
+      continue;
+    }
+    const count = counts.get(item.orgId) ?? 0;
+    if (count < cap) {
+      counts.set(item.orgId, count + 1);
+      primary.push(item);
+    } else {
+      deferred.push(item);
+    }
+  }
+  return [...primary, ...deferred];
 }
 
 export async function getFeedEvents(params?: {
@@ -95,6 +151,20 @@ export async function getFeedEvents(params?: {
     ...followedOrgRows.map((o) => o.orgId),
     ...memberOrgRows.map((o) => o.orgId),
   ]);
+
+  // Orgs the user has RSVP'd to before but doesn't follow/belong to — a
+  // weaker org-affinity signal than myOrgIds.
+  const interactedOrgRows = await db
+    .select({ orgId: events.orgId })
+    .from(rsvps)
+    .innerJoin(events, eq(rsvps.eventId, events.id))
+    .where(eq(rsvps.userId, userId));
+  const interactedOrgIds = new Set(
+    interactedOrgRows.map((r) => r.orgId).filter((id): id is string => id !== null),
+  );
+
+  // Day string (UTC) that seeds the random nudge — flips once a day.
+  const today = new Date().toISOString().slice(0, 10);
 
   // Build base query conditions — only show published events in the feed
   const conditions = [gt(events.datetime, new Date()), eq(events.status, "published")];
@@ -157,7 +227,9 @@ export async function getFeedEvents(params?: {
     .where(and(...conditions));
   const total = countResult?.count ?? 0;
 
-  // Fetch events with scoring
+  // Score a bounded pool of upcoming events, not just the requested page —
+  // otherwise personalization could never surface anything past the
+  // soonest `limit` events. See docs/ranking.md.
   const rawEvents = await db
     .select({
       id: events.id,
@@ -175,17 +247,13 @@ export async function getFeedEvents(params?: {
     .leftJoin(organizations, eq(events.orgId, organizations.id))
     .where(and(...conditions))
     .orderBy(events.datetime)
-    .limit(limit)
-    .offset(offset);
+    .limit(CANDIDATE_POOL_SIZE);
 
-  // Enrich each event with tags, rsvp counts, friend attendance, user state
-  //
-  // Ranking, in plain English: an event scores higher if (1) its tags match
-  // your interests, (2) it's happening soon, (3) friends of yours are
-  // attending, (4) it belongs to an org you follow or belong to, or (5) it
-  // was posted recently. Scores are deterministic — no randomness — so
-  // refreshing Explore without new data (RSVPs, new events, etc.) never
-  // reorders the feed. Ties break by soonest event first.
+  // Enrich each event with tags, rsvp counts, friend attendance, user state,
+  // and a weighted relevance score (interests, timing, friends, org
+  // affinity, recency, popularity, a small daily nudge). Full breakdown,
+  // including the org-diversity cap and soon-event guarantee applied below:
+  // docs/ranking.md.
   const enriched: (FeedEvent & { score: number; _rawDatetime: Date })[] = await Promise.all(
     rawEvents.map(async (event) => {
       // Get tags
@@ -199,6 +267,18 @@ export async function getFeedEvents(params?: {
         .select({ count: sql<number>`count(*)::int` })
         .from(rsvps)
         .where(eq(rsvps.eventId, event.id));
+
+      // Get view count for the popularity signal
+      const [viewCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(interactions)
+        .where(
+          and(
+            eq(interactions.itemId, event.id),
+            eq(interactions.itemType, "event"),
+            eq(interactions.interactionType, "view"),
+          ),
+        );
 
       // Get friends attending
       let friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[] = [];
@@ -230,8 +310,7 @@ export async function getFeedEvents(params?: {
       // Score for sorting
       const tagNames = tags.map((t) => t.tag);
 
-      // Fraction of this event's tags that match the user's interests — how
-      // relevant is this event to you, not how much of your profile it covers.
+      // Fraction of this event's tags that match your interests.
       const matchedTags = tagNames.filter((t) => myInterestTags.includes(t)).length;
       const interestRelevance =
         myInterestTags.length === 0
@@ -243,30 +322,41 @@ export async function getFeedEvents(params?: {
       const now = Date.now();
       const eventTime = event.datetime.getTime();
       const daysUntil = (eventTime - now) / (1000 * 60 * 60 * 24);
-      const timeProximity =
-        daysUntil <= 1
-          ? 1.0
-          : daysUntil <= 3
-            ? 0.8
-            : daysUntil <= 7
-              ? 0.6
-              : daysUntil <= 14
-                ? 0.3
-                : 0.1;
+      // Half-life decay: 1.0 right now, halving every 4 days out.
+      const timeProximity = 2 ** (-daysUntil / 4);
 
       const friendRsvpScore = Math.min(1.0, friendsAttending.length / 3.0);
 
-      const orgAffinity = event.orgId && myOrgIds.has(event.orgId) ? 1.0 : 0.0;
+      // Full affinity if you follow/belong to the org, weaker if you've
+      // just RSVP'd to it before.
+      const orgAffinity = !event.orgId
+        ? 0
+        : myOrgIds.has(event.orgId)
+          ? 1.0
+          : interactedOrgIds.has(event.orgId)
+            ? ORG_PAST_INTERACTION_AFFINITY
+            : 0;
 
       const hoursSinceCreated = (now - event.createdAt.getTime()) / (1000 * 60 * 60);
       const recencyBoost = hoursSinceCreated <= 24 ? 1.0 : hoursSinceCreated <= 72 ? 0.5 : 0.0;
+
+      // Log-scaled view count, capped at 1.0 around POPULARITY_VIEW_CAP.
+      const popularityScore = Math.min(
+        1.0,
+        Math.log((viewCount?.count ?? 0) + 1) / Math.log(POPULARITY_VIEW_CAP + 1),
+      );
+
+      // Deterministic per user-per-day-per-event nudge — see RANDOM_WEIGHT.
+      const randomNudge = seededRandom(`${userId}:${today}:${event.id}`);
 
       const score =
         3.0 * interestRelevance +
         2.0 * timeProximity +
         4.0 * friendRsvpScore +
         1.0 * orgAffinity +
-        1.0 * recencyBoost;
+        1.0 * recencyBoost +
+        POPULARITY_WEIGHT * popularityScore +
+        RANDOM_WEIGHT * randomNudge;
 
       return {
         id: event.id,
@@ -288,15 +378,44 @@ export async function getFeedEvents(params?: {
     }),
   );
 
-  // Sort by score descending; ties break by soonest event first, so
-  // refreshing Explore with no new data never reorders the feed.
+  // Sort by score descending; ties break by soonest first, so refreshing
+  // with no new data never reorders the feed.
   enriched.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return a._rawDatetime.getTime() - b._rawDatetime.getTime();
   });
 
+  // Cap events per org — anything past the cap keeps its score order, just later.
+  const ranked = diversifyByOrg(enriched, ORG_DIVERSITY_CAP);
+
+  // Guarantee SOON_QUOTA imminent events on the first page by merging them
+  // in rather than overriding score order outright — this only backfills
+  // what score order left out.
+  let page = ranked.slice(offset, offset + limit);
+  if (offset === 0) {
+    const isSoon = (e: (typeof ranked)[number]) =>
+      (e._rawDatetime.getTime() - Date.now()) / (1000 * 60 * 60 * 24) <= SOON_WINDOW_DAYS;
+
+    const soonInPage = page.filter(isSoon).length;
+    if (soonInPage < SOON_QUOTA) {
+      const pageIds = new Set(page.map((e) => e.id));
+      const missingSoon = ranked
+        .filter((e) => isSoon(e) && !pageIds.has(e.id))
+        .slice(0, SOON_QUOTA - soonInPage);
+
+      if (missingSoon.length > 0) {
+        const merged = [...page];
+        const stride = Math.max(1, Math.floor(merged.length / (missingSoon.length + 1)));
+        missingSoon.forEach((event, i) => {
+          merged.splice(Math.min(merged.length, stride * (i + 1)), 0, event);
+        });
+        page = merged.slice(0, limit);
+      }
+    }
+  }
+
   return {
-    events: enriched.map(({ score: _score, _rawDatetime, ...event }) => event),
+    events: page.map(({ score: _score, _rawDatetime, ...event }) => event),
     total,
   };
 }
