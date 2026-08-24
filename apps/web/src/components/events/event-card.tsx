@@ -4,8 +4,8 @@ import { Bookmark, BookmarkCheck, Clock, MapPin, Maximize2, Share2 } from "lucid
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { logInteraction } from "~/actions/interactions";
-import { EventCoverArt } from "~/components/events/event-cover-art";
 import { AvatarStack } from "~/components/social/avatar-stack";
+import { Button } from "~/components/ui/button";
 
 export const CATEGORY_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
   "visual arts": { bg: "rgba(255,156,133,0.1)", accent: "#fb923c", text: "#9a3412" },
@@ -77,7 +77,6 @@ export function EventCard({
   source = "feed",
   position,
 }: EventCardProps) {
-  const color = getCategoryColor(tags);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const displayedFriendNames = friendsAttending.slice(0, 2).map((friend) => friend.displayName);
@@ -119,13 +118,18 @@ export function EventCard({
   return (
     <div
       ref={cardRef}
-      className="flex flex-col gap-0.5 card rounded-xl overflow-hidden relative group px-5 py-5 w-5/12"
+      /* Width is owned by the parent list/grid — the card fills its slot so it
+         renders identically on Explore, My Events, Map and org pages. */
+      className="card group relative flex w-full flex-col gap-0.5 overflow-hidden rounded-xl px-5 py-5"
     >
       {/* Expand, Save & Share */}
       <div className="flex flex-row justify-between">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={isSaved ? `Unsave ${title}` : `Save ${title}`}
+            aria-pressed={isSaved}
             onClick={(e) => {
               e.preventDefault();
               logInteraction({
@@ -135,16 +139,17 @@ export function EventCard({
               });
               onSaveToggle?.();
             }}
-            className="icon p-0.5 hover:text-forum-dark-gray transition-color"
           >
             {isSaved ? (
-              <BookmarkCheck size={15} className="text-forum-cerulean" />
+              <BookmarkCheck className="text-forum-cerulean" />
             ) : (
-              <Bookmark size={15} className="icon" />
+              <Bookmark className="text-forum-dark-gray" />
             )}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Share ${title}`}
             onClick={(e) => {
               e.preventDefault();
               logInteraction({
@@ -154,17 +159,16 @@ export function EventCard({
               });
               onShare?.();
             }}
-            className="icon"
           >
-            <Share2 size={13} className="icon" />
-          </button>
+            <Share2 className="text-forum-dark-gray" />
+          </Button>
         </div>
         {/* Expand button */}
-        <div className="relative z-10 flex items-center gap-0.25 justify-end">
-          <Link href={`/events/${id}`} onClick={trackClick} className="icon">
-            <Maximize2 size={16} />
+        <Button asChild variant="ghost" size="icon-sm" aria-label={`Open ${title}`}>
+          <Link href={`/events/${id}`} onClick={trackClick}>
+            <Maximize2 className="text-forum-dark-gray" />
           </Link>
-        </div>
+        </Button>
       </div>
       <div className="flex py-5 gap-3">
         {/* Content */}
@@ -225,8 +229,7 @@ export function EventCard({
             {tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="px-[8px] py-[1px] rounded-[10px] text-[12px] font-dm-sans text-black"
-                style={{ background: "rgba(254,232,130,0.5)" }}
+                className="rounded-[10px] bg-forum-yellow-50 px-[8px] py-[1px] font-dm-sans text-[12px] text-black"
               >
                 {tag}
               </span>
@@ -273,8 +276,10 @@ export function EventCard({
 
         {/* RSVP */}
         <div className="flex justify-end">
-          <button
-            type="button"
+          <Button
+            variant={isRsvped ? "solid" : "coral"}
+            size="sm"
+            aria-pressed={isRsvped}
             onClick={(e) => {
               e.preventDefault();
               logInteraction({
@@ -284,14 +289,9 @@ export function EventCard({
               });
               onRsvpToggle?.();
             }}
-            className={`self-end w-fit button-coral ${
-              isRsvped
-                ? "bg-forum-dark-gray text-white"
-                : "bg-forum-coral/90 text-white transition-colors duration-400 hover:bg-forum-coral"
-            }`}
           >
-            {isRsvped ? "RSVP'D" : "RSVP"}
-          </button>
+            {isRsvped ? "RSVP'd" : "RSVP"}
+          </Button>
         </div>
       </div>
     </div>

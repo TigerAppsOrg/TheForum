@@ -21,6 +21,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { type EventDetail, updateEvent } from "~/actions/events";
 import { getPresignedUploadUrl } from "~/actions/upload";
+import { PageShell } from "~/components/layout/page-shell";
+import { Button } from "~/components/ui/button";
 import { Calendar } from "~/components/ui/calendar";
 import { Input } from "~/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
@@ -163,33 +165,21 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
   };
 
   return (
-    <div className="px-[40px] py-[20px] max-w-[1100px] mx-auto">
+    <PageShell width="wide">
       {/* Top buttons */}
-      <div className="flex items-center justify-between mb-[30px] pr-[100px]">
-        <div className="flex items-center gap-[10px]">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-[16px] py-[8px] border border-forum-medium-gray rounded-[6px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors"
-          >
-            CANCEL
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-[5px] px-[16px] py-[8px] border border-forum-medium-gray rounded-[20px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors"
-          >
-            <Eye size={13} />
-            PREVIEW
-          </button>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3 pr-[100px]">
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" size="sm" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button variant="outline" size="sm">
+            <Eye />
+            Preview
+          </Button>
         </div>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="px-[24px] py-[10px] bg-forum-cerulean text-white text-[12px] font-bold font-dm-sans rounded-[6px] tracking-wider hover:opacity-90 disabled:opacity-50 transition-all"
-        >
-          {isPending ? "SAVING..." : "SAVE CHANGES"}
-        </button>
+        <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+          {isPending ? "Saving…" : "Save changes"}
+        </Button>
       </div>
 
       <div className="flex gap-[40px]">
@@ -293,12 +283,12 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 placeholder="Super Interesting Event Title"
                 className={cn(
                   "flex-1 text-[32px] font-serif font-bold text-black placeholder:text-forum-placeholder/40 outline-none",
-                  errors.title && "placeholder:text-red-300",
+                  errors.title && "placeholder:text-forum-coral/60",
                 )}
               />
               <Pencil size={16} className="text-forum-cerulean flex-shrink-0 ml-2" />
             </div>
-            {errors.title && <p className="text-[11px] text-red-400 mt-1">{errors.title}</p>}
+            {errors.title && <p className="text-[11px] text-forum-coral mt-1">{errors.title}</p>}
           </div>
 
           {/* Event Description */}
@@ -316,11 +306,11 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
               rows={8}
               className={cn(
                 "border border-forum-medium-gray rounded-[8px] text-[14px] font-dm-sans placeholder:text-forum-placeholder resize-none focus:border-forum-cerulean",
-                errors.description && "border-red-400",
+                errors.description && "border-forum-coral",
               )}
             />
             {errors.description && (
-              <p className="text-[11px] text-red-400 mt-1">{errors.description}</p>
+              <p className="text-[11px] text-forum-coral mt-1">{errors.description}</p>
             )}
           </div>
 
@@ -338,7 +328,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                       className={cn(
                         "flex items-center gap-2 h-[40px] px-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans",
                         date ? "text-black" : "text-forum-placeholder",
-                        errors.date && "border-red-400",
+                        errors.date && "border-forum-coral",
                       )}
                     >
                       <CalendarIcon size={14} />
@@ -356,7 +346,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                     />
                   </PopoverContent>
                 </Popover>
-                {errors.date && <p className="text-[11px] text-red-400 mt-1">{errors.date}</p>}
+                {errors.date && <p className="text-[11px] text-forum-coral mt-1">{errors.date}</p>}
               </div>
               <div>
                 <span className="text-[13px] font-bold text-forum-coral block mb-[6px]">
@@ -405,7 +395,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                     placeholder="Search by keyword or address"
                     className={cn(
                       "w-full h-[40px] pl-[34px] pr-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans outline-none focus:border-forum-cerulean",
-                      errors.location && "border-red-400",
+                      errors.location && "border-forum-coral",
                     )}
                   />
                 </div>
@@ -426,7 +416,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                         "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
                         locationId === loc.id
                           ? "bg-forum-turquoise/20 text-black"
-                          : "text-forum-dark-gray hover:bg-gray-50",
+                          : "text-forum-dark-gray hover:bg-forum-turquoise/10",
                       )}
                     >
                       {loc.name}
@@ -435,7 +425,9 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 </div>
               </PopoverContent>
             </Popover>
-            {errors.location && <p className="text-[11px] text-red-400 mt-1">{errors.location}</p>}
+            {errors.location && (
+              <p className="text-[11px] text-forum-coral mt-1">{errors.location}</p>
+            )}
           </div>
 
           {/* Visibility */}
@@ -529,25 +521,20 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Bottom actions */}
-          <div className="flex items-center justify-between pt-[20px] border-t border-forum-medium-gray mb-[40px]">
-            <button
-              type="button"
+          <div className="mb-10 flex flex-wrap items-center justify-between gap-3 border-t border-forum-medium-gray pt-5">
+            <Button
+              variant="quiet"
+              size="sm"
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="flex items-center gap-[4px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider"
             >
-              <ArrowUp size={12} /> BACK TO TOP
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isPending}
-              className="px-[24px] py-[10px] bg-forum-cerulean text-white text-[12px] font-bold font-dm-sans rounded-[6px] tracking-wider hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {isPending ? "SAVING..." : "SAVE CHANGES"}
-            </button>
+              <ArrowUp /> Back to top
+            </Button>
+            <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+              {isPending ? "Saving…" : "Save changes"}
+            </Button>
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

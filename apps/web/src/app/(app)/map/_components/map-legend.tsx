@@ -1,22 +1,30 @@
+import { Panel } from "~/components/common/panel";
 import { FUTURE_COLOR, NOW_COLOR } from "../_lib/map-constants";
+
+const ENTRIES = [
+  { label: "Now", color: NOW_COLOR },
+  { label: "Future", color: FUTURE_COLOR },
+];
 
 export function MapLegend() {
   return (
-    <div className="bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-black/5 border border-gray-200/60 px-3 py-2 flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span
-          className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
-          style={{ backgroundColor: NOW_COLOR }}
-        />
-        <span className="text-xs font-semibold text-gray-600">NOW</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
-          style={{ backgroundColor: FUTURE_COLOR }}
-        />
-        <span className="text-xs font-semibold text-gray-600">FUTURE</span>
-      </div>
-    </div>
+    <Panel
+      elevation="floating"
+      className="flex flex-col gap-1.5 px-3 py-2"
+      aria-label="Map pin legend"
+    >
+      {ENTRIES.map(({ label, color }) => (
+        <div key={label} className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="size-3 rounded-full border-2 border-white shadow-sm"
+            style={{ backgroundColor: color }}
+          />
+          <span className="font-dm-sans text-xs font-semibold uppercase text-forum-dark-gray">
+            {label}
+          </span>
+        </div>
+      ))}
+    </Panel>
   );
 }

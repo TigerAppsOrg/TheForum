@@ -24,8 +24,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { createEvent } from "~/actions/events";
 import { getPresignedUploadUrl } from "~/actions/upload";
+import { FilterChip } from "~/components/common/filter-chip";
 import { CoverPresetsPicker } from "~/components/events/cover-presets";
 import { EventPreviewModal } from "~/components/events/event-preview-modal";
+import { PageShell } from "~/components/layout/page-shell";
+import { Button } from "~/components/ui/button";
 import { Calendar } from "~/components/ui/calendar";
 import { Input } from "~/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
@@ -219,35 +222,21 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   const handleSaveDraft = () => doCreate("draft");
 
   return (
-    <div className="px-[40px] py-[20px] max-w-[1100px] mx-auto">
+    <PageShell width="wide">
       {/* Top buttons */}
-      <div className="flex items-center justify-between mb-[30px]">
-        <div className="flex items-center gap-[10px]">
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={isPending}
-            className="px-[16px] py-[8px] border border-forum-medium-gray rounded-[6px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray disabled:opacity-50 transition-colors"
-          >
-            {isPending ? "SAVING..." : "SAVE AS DRAFT"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPreview(true)}
-            className="flex items-center gap-[5px] px-[16px] py-[8px] border border-forum-medium-gray rounded-[20px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors"
-          >
-            <Eye size={13} />
-            PREVIEW
-          </button>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={isPending}>
+            {isPending ? "Saving…" : "Save as draft"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
+            <Eye />
+            Preview
+          </Button>
         </div>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="px-[24px] py-[10px] bg-forum-cerulean text-white text-[12px] font-bold font-dm-sans rounded-[6px] tracking-wider hover:opacity-90 disabled:opacity-50 transition-all"
-        >
-          {isPending ? "PUBLISHING..." : "PUBLISH"}
-        </button>
+        <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+          {isPending ? "Publishing…" : "Publish"}
+        </Button>
       </div>
 
       <div className="flex gap-[40px]">
@@ -359,12 +348,12 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 placeholder="Super Interesting Event Title"
                 className={cn(
                   "flex-1 text-[32px] font-serif font-bold text-black placeholder:text-forum-placeholder/40 outline-none",
-                  errors.title && "placeholder:text-red-300",
+                  errors.title && "placeholder:text-forum-coral/60",
                 )}
               />
               <Pencil size={16} className="text-forum-cerulean flex-shrink-0 ml-2" />
             </div>
-            {errors.title && <p className="text-[11px] text-red-400 mt-1">{errors.title}</p>}
+            {errors.title && <p className="text-[11px] text-forum-coral mt-1">{errors.title}</p>}
           </div>
 
           {/* ── Affiliate Organizations ── */}
@@ -398,7 +387,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                     <button
                       type="button"
                       onClick={() => setSelectedOrgId(PERSONAL_ORG_VALUE)}
-                      className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-gray-50"
+                      className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-forum-turquoise/10"
                     >
                       None (Personal)
                     </button>
@@ -433,11 +422,11 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
               rows={8}
               className={cn(
                 "border border-forum-medium-gray rounded-[8px] text-[14px] font-dm-sans placeholder:text-forum-placeholder resize-none focus:border-forum-cerulean",
-                errors.description && "border-red-400",
+                errors.description && "border-forum-coral",
               )}
             />
             {errors.description && (
-              <p className="text-[11px] text-red-400 mt-1">{errors.description}</p>
+              <p className="text-[11px] text-forum-coral mt-1">{errors.description}</p>
             )}
           </div>
 
@@ -455,7 +444,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                       className={cn(
                         "flex items-center gap-2 h-[40px] px-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans",
                         date ? "text-black" : "text-forum-placeholder",
-                        errors.date && "border-red-400",
+                        errors.date && "border-forum-coral",
                       )}
                     >
                       <CalendarIcon size={14} />
@@ -474,7 +463,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                     />
                   </PopoverContent>
                 </Popover>
-                {errors.date && <p className="text-[11px] text-red-400 mt-1">{errors.date}</p>}
+                {errors.date && <p className="text-[11px] text-forum-coral mt-1">{errors.date}</p>}
               </div>
               <div>
                 <span className="text-[13px] font-bold text-forum-coral block mb-[6px]">
@@ -525,7 +514,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                         placeholder="Search by keyword or address"
                         className={cn(
                           "w-full h-[40px] pl-[34px] pr-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans outline-none focus:border-forum-cerulean",
-                          errors.location && "border-red-400",
+                          errors.location && "border-forum-coral",
                         )}
                       />
                     </div>
@@ -549,7 +538,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                             "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
                             locationId === loc.id
                               ? "bg-forum-turquoise/20 text-black"
-                              : "text-forum-dark-gray hover:bg-gray-50",
+                              : "text-forum-dark-gray hover:bg-forum-turquoise/10",
                           )}
                         >
                           {loc.name}
@@ -559,7 +548,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                   </PopoverContent>
                 </Popover>
                 {errors.location && (
-                  <p className="text-[11px] text-red-400 mt-1">{errors.location}</p>
+                  <p className="text-[11px] text-forum-coral mt-1">{errors.location}</p>
                 )}
               </div>
               {/* Map placeholder */}
@@ -590,7 +579,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                    <div className="w-full h-full flex items-center justify-center bg-forum-medium-gray">
                       <FileText size={24} className="text-forum-light-gray" />
                     </div>
                   )}
@@ -646,43 +635,40 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                   className="w-full h-[40px] pl-[34px] pr-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans outline-none focus:border-forum-cerulean"
                 />
               </div>
-              <button
-                type="button"
-                className="h-[40px] px-[16px] rounded-[8px] border border-forum-cerulean text-forum-cerulean text-[12px] font-bold font-dm-sans hover:bg-forum-cerulean/5 transition-colors"
+              <Button
+                variant="outline"
+                className="border-forum-cerulean text-forum-cerulean hover:bg-forum-cerulean/5"
               >
                 Keyword
-              </button>
-              <button
-                type="button"
-                className="h-[40px] px-[16px] rounded-[8px] border border-forum-cerulean text-forum-cerulean text-[12px] font-bold font-dm-sans hover:bg-forum-cerulean/5 transition-colors"
+              </Button>
+              <Button
+                variant="outline"
+                className="border-forum-cerulean text-forum-cerulean hover:bg-forum-cerulean/5"
               >
                 Organization
-              </button>
+              </Button>
             </div>
-            <div className="flex flex-wrap gap-[6px]">
+            <div className="flex flex-wrap gap-2">
               {tags.map((tag) => (
-                <button
+                <FilterChip
                   key={tag}
-                  type="button"
+                  active
+                  aria-label={`Remove tag ${tag}`}
                   onClick={() => removeTag(tag)}
-                  className="flex items-center gap-[4px] h-[28px] px-[12px] rounded-[14px] bg-forum-cerulean text-white text-[11px] font-bold font-dm-sans"
                 >
                   {tag}
-                  <X size={11} />
-                </button>
+                  <X aria-hidden />
+                </FilterChip>
               ))}
             </div>
           </div>
 
           {/* ── External Links ── */}
           <div className="mb-[30px]">
-            <button
-              type="button"
-              className="flex items-center gap-[6px] mb-[10px] text-[13px] font-dm-sans text-forum-cerulean font-bold"
-            >
-              <Plus size={14} />
+            <Button variant="quiet" size="sm" className="mb-2.5 text-forum-cerulean">
+              <Plus />
               Add External Links
-            </button>
+            </Button>
             {externalLink ? (
               <div className="flex items-center gap-[8px]">
                 <Link2 size={14} className="text-forum-cerulean" />
@@ -692,9 +678,14 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 >
                   {externalLink}
                 </a>
-                <button type="button" onClick={() => setExternalLink("")}>
-                  <X size={12} className="text-forum-light-gray" />
-                </button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Remove external link"
+                  onClick={() => setExternalLink("")}
+                >
+                  <X className="text-forum-light-gray" />
+                </Button>
               </div>
             ) : (
               <div className="relative">
@@ -714,42 +705,28 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           </div>
 
           {/* ── Bottom actions ── */}
-          <div className="flex items-center justify-between pt-[20px] border-t border-forum-medium-gray mb-[40px]">
-            <div className="flex items-center gap-[16px]">
-              <button
-                type="button"
+          <div className="mb-10 flex flex-wrap items-center justify-between gap-3 border-t border-forum-medium-gray pt-5">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="quiet"
+                size="sm"
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                className="flex items-center gap-[4px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider"
               >
-                <ArrowUp size={12} />
-                BACK TO TOP
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPreview(true)}
-                className="flex items-center gap-[5px] px-[14px] py-[6px] border border-forum-medium-gray rounded-[20px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors"
-              >
-                <Eye size={12} />
-                PREVIEW
-              </button>
+                <ArrowUp />
+                Back to top
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
+                <Eye />
+                Preview
+              </Button>
             </div>
-            <div className="flex items-center gap-[10px]">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={isPending}
-                className="px-[16px] py-[8px] border border-forum-medium-gray rounded-[6px] text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray disabled:opacity-50 transition-colors"
-              >
-                {isPending ? "SAVING..." : "SAVE AS DRAFT"}
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isPending}
-                className="px-[24px] py-[10px] bg-forum-cerulean text-white text-[12px] font-bold font-dm-sans rounded-[6px] tracking-wider hover:opacity-90 disabled:opacity-50 transition-all"
-              >
-                {isPending ? "PUBLISHING..." : "PUBLISH"}
-              </button>
+            <div className="flex items-center gap-2.5">
+              <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={isPending}>
+                {isPending ? "Saving…" : "Save as draft"}
+              </Button>
+              <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+                {isPending ? "Publishing…" : "Publish"}
+              </Button>
             </div>
           </div>
         </div>
@@ -773,6 +750,6 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
         flyerPreview={flyerPreview}
         coverPreset={coverPreset}
       />
-    </div>
+    </PageShell>
   );
 }

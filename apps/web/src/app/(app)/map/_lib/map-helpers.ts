@@ -111,8 +111,8 @@ export const URGENCY_STYLES: Record<TimeGroup, { badge: string; text: string }> 
   now: { badge: "bg-[rgba(255,156,133,0.25)] text-[#FF7151]", text: "text-[#FF7151]" },
   soon: { badge: "bg-[rgba(254,232,130,0.5)] text-[#854d0e]", text: "text-[#854d0e]" },
   "later-today": { badge: "bg-[rgba(162,239,240,0.2)] text-[#0A9CD5]", text: "text-[#0A9CD5]" },
-  tomorrow: { badge: "bg-gray-100 text-[#585858]", text: "text-[#585858]" },
-  "this-week": { badge: "bg-gray-50 text-[#767676]", text: "text-[#767676]" },
+  tomorrow: { badge: "bg-forum-medium-gray text-forum-dark-gray", text: "text-[#585858]" },
+  "this-week": { badge: "bg-forum-medium-gray text-forum-light-gray", text: "text-[#767676]" },
 };
 
 /* ═══ Date helpers ═══ */

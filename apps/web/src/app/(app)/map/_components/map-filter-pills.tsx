@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart, Users, Zap } from "lucide-react";
-import { cn } from "~/lib/utils";
+import { FilterChip } from "~/components/common/filter-chip";
 import type { FilterKey } from "../map-client";
 
 interface MapFilterPillsProps {
@@ -17,26 +17,20 @@ const PILLS: { key: FilterKey; label: string; icon: typeof Users }[] = [
 
 export function MapFilterPills({ activeFilters, onToggle }: MapFilterPillsProps) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {PILLS.map(({ key, label, icon: Icon }) => {
-        const isActive = activeFilters.has(key);
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onToggle(key)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border shadow-sm",
-              isActive
-                ? "bg-sky-50 border-sky-200 text-sky-700 shadow-sky-100"
-                : "bg-white/95 backdrop-blur-xl border-gray-200/60 text-gray-600 hover:bg-gray-50 shadow-black/5",
-            )}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
-        );
-      })}
-    </div>
+    <fieldset className="flex flex-wrap items-center justify-center gap-2">
+      <legend className="sr-only">Filter map events</legend>
+      {PILLS.map(({ key, label, icon: Icon }) => (
+        <FilterChip
+          key={key}
+          active={activeFilters.has(key)}
+          onClick={() => onToggle(key)}
+          // Sits over the map, so the inactive state needs a backdrop of its own.
+          className="shadow-sm aria-[pressed=false]:bg-white/95 aria-[pressed=false]:backdrop-blur-sm"
+        >
+          <Icon aria-hidden />
+          {label}
+        </FilterChip>
+      ))}
+    </fieldset>
   );
 }

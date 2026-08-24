@@ -17,9 +17,28 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+
+        /*
+         * Forum variants. The app's real button languages, which previously
+         * lived as ~90 hand-rolled `<button className="h-[42px] bg-black …">`
+         * elements across the (app) routes. Radius is `rounded-lg` (10px, the
+         * --radius token) so every button agrees with the card corner.
+         */
+        /** Primary action: RSVP, Save, Create. */
+        cerulean: "rounded-lg bg-forum-cerulean text-white shadow-sm hover:bg-forum-cerulean/90",
+        /** High-contrast action on tinted surfaces. */
+        solid: "rounded-lg bg-black text-white hover:bg-forum-dark-gray",
+        /** Destructive / leave / remove. */
+        coral: "rounded-lg bg-forum-coral text-white hover:bg-forum-coral/90",
+        /** Secondary action sitting on white. */
+        soft: "rounded-lg bg-forum-turquoise-20 text-black hover:bg-forum-turquoise/40",
+        /** Tertiary, de-emphasized action. */
+        quiet: "rounded-lg text-forum-light-gray hover:bg-forum-turquoise/20 hover:text-black",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        /** Forum call-to-action: uppercase, tracked, 42px tall. */
+        cta: "h-[42px] rounded-lg px-8 font-dm-sans text-[13px] font-bold tracking-[0.08em] uppercase has-[>svg]:px-6",
         xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
         lg: "h-10 rounded-md px-6 has-[>svg]:px-4",

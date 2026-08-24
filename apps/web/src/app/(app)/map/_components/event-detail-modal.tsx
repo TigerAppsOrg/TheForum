@@ -3,6 +3,7 @@
 import { Bookmark, MapPin, Share2, X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { getEvent } from "~/actions/events";
+import { Button } from "~/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { getEventColor } from "../_lib/map-helpers";
 
@@ -51,8 +52,8 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
         {isPending || !event ? (
           <div className="flex items-center justify-center py-20">
             <div className="flex flex-col items-center gap-2">
-              <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-sky-500 animate-spin" />
-              <span className="text-xs text-gray-400">Loading event</span>
+              <div className="w-6 h-6 rounded-full border-2 border-forum-border border-t-sky-500 animate-spin" />
+              <span className="text-xs text-forum-light-gray">Loading event</span>
             </div>
           </div>
         ) : (
@@ -61,43 +62,33 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 {event.orgName && (
-                  <p className="text-xs font-medium text-gray-500 mb-1">{event.orgName}</p>
+                  <p className="text-xs font-medium text-forum-dark-gray mb-1">{event.orgName}</p>
                 )}
-                <h2 className="text-2xl font-bold text-gray-900 leading-tight">{event.title}</h2>
+                <h2 className="text-2xl font-bold text-black leading-tight">{event.title}</h2>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <Bookmark size={18} />
-                </button>
-                <button
-                  type="button"
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <Share2 size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <X size={18} />
-                </button>
+                <Button variant="ghost" size="icon-sm" aria-label="Save event">
+                  <Bookmark />
+                </Button>
+                <Button variant="ghost" size="icon-sm" aria-label="Share event">
+                  <Share2 />
+                </Button>
+                <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+                  <X />
+                </Button>
               </div>
             </div>
 
             {/* Location + time */}
-            <div className="flex items-center gap-4 mt-3 text-sm text-gray-600">
+            <div className="flex items-center gap-4 mt-3 text-sm text-forum-dark-gray">
               {event.locationName && (
                 <span className="flex items-center gap-1">
-                  <MapPin size={14} className="text-gray-400" />
+                  <MapPin size={14} className="text-forum-light-gray" />
                   {event.locationName}
                 </span>
               )}
               <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-forum-light-gray" />
                 {new Date(event.datetime).toLocaleDateString("en-US", {
                   weekday: "short",
                   month: "short",
@@ -131,16 +122,15 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
 
             {/* Description */}
             {event.description && (
-              <p className="mt-4 text-sm text-gray-600 leading-relaxed">{event.description}</p>
+              <p className="mt-4 text-sm text-forum-dark-gray leading-relaxed">
+                {event.description}
+              </p>
             )}
 
             {/* RSVP button */}
-            <button
-              type="button"
-              className="mt-6 w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm py-3 rounded-lg transition-colors uppercase tracking-wider"
-            >
-              RSVP NOW
-            </button>
+            <Button variant="cerulean" size="cta" className="mt-6 w-full">
+              RSVP now
+            </Button>
           </div>
         )}
       </DialogContent>

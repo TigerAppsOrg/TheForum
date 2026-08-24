@@ -24,8 +24,10 @@ import {
   toggleRsvp,
   toggleSave,
 } from "~/actions/events";
+import { Panel } from "~/components/common/panel";
 import { getCategoryColor } from "~/components/events/event-card";
 import { EventCoverArt } from "~/components/events/event-cover-art";
+import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import {
@@ -126,53 +128,47 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-[40px] py-[20px]">
+    <PageShell>
       {/* Back link */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="flex items-center gap-[6px] text-[14px] font-dm-sans text-forum-light-gray hover:text-forum-dark-gray transition-colors mb-[24px] group"
-      >
-        <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+      <Button variant="quiet" size="sm" onClick={() => router.back()} className="mb-6">
+        <ChevronLeft />
         Back
-      </button>
+      </Button>
 
       {/* Main content */}
-      <div className="flex gap-[40px]">
+      <div className="flex flex-wrap gap-10">
         {/* Left: Flyer */}
-        <div className="flex-shrink-0 w-[340px]">
-          <div className="rounded-[20px] overflow-hidden shadow-xl h-[440px]">
+        <div className="w-[340px] shrink-0">
+          <div className="h-[440px] overflow-hidden rounded-xl shadow-lg">
             {event.flyerUrl ? (
-              <img src={event.flyerUrl} alt={event.title} className="w-full h-full object-cover" />
+              <img src={event.flyerUrl} alt="" className="size-full object-cover" />
             ) : (
-              <EventCoverArt title={event.title} tags={event.tags} className="w-full h-full" />
+              <EventCoverArt title={event.title} tags={event.tags} className="size-full" />
             )}
           </div>
         </div>
 
         {/* Right: Event info */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Action buttons */}
-          <div className="flex items-center justify-between mb-[16px]">
-            <div className="flex items-center gap-[8px]">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               {event.isOwner && (
                 <>
-                  <Link href={`/events/${event.id}/edit`}>
-                    <button
-                      type="button"
-                      className="flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] border border-forum-medium-gray text-[12px] font-bold font-dm-sans text-forum-light-gray hover:border-forum-dark-gray transition-colors"
-                    >
-                      <Edit3 size={12} /> Edit
-                    </button>
-                  </Link>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/events/${event.id}/edit`}>
+                      <Edit3 /> Edit
+                    </Link>
+                  </Button>
                   <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
                     <DialogTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] border border-forum-coral/30 text-[12px] font-bold font-dm-sans text-forum-coral hover:bg-forum-coral/5 transition-colors"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-forum-coral/30 text-forum-coral hover:bg-forum-coral/5"
                       >
-                        <Trash2 size={12} /> Delete
-                      </button>
+                        <Trash2 /> Delete
+                      </Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
@@ -186,8 +182,8 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
                         <Button variant="outline" onClick={() => setDeleteOpen(false)}>
                           Cancel
                         </Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
-                          {isPending ? "Deleting..." : "Delete Event"}
+                        <Button variant="coral" onClick={handleDelete} disabled={isPending}>
+                          {isPending ? "Deleting…" : "Delete Event"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -195,42 +191,34 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
                 </>
               )}
             </div>
-            <div className="flex items-center gap-[8px]">
-              <a
-                href={buildGCalUrl(event)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] border border-forum-medium-gray text-[12px] font-bold font-dm-sans text-forum-light-gray hover:border-forum-dark-gray transition-colors"
-              >
-                <Calendar size={13} /> Calendar
-              </a>
-              <button
-                type="button"
-                onClick={handleShare}
-                className="flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] border border-forum-medium-gray text-[12px] font-bold font-dm-sans text-forum-light-gray hover:border-forum-dark-gray transition-colors"
-              >
-                <Share2 size={13} /> Share
-              </button>
-              <button
-                type="button"
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <a href={buildGCalUrl(event)} target="_blank" rel="noopener noreferrer">
+                  <Calendar /> Calendar
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleShare}>
+                <Share2 /> Share
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={isSaved}
                 onClick={handleSave}
                 className={cn(
-                  "flex items-center gap-[6px] px-[12px] py-[6px] rounded-[10px] border text-[12px] font-bold font-dm-sans transition-colors",
-                  isSaved
-                    ? "text-forum-cerulean border-forum-cerulean bg-forum-turquoise/10"
-                    : "text-forum-light-gray border-forum-medium-gray hover:border-forum-dark-gray",
+                  isSaved && "border-forum-cerulean bg-forum-turquoise/10 text-forum-cerulean",
                 )}
               >
-                {isSaved ? <BookmarkCheck size={13} /> : <Bookmark size={13} />}
+                {isSaved ? <BookmarkCheck /> : <Bookmark />}
                 {isSaved ? "Saved" : "Save"}
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Title */}
-          <h1 className="font-serif text-[36px] font-bold text-black leading-tight mb-[8px]">
+          <PageHeading className="text-[28px] font-bold leading-tight sm:text-[32px] lg:text-[36px]">
             {event.title}
-          </h1>
+          </PageHeading>
 
           {/* Org */}
           {event.orgName && (
@@ -296,19 +284,16 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
           </p>
 
           {/* RSVP button */}
-          <button
-            type="button"
-            onClick={handleRsvp}
+          <Button
+            variant={isRsvped ? "solid" : "coral"}
+            size="cta"
+            aria-pressed={isRsvped}
             disabled={isPending}
-            className={cn(
-              "w-full max-w-[300px] py-[12px] rounded-[10px] font-bold font-dm-sans text-[15px] transition-all",
-              isRsvped
-                ? "bg-forum-dark-gray text-white"
-                : "bg-forum-coral text-white hover:opacity-90",
-            )}
+            onClick={handleRsvp}
+            className="w-full max-w-[300px]"
           >
-            {isRsvped ? "CANCEL RSVP" : "RSVP NOW"}
-          </button>
+            {isRsvped ? "Cancel RSVP" : "RSVP now"}
+          </Button>
 
           {/* Attendees */}
           <div className="flex items-center gap-[12px] mt-[16px]">
@@ -339,22 +324,27 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
 
       {/* Similar Events */}
       {similarEvents.length > 0 && (
-        <div className="mt-[48px] pt-[24px] border-t border-forum-medium-gray">
-          <h2 className="font-serif text-[25px] text-black mb-[20px]">Similar Events</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-[16px]">
+        <section className="mt-12 border-t border-forum-medium-gray pt-6">
+          <SectionHeading>Similar Events</SectionHeading>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {similarEvents.map((se) => (
-              <Link key={se.id} href={`/events/${se.id}`} className="group">
-                <div className="rounded-[14px] overflow-hidden bg-forum-coral-bg hover:shadow-md transition-shadow h-[120px] p-[16px] flex flex-col justify-between">
-                  <p className="font-serif text-[16px] text-black leading-tight line-clamp-2">
+              <Panel
+                asChild
+                key={se.id}
+                size="sm"
+                className="h-[120px] bg-forum-coral-bg transition-colors hover:border-forum-cerulean"
+              >
+                <Link href={`/events/${se.id}`} className="flex flex-col justify-between">
+                  <p className="font-serif text-[16px] leading-tight text-black line-clamp-2">
                     {se.title}
                   </p>
-                  <p className="text-[12px] font-dm-sans text-forum-light-gray">{se.datetime}</p>
-                </div>
-              </Link>
+                  <p className="font-dm-sans text-[12px] text-forum-light-gray">{se.datetime}</p>
+                </Link>
+              </Panel>
             ))}
           </div>
-        </div>
+        </section>
       )}
-    </div>
+    </PageShell>
   );
 }

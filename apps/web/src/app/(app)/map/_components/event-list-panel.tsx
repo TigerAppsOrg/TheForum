@@ -1,10 +1,11 @@
 "use client";
 
-import { Clock, MapPin, Maximize2, X } from "lucide-react";
-import Link from "next/link";
+import { MapPin, Maximize2, X } from "lucide-react";
 import type { MapEvent } from "~/actions/map";
+import { EmptyState } from "~/components/common/states";
+import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import { URGENCY_STYLES, getEventColor, getRelativeLabel } from "../_lib/map-helpers";
+import { getEventColor } from "../_lib/map-helpers";
 
 interface EventListPanelProps {
   events: MapEvent[];
@@ -24,27 +25,23 @@ export function EventListPanel({
   return (
     <div className="flex flex-col h-full w-[380px]">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span className="text-sm font-semibold text-gray-800">
+      <div className="flex shrink-0 items-center justify-between border-b border-forum-medium-gray px-4 py-3">
+        <span className="font-dm-sans text-sm font-semibold text-black">
           {events.length} event{events.length !== 1 ? "s" : ""}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <X size={16} />
-        </button>
+        <Button variant="ghost" size="icon-sm" aria-label="Close event list" onClick={onClose}>
+          <X />
+        </Button>
       </div>
 
       {/* Event cards */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
         {events.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <MapPin size={20} className="text-gray-300 mb-2" />
-            <p className="text-sm font-medium text-gray-500">No events found</p>
-            <p className="text-xs text-gray-400 mt-0.5">Try adjusting your filters</p>
-          </div>
+          <EmptyState
+            icon={MapPin}
+            title="No events found"
+            description="Try adjusting your filters."
+          />
         )}
 
         {events.map((event) => (
@@ -72,31 +69,37 @@ function PanelEventCard({
   onLocate: () => void;
   onExpand: () => void;
 }) {
-  const color = getEventColor(event.tags);
-  const rel = getRelativeLabel(event.rawDatetime);
-  const urgency = URGENCY_STYLES[rel.urgency];
   const eventDate = new Date(event.rawDatetime);
 
   return (
-    <button
-      type="button"
+    /*
+     * The card was a <button> with a second <button> nested inside it for
+     * Expand — invalid HTML, and the inner control was unreachable in some
+     * browsers. The two actions are now siblings inside a plain container.
+     */
+    <div
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer",
-        isActive && "bg-sky-50/50 border-l-2 border-l-sky-400",
+        "border-b border-forum-medium-gray px-4 py-3 transition-colors hover:bg-forum-turquoise/10",
+        isActive && "border-l-2 border-l-forum-cerulean bg-forum-turquoise/15",
       )}
-      onClick={onLocate}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-bold text-gray-900 leading-tight truncate">{event.title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5">
+        <button
+          type="button"
+          onClick={onLocate}
+          className="min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+        >
+          <h4 className="truncate font-dm-sans text-sm font-bold leading-tight text-black">
+            {event.title}
+          </h4>
+          <p className="mt-0.5 font-dm-sans text-xs text-forum-dark-gray">
             {eventDate.toLocaleDateString("en-US", {
               weekday: "long",
               month: "short",
               day: "numeric",
             })}
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="font-dm-sans text-xs text-forum-dark-gray">
             {eventDate.toLocaleTimeString("en-US", {
               hour: "numeric",
               minute: "2-digit",
@@ -107,29 +110,28 @@ function PanelEventCard({
               minute: "2-digit",
             })}
           </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onExpand();
-          }}
-          className="shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <Maximize2 size={14} />
         </button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Open ${event.title}`}
+          onClick={onExpand}
+          className="shrink-0"
+        >
+          <Maximize2 />
+        </Button>
       </div>
 
       {/* Tags */}
       {event.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
+        <div className="mt-1.5 flex flex-wrap gap-1">
           {event.tags.slice(0, 3).map((tag) => {
             const tagColor = getEventColor([tag]);
             return (
               <span
                 key={tag}
-                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                className="rounded-full px-2 py-0.5 font-dm-sans text-[10px] font-semibold"
                 style={{ backgroundColor: tagColor.bg, color: tagColor.text }}
               >
                 {tag.replace(/-/g, " ")}
@@ -140,7 +142,11 @@ function PanelEventCard({
       )}
 
       {/* Org */}
-      {event.orgName && <p className="text-[11px] text-gray-400 mt-1 truncate">{event.orgName}</p>}
-    </button>
+      {event.orgName && (
+        <p className="mt-1 truncate font-dm-sans text-[11px] text-forum-light-gray">
+          {event.orgName}
+        </p>
+      )}
+    </div>
   );
 }

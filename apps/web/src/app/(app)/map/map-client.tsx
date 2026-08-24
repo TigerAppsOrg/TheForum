@@ -1,13 +1,9 @@
 "use client";
 
-import { Building2, CalendarDays, Home, LogOut, Map as MapIcon, Users } from "lucide-react";
-import { signOut } from "next-auth/react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { MapRef } from "react-map-gl/mapbox";
-import { type MapEvent, getMapEvents } from "~/actions/map";
+import type { MapEvent } from "~/actions/map";
 import { cn } from "~/lib/utils";
 import { getTimeGroup } from "./_lib/map-helpers";
 
@@ -17,10 +13,12 @@ const MapView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fixed inset-0 bg-gray-200 flex items-center justify-center z-40">
+      <div className="absolute inset-0 flex items-center justify-center bg-forum-medium-gray">
         <div className="flex flex-col items-center gap-2">
-          <div className="w-7 h-7 rounded-full border-2 border-gray-200 border-t-sky-500 animate-spin" />
-          <span className="text-xs text-gray-400 font-medium">Loading map</span>
+          <div className="size-7 animate-spin rounded-full border-2 border-forum-border border-t-forum-cerulean" />
+          <span className="font-dm-sans text-xs font-medium text-forum-light-gray">
+            Loading map
+          </span>
         </div>
       </div>
     ),
@@ -52,14 +50,6 @@ const EventDetailModal = dynamic(
 /* ═══ Filter types ═══ */
 export type FilterKey = "friends" | "now" | "attending";
 
-/* ═══ Floating mini-nav items ═══ */
-const NAV_ITEMS = [
-  { href: "/explore", icon: Home },
-  { href: "/events", icon: CalendarDays },
-  { href: "/map", icon: MapIcon },
-  { href: "/friends", icon: Users },
-];
-
 /* ═══ Component ═══ */
 interface MapClientProps {
   initialEvents: MapEvent[];
@@ -67,7 +57,6 @@ interface MapClientProps {
 
 export function MapClient({ initialEvents }: MapClientProps) {
   const mapRef = useRef<MapRef>(null);
-  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
   /* Data */
@@ -157,8 +146,13 @@ export function MapClient({ initialEvents }: MapClientProps) {
 
   return (
     <>
-      {/* ═══ FULL-BLEED MAP — covers entire viewport ═══ */}
-      <div className="fixed inset-0 z-40">
+      {/*
+        Fills the app shell's content area rather than the viewport. It used to
+        be `fixed inset-0 z-40` with its own floating mini-nav, which meant the
+        map painted over the docked Sidebar and the route had to opt out of the
+        standard chrome. It now shares the same nav as every other page.
+      */}
+      <div className="absolute inset-0 overflow-hidden rounded-[16px]">
         {/* Map fills everything */}
         <div className="absolute inset-0">
           <MapView
@@ -170,38 +164,10 @@ export function MapClient({ initialEvents }: MapClientProps) {
           />
         </div>
 
-        {/* ═══ Floating mini-nav (left side) ═══ */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col">
-          <div className="bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-black/10 border border-gray-200/60 flex flex-col overflow-hidden">
-            {NAV_ITEMS.map(({ href, icon: Icon }) => {
-              const isActive = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    "flex items-center justify-center w-11 h-11 transition-colors",
-                    isActive ? "bg-[#A2EFF0]/40 text-gray-900" : "text-gray-600 hover:bg-gray-100",
-                  )}
-                >
-                  <Icon size={20} strokeWidth={1.8} />
-                </Link>
-              );
-            })}
-          </div>
-          {/* Log out button */}
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="mt-2 flex items-center justify-center w-11 h-11 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-black/10 border border-gray-200/60 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <LogOut size={18} strokeWidth={1.8} />
-          </button>
-        </div>
-
         {/* ═══ Search bar + filter pills (top center) ═══ */}
-        <div className="absolute top-4 left-20 right-4 z-10 pointer-events-none">
-          <div className="pointer-events-auto flex flex-col gap-2 max-w-2xl mx-auto">
+        {/* The wider right inset on ≥sm clears the TopBar's bell + avatar. */}
+        <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:right-32">
+          <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
             <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
             <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />
           </div>
@@ -238,9 +204,9 @@ export function MapClient({ initialEvents }: MapClientProps) {
         {/* ═══ Loading overlay ═══ */}
         {isPending && (
           <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] flex items-center justify-center z-20 pointer-events-none">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/92 backdrop-blur-md shadow-lg border border-gray-200/60">
-              <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-              <span className="text-xs font-medium text-gray-600">Loading events</span>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/92 backdrop-blur-md shadow-lg border border-forum-border">
+              <div className="w-2 h-2 rounded-full bg-forum-cerulean animate-pulse" />
+              <span className="text-xs font-medium text-forum-dark-gray">Loading events</span>
             </div>
           </div>
         )}

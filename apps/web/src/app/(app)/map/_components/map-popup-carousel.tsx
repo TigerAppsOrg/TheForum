@@ -28,7 +28,7 @@ export function MapPopupCarousel({ events, onExpand }: MapPopupCarouselProps) {
               e.stopPropagation();
               setActiveIndex((i) => (i - 1 + events.length) % events.length);
             }}
-            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/90 shadow-sm border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-white transition-colors"
+            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/90 shadow-sm border border-forum-border flex items-center justify-center text-forum-dark-gray hover:text-black hover:bg-white transition-colors"
           >
             <ChevronLeft size={14} />
           </button>
@@ -40,7 +40,7 @@ export function MapPopupCarousel({ events, onExpand }: MapPopupCarouselProps) {
               e.stopPropagation();
               setActiveIndex((i) => (i + 1) % events.length);
             }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/90 shadow-sm border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-white transition-colors"
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/90 shadow-sm border border-forum-border flex items-center justify-center text-forum-dark-gray hover:text-black hover:bg-white transition-colors"
           >
             <ChevronRight size={14} />
           </button>
@@ -56,7 +56,7 @@ export function MapPopupCarousel({ events, onExpand }: MapPopupCarouselProps) {
                   setActiveIndex(i);
                 }}
                 className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                  i === activeIndex ? "bg-gray-800" : "bg-gray-300"
+                  i === activeIndex ? "bg-gray-800" : "bg-forum-medium-gray"
                 }`}
               />
             ))}
