@@ -90,14 +90,38 @@ by soonest event first.
 
 ## Candidate pool: why scoring needs more than one page
 
-The DB query first pulls a bounded pool of the ~100 soonest upcoming events
-(`CANDIDATE_POOL_SIZE`), scores all of them, sorts by score, and only then slices out the
-requested page (`limit`/`offset`). If scoring only ever ran against the 20 events the caller
-asked for, personalization would have nothing to work with — the soonest 20 would always be
-exactly what's returned, just reshuffled. Widening the pool first lets a highly relevant
-event further down the calendar outrank a less relevant one that merely happens sooner. The
-size is a bound to keep the query cheap, not a hard limit on how far ranking can see — 100
-events is comfortably more than a demo dataset needs.
+The DB query pulls every upcoming, published event matching the feed's filters — not just the
+requested page (`limit`/`offset`) — scores all of them, sorts by score, and only then slices
+out the requested page. If scoring only ever ran against the 20 events the caller asked for,
+personalization would have nothing to work with — the soonest 20 would always be exactly
+what's returned, just reshuffled. Scoring the full candidate set lets a highly relevant event
+further down the calendar outrank a less relevant one that merely happens sooner, no matter
+how many other events are scheduled in between.
+
+`total` is simply the size of that candidate set, so it always agrees with what `limit`/`offset`
+can actually reach — there's no separate count that could promise more than pagination can
+deliver. Enrichment (tags, rsvp/view counts, friend attendance, user state) is batched via
+`inArray(...)` across the whole candidate set rather than queried per event, so a wider pool
+doesn't multiply query count — it stays at a fixed handful of queries regardless of how many
+candidates are scored.
+
+### Bounded by calendar distance, not row count
+
+When no explicit `dateRange` filter is applied, candidates are bounded to the next
+`CANDIDATE_HORIZON_DAYS` (14) days, rounded up to the end of that day. This replaced an earlier
+version that capped the candidate pool at a fixed row count (the soonest 100 events) — that
+approach meant a highly relevant event could be excluded from ranking entirely just because 100
+*other* events happened to be scheduled sooner, regardless of how strong its interest/friend/org
+signal was. A calendar-distance bound doesn't have that failure mode: every event within the
+next two weeks is always a candidate, no matter how many other events fall before it. An
+explicit `dateRange` param (`today`/`week`/`month`) overrides the default horizon with its own
+narrower or wider window.
+
+Events further out than the horizon never enter ranking by default — this is an intentional
+product choice (Explore surfaces what's happening soon, not the whole semester's calendar), not
+a scale workaround. `CANDIDATE_POOL_SAFETY_VALVE` (5000) is a separate, purely defensive row
+limit on top of the horizon, in case an unusually dense window ever produced a pathological
+result size — it isn't expected to bind at realistic campus-event scale.
 
 ## Org diversity cap
 
@@ -109,17 +133,25 @@ org can't dominate the top of the feed. Events without an org are never capped.
 
 Friend RSVPs (weight 4.0) can outweigh time proximity (weight 2.0), so an event with strong
 social signal three weeks out could in principle outscore one happening tomorrow with no
-friends attending yet. To keep "what's happening soon" reliably visible, the first page
-(`offset === 0`) always includes at least `SOON_QUOTA` (3) events within `SOON_WINDOW_DAYS`
-(1) day, even if their score wouldn't naturally place them there.
+friends attending yet. To keep "what's happening soon" reliably visible, the first
+`SOON_INJECTION_WINDOW` (20) positions of the ranked, diversified feed always include at least
+`SOON_QUOTA` (3) events within `SOON_WINDOW_DAYS` (1) day, even if their score wouldn't
+naturally place them there.
 
-This is a **merge**, not a score override: if the sorted first page already has enough soon
-events, nothing changes. Otherwise the highest-scoring soon events missing from the page are
-interleaved into it at evenly-spaced positions — everything else keeps its normal score
-order. It only backfills what score order left out, the way feeds inject a freshness quota
-without letting it take over the whole ranking.
+This window is a fixed size, independent of the `limit`/`offset` a given request happens to
+use — the whole feed is reordered into one final, stable sequence first, and *then* sliced into
+pages. That means two requests for the same feed with different page sizes see the same
+underlying order, and no event can appear on two different pages or be silently dropped by the
+guarantee.
 
-All the tunable constants above (`SOON_WINDOW_DAYS`, `SOON_QUOTA`, `ORG_DIVERSITY_CAP`,
+This is a **merge**, not a score override: if the front of the feed already has enough soon
+events, nothing changes. Otherwise the highest-scoring soon events missing from that window are
+interleaved into it at evenly-spaced positions, removed from their original later position —
+everything else keeps its normal score order. It only backfills what score order left out, the
+way feeds inject a freshness quota without letting it take over the whole ranking.
+
+All the tunable constants above (`SOON_WINDOW_DAYS`, `SOON_QUOTA`, `SOON_INJECTION_WINDOW`,
+`ORG_DIVERSITY_CAP`, `CANDIDATE_HORIZON_DAYS`, `CANDIDATE_POOL_SAFETY_VALVE`,
 `POPULARITY_VIEW_CAP`, `POPULARITY_WEIGHT`, `RANDOM_WEIGHT`, `ORG_PAST_INTERACTION_AFFINITY`)
 live at the top of `events.ts`.
 

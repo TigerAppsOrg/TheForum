@@ -46,15 +46,24 @@ export interface FeedEvent {
   isSaved: boolean;
 }
 
-// Upcoming events scored before slicing out the requested page — must be
-// well above any realistic page size so personalization has real candidates
-// to work with. See docs/ranking.md.
-const CANDIDATE_POOL_SIZE = 100;
+// Default lookahead when no `dateRange` filter is given, rounded up to end
+// of day. A calendar-distance bound, not a row count, so it never depends
+// on how many other events happen to be scheduled sooner. See docs/ranking.md.
+const CANDIDATE_HORIZON_DAYS = 14;
 
-// An event is "soon" if it's within this many days. The first page always
-// includes at least SOON_QUOTA such events, even if their score is weak.
+// Defensive-only cap on result size within the horizon — not a ranking
+// boundary, and not expected to bind at realistic campus-event scale.
+const CANDIDATE_POOL_SAFETY_VALVE = 5000;
+
+// An event is "soon" if it's within this many days. At least SOON_QUOTA
+// such events always land within the first SOON_INJECTION_WINDOW positions
+// of the feed, even if their score is weak.
 const SOON_WINDOW_DAYS = 1;
 const SOON_QUOTA = 3;
+
+// Fixed window, independent of the request's `limit` — so the same
+// underlying order results no matter what page size a given call uses.
+const SOON_INJECTION_WINDOW = 20;
 
 // Max events from one org before the rest get pushed later in the ranking.
 const ORG_DIVERSITY_CAP = 3;
@@ -206,30 +215,28 @@ export async function getFeedEvents(params?: {
     conditions.push(eq(events.locationId, params.locationId));
   }
 
-  if (params?.dateRange) {
-    const now = new Date();
-    let end: Date;
-    if (params.dateRange === "today") {
-      end = new Date(now);
-      end.setHours(23, 59, 59, 999);
-    } else if (params.dateRange === "week") {
-      end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    } else {
-      end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    }
-    conditions.push(lt(events.datetime, end));
+  // No explicit dateRange filter defaults to the candidate horizon, so
+  // there's one date-bounding path instead of a separate "no filter"
+  // branch — see docs/ranking.md.
+  const now = new Date();
+  let dateRangeEnd: Date;
+  if (params?.dateRange === "today") {
+    dateRangeEnd = new Date(now);
+    dateRangeEnd.setHours(23, 59, 59, 999);
+  } else if (params?.dateRange === "week") {
+    dateRangeEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  } else if (params?.dateRange === "month") {
+    dateRangeEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  } else {
+    dateRangeEnd = new Date(now);
+    dateRangeEnd.setDate(dateRangeEnd.getDate() + CANDIDATE_HORIZON_DAYS);
+    dateRangeEnd.setHours(23, 59, 59, 999);
   }
+  conditions.push(lt(events.datetime, dateRangeEnd));
 
-  // Get total count
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(events)
-    .where(and(...conditions));
-  const total = countResult?.count ?? 0;
-
-  // Score a bounded pool of upcoming events, not just the requested page —
-  // otherwise personalization could never surface anything past the
-  // soonest `limit` events. See docs/ranking.md.
+  // Score every candidate within the horizon, not just the requested page —
+  // batched enrichment below keeps this cheap regardless of pool size. See
+  // docs/ranking.md.
   const rawEvents = await db
     .select({
       id: events.id,
@@ -247,136 +254,169 @@ export async function getFeedEvents(params?: {
     .leftJoin(organizations, eq(events.orgId, organizations.id))
     .where(and(...conditions))
     .orderBy(events.datetime)
-    .limit(CANDIDATE_POOL_SIZE);
+    .limit(CANDIDATE_POOL_SAFETY_VALVE);
 
-  // Enrich each event with tags, rsvp counts, friend attendance, user state,
-  // and a weighted relevance score (interests, timing, friends, org
-  // affinity, recency, popularity, a small daily nudge). Full breakdown,
-  // including the org-diversity cap and soon-event guarantee applied below:
-  // docs/ranking.md.
-  const enriched: (FeedEvent & { score: number; _rawDatetime: Date })[] = await Promise.all(
-    rawEvents.map(async (event) => {
-      // Get tags
-      const tags = await db
-        .select({ tag: eventTags.tag })
+  if (rawEvents.length === 0) {
+    return { events: [], total: 0 };
+  }
+
+  // Matches exactly what was fetched, so it's always consistent with what
+  // offset/limit can reach — unlike a separate unbounded COUNT(*).
+  const total = rawEvents.length;
+
+  if (rawEvents.length === CANDIDATE_POOL_SAFETY_VALVE) {
+    console.warn(
+      `getFeedEvents: candidate pool hit CANDIDATE_POOL_SAFETY_VALVE (${CANDIDATE_POOL_SAFETY_VALVE}); total may be an undercount.`,
+    );
+  }
+
+  const candidateIds = rawEvents.map((e) => e.id);
+
+  // Batch every per-candidate lookup into one query each, instead of one
+  // query per candidate. Grouped in memory afterward by eventId/itemId.
+  const [tagRows, rsvpCountRows, viewCountRows, friendRsvpRows, userRsvpRows, userSaveRows] =
+    await Promise.all([
+      db
+        .select({ eventId: eventTags.eventId, tag: eventTags.tag })
         .from(eventTags)
-        .where(eq(eventTags.eventId, event.id));
+        .where(inArray(eventTags.eventId, candidateIds)),
 
-      // Get RSVP count
-      const [rsvpCount] = await db
-        .select({ count: sql<number>`count(*)::int` })
+      db
+        .select({ eventId: rsvps.eventId, count: sql<number>`count(*)::int` })
         .from(rsvps)
-        .where(eq(rsvps.eventId, event.id));
+        .where(inArray(rsvps.eventId, candidateIds))
+        .groupBy(rsvps.eventId),
 
-      // Get view count for the popularity signal
-      const [viewCount] = await db
-        .select({ count: sql<number>`count(*)::int` })
+      db
+        .select({ eventId: interactions.itemId, count: sql<number>`count(*)::int` })
         .from(interactions)
         .where(
           and(
-            eq(interactions.itemId, event.id),
+            inArray(interactions.itemId, candidateIds),
             eq(interactions.itemType, "event"),
             eq(interactions.interactionType, "view"),
           ),
-        );
+        )
+        .groupBy(interactions.itemId),
 
-      // Get friends attending
-      let friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[] = [];
-      if (friendIds.length > 0) {
-        friendsAttending = await db
-          .select({
-            id: users.id,
-            displayName: users.displayName,
-            avatarUrl: users.avatarUrl,
-          })
-          .from(rsvps)
-          .innerJoin(users, eq(rsvps.userId, users.id))
-          .where(and(eq(rsvps.eventId, event.id), inArray(rsvps.userId, friendIds)));
-      }
+      friendIds.length === 0
+        ? []
+        : db
+            .select({
+              eventId: rsvps.eventId,
+              id: users.id,
+              displayName: users.displayName,
+              avatarUrl: users.avatarUrl,
+            })
+            .from(rsvps)
+            .innerJoin(users, eq(rsvps.userId, users.id))
+            .where(and(inArray(rsvps.eventId, candidateIds), inArray(rsvps.userId, friendIds))),
 
-      // Check if user has RSVP'd or saved
-      const [userRsvp] = await db
-        .select()
+      db
+        .select({ eventId: rsvps.eventId })
         .from(rsvps)
-        .where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, event.id)))
-        .limit(1);
+        .where(and(eq(rsvps.userId, userId), inArray(rsvps.eventId, candidateIds))),
 
-      const [userSave] = await db
-        .select()
+      db
+        .select({ eventId: savedEvents.eventId })
         .from(savedEvents)
-        .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, event.id)))
-        .limit(1);
+        .where(and(eq(savedEvents.userId, userId), inArray(savedEvents.eventId, candidateIds))),
+    ]);
 
-      // Score for sorting
-      const tagNames = tags.map((t) => t.tag);
+  const tagsByEvent = new Map<string, (typeof eventTags.$inferSelect.tag)[]>();
+  for (const row of tagRows) {
+    const list = tagsByEvent.get(row.eventId);
+    if (list) list.push(row.tag);
+    else tagsByEvent.set(row.eventId, [row.tag]);
+  }
 
-      // Fraction of this event's tags that match your interests.
-      const matchedTags = tagNames.filter((t) => myInterestTags.includes(t)).length;
-      const interestRelevance =
-        myInterestTags.length === 0
-          ? 0.5
-          : tagNames.length === 0
-            ? 0
-            : matchedTags / tagNames.length;
+  const rsvpCountByEvent = new Map(rsvpCountRows.map((r) => [r.eventId, r.count]));
+  const viewCountByEvent = new Map(viewCountRows.map((r) => [r.eventId, r.count]));
 
-      const now = Date.now();
-      const eventTime = event.datetime.getTime();
-      const daysUntil = (eventTime - now) / (1000 * 60 * 60 * 24);
-      // Half-life decay: 1.0 right now, halving every 4 days out.
-      const timeProximity = 2 ** (-daysUntil / 4);
+  const friendsByEvent = new Map<
+    string,
+    { id: string; displayName: string; avatarUrl: string | null }[]
+  >();
+  for (const row of friendRsvpRows) {
+    const entry = { id: row.id, displayName: row.displayName, avatarUrl: row.avatarUrl };
+    const list = friendsByEvent.get(row.eventId);
+    if (list) list.push(entry);
+    else friendsByEvent.set(row.eventId, [entry]);
+  }
 
-      const friendRsvpScore = Math.min(1.0, friendsAttending.length / 3.0);
+  const userRsvpEventIds = new Set(userRsvpRows.map((r) => r.eventId));
+  const userSaveEventIds = new Set(userSaveRows.map((r) => r.eventId));
 
-      // Full affinity if you follow/belong to the org, weaker if you've
-      // just RSVP'd to it before.
-      const orgAffinity = !event.orgId
-        ? 0
-        : myOrgIds.has(event.orgId)
-          ? 1.0
-          : interactedOrgIds.has(event.orgId)
-            ? ORG_PAST_INTERACTION_AFFINITY
-            : 0;
+  // Enrich each event and compute its weighted relevance score. Full
+  // formula breakdown: docs/ranking.md.
+  const enriched: (FeedEvent & { score: number; _rawDatetime: Date })[] = rawEvents.map((event) => {
+    const tagNames = tagsByEvent.get(event.id) ?? [];
+    const rsvpCount = rsvpCountByEvent.get(event.id) ?? 0;
+    const viewCount = viewCountByEvent.get(event.id) ?? 0;
+    const friendsAttending = friendsByEvent.get(event.id) ?? [];
 
-      const hoursSinceCreated = (now - event.createdAt.getTime()) / (1000 * 60 * 60);
-      const recencyBoost = hoursSinceCreated <= 24 ? 1.0 : hoursSinceCreated <= 72 ? 0.5 : 0.0;
+    // Fraction of this event's tags that match your interests.
+    const matchedTags = tagNames.filter((t) => myInterestTags.includes(t)).length;
+    const interestRelevance =
+      myInterestTags.length === 0 ? 0.5 : tagNames.length === 0 ? 0 : matchedTags / tagNames.length;
 
-      // Log-scaled view count, capped at 1.0 around POPULARITY_VIEW_CAP.
-      const popularityScore = Math.min(
-        1.0,
-        Math.log((viewCount?.count ?? 0) + 1) / Math.log(POPULARITY_VIEW_CAP + 1),
-      );
+    const now = Date.now();
+    const eventTime = event.datetime.getTime();
+    const daysUntil = (eventTime - now) / (1000 * 60 * 60 * 24);
+    // Half-life decay: 1.0 right now, halving every 4 days out.
+    const timeProximity = 2 ** (-daysUntil / 4);
 
-      // Deterministic per user-per-day-per-event nudge — see RANDOM_WEIGHT.
-      const randomNudge = seededRandom(`${userId}:${today}:${event.id}`);
+    const friendRsvpScore = Math.min(1.0, friendsAttending.length / 3.0);
 
-      const score =
-        3.0 * interestRelevance +
-        2.0 * timeProximity +
-        4.0 * friendRsvpScore +
-        1.0 * orgAffinity +
-        1.0 * recencyBoost +
-        POPULARITY_WEIGHT * popularityScore +
-        RANDOM_WEIGHT * randomNudge;
+    // Full affinity if you follow/belong to the org, weaker if you've
+    // just RSVP'd to it before.
+    const orgAffinity = !event.orgId
+      ? 0
+      : myOrgIds.has(event.orgId)
+        ? 1.0
+        : interactedOrgIds.has(event.orgId)
+          ? ORG_PAST_INTERACTION_AFFINITY
+          : 0;
 
-      return {
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        orgId: event.orgId,
-        orgName: event.orgName,
-        datetime: formatEventDateTime(event.datetime),
-        location: event.locationName ?? "TBD",
-        tags: tagNames,
-        flyerUrl: event.flyerUrl,
-        rsvpCount: rsvpCount?.count ?? 0,
-        friendsAttending,
-        isRsvped: !!userRsvp,
-        isSaved: !!userSave,
-        score,
-        _rawDatetime: event.datetime,
-      };
-    }),
-  );
+    const hoursSinceCreated = (now - event.createdAt.getTime()) / (1000 * 60 * 60);
+    const recencyBoost = hoursSinceCreated <= 24 ? 1.0 : hoursSinceCreated <= 72 ? 0.5 : 0.0;
+
+    // Log-scaled view count, capped at 1.0 around POPULARITY_VIEW_CAP.
+    const popularityScore = Math.min(
+      1.0,
+      Math.log(viewCount + 1) / Math.log(POPULARITY_VIEW_CAP + 1),
+    );
+
+    // Deterministic per user-per-day-per-event nudge — see RANDOM_WEIGHT.
+    const randomNudge = seededRandom(`${userId}:${today}:${event.id}`);
+
+    const score =
+      3.0 * interestRelevance +
+      2.0 * timeProximity +
+      4.0 * friendRsvpScore +
+      1.0 * orgAffinity +
+      1.0 * recencyBoost +
+      POPULARITY_WEIGHT * popularityScore +
+      RANDOM_WEIGHT * randomNudge;
+
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      orgId: event.orgId,
+      orgName: event.orgName,
+      datetime: formatEventDateTime(event.datetime),
+      location: event.locationName ?? "TBD",
+      tags: tagNames,
+      flyerUrl: event.flyerUrl,
+      rsvpCount,
+      friendsAttending,
+      isRsvped: userRsvpEventIds.has(event.id),
+      isSaved: userSaveEventIds.has(event.id),
+      score,
+      _rawDatetime: event.datetime,
+    };
+  });
 
   // Sort by score descending; ties break by soonest first, so refreshing
   // with no new data never reorders the feed.
@@ -388,29 +428,41 @@ export async function getFeedEvents(params?: {
   // Cap events per org
   const ranked = diversifyByOrg(enriched, ORG_DIVERSITY_CAP);
 
-  // Guarantee SOON_QUOTA imminent events on the first page
-  let page = ranked.slice(offset, offset + limit);
-  if (offset === 0) {
-    const isSoon = (e: (typeof ranked)[number]) =>
-      (e._rawDatetime.getTime() - Date.now()) / (1000 * 60 * 60 * 24) <= SOON_WINDOW_DAYS;
+  // Guarantee SOON_QUOTA imminent events land within the first
+  // SOON_INJECTION_WINDOW positions. This finalizes ONE stable order over
+  // the whole pool before pagination, so every page is a plain slice of
+  // the same array — no event can be duplicated or dropped across pages.
+  // See docs/ranking.md.
+  const isSoon = (e: (typeof ranked)[number]) =>
+    (e._rawDatetime.getTime() - Date.now()) / (1000 * 60 * 60 * 24) <= SOON_WINDOW_DAYS;
 
-    const soonInPage = page.filter(isSoon).length;
-    if (soonInPage < SOON_QUOTA) {
-      const pageIds = new Set(page.map((e) => e.id));
-      const missingSoon = ranked
-        .filter((e) => isSoon(e) && !pageIds.has(e.id))
-        .slice(0, SOON_QUOTA - soonInPage);
+  const windowSize = Math.min(SOON_INJECTION_WINDOW, ranked.length);
+  const front = ranked.slice(0, windowSize);
+  const tail = ranked.slice(windowSize);
 
-      if (missingSoon.length > 0) {
-        const merged = [...page];
-        const stride = Math.max(1, Math.floor(merged.length / (missingSoon.length + 1)));
-        missingSoon.forEach((event, i) => {
-          merged.splice(Math.min(merged.length, stride * (i + 1)), 0, event);
-        });
-        page = merged.slice(0, limit);
-      }
+  let finalOrder = ranked;
+  const soonInFront = front.filter(isSoon).length;
+
+  if (soonInFront < SOON_QUOTA) {
+    const frontIds = new Set(front.map((e) => e.id));
+    const missingSoon = tail
+      .filter((e) => isSoon(e) && !frontIds.has(e.id))
+      .slice(0, SOON_QUOTA - soonInFront);
+
+    if (missingSoon.length > 0) {
+      const missingIds = new Set(missingSoon.map((e) => e.id));
+      const mergedFront = [...front];
+      const stride = Math.max(1, Math.floor(mergedFront.length / (missingSoon.length + 1)));
+      missingSoon.forEach((event, i) => {
+        mergedFront.splice(Math.min(mergedFront.length, stride * (i + 1)), 0, event);
+      });
+      finalOrder = [...mergedFront, ...tail.filter((e) => !missingIds.has(e.id))];
     }
   }
+
+  // finalOrder.length === ranked.length always — pure reorder, nothing
+  // added or dropped. Pagination is a plain slice of this one stable order.
+  const page = finalOrder.slice(offset, offset + limit);
 
   return {
     events: page.map(({ score: _score, _rawDatetime, ...event }) => event),
