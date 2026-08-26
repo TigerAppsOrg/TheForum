@@ -79,6 +79,12 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const color = getCategoryColor(event.tags);
+  const safeTitle = event.title?.trim() || "Untitled event";
+  const safeDescription =
+    event.description?.trim() || "No description provided yet. Check back soon for event details.";
+  const safeLocation = event.locationName?.trim() || "Location TBD";
+  const safeOrg = event.orgName?.trim() || "Campus event";
+  const safeLink = event.externalLink?.trim() || null;
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-US", {
@@ -217,15 +223,15 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
 
           {/* Title */}
           <PageHeading className="text-[28px] font-bold leading-tight sm:text-[32px] lg:text-[36px]">
-            {event.title}
+            {safeTitle}
           </PageHeading>
 
-          {/* Org */}
-          {event.orgName && (
-            <p className="text-[16px] font-dm-sans font-bold text-forum-cerulean mb-[12px]">
-              {event.orgName}
-            </p>
-          )}
+          <div className="mb-[12px] flex flex-wrap items-center gap-2 text-[15px] font-dm-sans text-forum-dark-gray">
+            <span className="rounded-full bg-forum-turquoise/10 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-forum-cerulean">
+              Host
+            </span>
+            <span>{safeOrg}</span>
+          </div>
 
           {/* Tags */}
           {event.tags.length > 0 && (
@@ -255,32 +261,33 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
           <div className="space-y-[10px] mb-[20px]">
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <Calendar size={16} className="text-forum-light-gray" />
-              {formatDate(event.datetime)}
+              {event.datetime ? formatDate(event.datetime) : "Date TBD"}
             </div>
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <Clock size={16} className="text-forum-light-gray" />
-              {formatTime(event.datetime)}
-              {event.endDatetime && ` - ${formatTime(event.endDatetime)}`}
+              {event.datetime ? formatTime(event.datetime) : "Time TBD"}
+              {event.endDatetime ? ` - ${formatTime(event.endDatetime)}` : ""}
             </div>
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <MapPin size={16} className="text-forum-light-gray" />
-              {event.locationName}
+              {safeLocation}
             </div>
-            {event.externalLink && (
+            {safeLink && (
               <a
-                href={event.externalLink}
+                href={safeLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-cerulean hover:underline"
               >
-                <ExternalLink size={16} /> Register
+                <ExternalLink size={16} />
+                {safeLink.startsWith("http") ? "View event" : "Open link"}
               </a>
             )}
           </div>
 
           {/* Description */}
-          <p className="text-[14px] font-dm-sans text-forum-dark-gray leading-relaxed whitespace-pre-wrap mb-[24px]">
-            {event.description}
+          <p className="mb-[24px] whitespace-pre-wrap text-[14px] font-dm-sans leading-relaxed text-forum-dark-gray">
+            {safeDescription}
           </p>
 
           {/* RSVP button */}

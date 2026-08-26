@@ -426,6 +426,13 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     .where(eq(events.id, eventId))
     .limit(1);
 
+  const safeTitle = event?.title?.trim() || "Untitled event";
+  const safeDescription =
+    event?.description?.trim() || "No description provided yet. Check back soon for event details.";
+  const safeLocationName = event?.locationName?.trim() || "Location TBD";
+  const safeOrgName = event?.orgName?.trim() || null;
+  const safeExternalLink = event?.externalLink?.trim() || null;
+
   if (!event) return null;
 
   // Get tags
@@ -477,18 +484,18 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
   // Similar events (same tags or same org)
   return {
     id: event.id,
-    title: event.title,
-    description: event.description,
+    title: safeTitle,
+    description: safeDescription,
     datetime: event.datetime,
     endDatetime: event.endDatetime,
     locationId: event.locationId,
-    locationName: event.locationName ?? "TBD",
+    locationName: safeLocationName,
     orgId: event.orgId,
-    orgName: event.orgName,
+    orgName: safeOrgName,
     creatorId: event.creatorId,
     creatorName: event.creatorName,
     flyerUrl: event.flyerUrl,
-    externalLink: event.externalLink,
+    externalLink: safeExternalLink,
     isPublic: event.isPublic,
     tags: tags.map((t) => t.tag),
     rsvpCount: attendees.length,
