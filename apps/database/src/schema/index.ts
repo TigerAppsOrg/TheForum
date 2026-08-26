@@ -16,15 +16,16 @@ import {
 // ── Enums ─────────────────────────────────────────────────
 
 export const eventTagEnum = pgEnum("event_tag", [
-  "free food",
-  "career",
+  "free-food",
+  "career-recruiting",
   "research",
+  "stem",
   "academics",
   "tech",
   "entrepreneurship",
-  "politics",
-  "visual arts",
-  "performing arts",
+  "politics-policy",
+  "visual-arts",
+  "performing-arts",
   "literature",
   "culture",
   "music",
@@ -32,12 +33,11 @@ export const eventTagEnum = pgEnum("event_tag", [
   "athletics",
   "religion",
   "sustainability",
-  "outdoors",
-  "wellness",
-  "community service",
-  "speaker event",
-  "social event",
-  "stem",
+  "outdoor-adventure",
+  "wellness-self-care",
+  "community-service",
+  "speaker-event",
+  "social-event",
 ]);
 
 export const campusRegionEnum = pgEnum("campus_region", [

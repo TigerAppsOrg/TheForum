@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink, Pencil, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import type { FriendProfile } from "~/actions/friends";
 import { getPresignedUploadUrl } from "~/actions/upload";
 import { type UserProfile, updateAvatar, updateProfile } from "~/actions/users";
@@ -15,40 +16,80 @@ import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page
 import { Button } from "~/components/ui/button";
 
 const INTEREST_TAGS = [
-  { id: "free food", label: "free food" },
-  { id: "tech", label: "technology" },
-  { id: "stem", label: "science and engineering" },
-  { id: "visual arts", label: "visual arts" },
-  { id: "wellness", label: "fitness & health" },
-  { id: "academics", label: "academics" },
-  { id: "research", label: "research" },
-  { id: "career", label: "career" },
-  { id: "entrepreneurship", label: "entrepreneurship" },
-  { id: "music", label: "music" },
-  { id: "social event", label: "social" },
-  { id: "athletics", label: "sports" },
-  { id: "performing arts", label: "performing arts" },
-  { id: "culture", label: "culture" },
-  { id: "literature", label: "literature" },
-  { id: "community service", label: "service" },
-  { id: "religion", label: "religion" },
-  { id: "politics", label: "politics" },
-  { id: "gaming", label: "gaming" },
-  { id: "outdoors", label: "outdoors" },
-  { id: "sustainability", label: "sustainability" },
-  { id: "speaker event", label: "speaker" },
-];
+  { id: "free-food", label: "Free Food" },
+  { id: "career-recruiting", label: "Career & Recruiting" },
+  { id: "research", label: "Research" },
+  { id: "stem", label: "STEM" },
+  { id: "academics", label: "Academics" },
+  { id: "tech", label: "Tech" },
+  { id: "entrepreneurship", label: "Entrepreneurship" },
+  { id: "politics-policy", label: "Politics & Policy" },
+  { id: "visual-arts", label: "Visual Arts" },
+  { id: "performing-arts", label: "Performing Arts" },
+  { id: "literature", label: "Literature" },
+  { id: "culture", label: "Culture" },
+  { id: "music", label: "Music" },
+  { id: "gaming", label: "Gaming" },
+  { id: "athletics", label: "Athletics" },
+  { id: "religion", label: "Religion" },
+  { id: "sustainability", label: "Sustainability" },
+  { id: "outdoor-adventure", label: "Outdoor & Adventure" },
+  { id: "wellness-self-care", label: "Wellness & Self-Care" },
+  { id: "community-service", label: "Community Service" },
+  { id: "speaker-event", label: "Speaker Event" },
+  { id: "social-event", label: "Social Event" },
+] as const;
 
-const SUGGESTION_TAGS = [
-  "tech talk",
-  "Jane Street",
-  "consulting",
-  "internship",
-  "Citadel",
-  "Lockheed Martin",
-  "free merch",
-  "Bain & Company",
-];
+const LEGACY_INTEREST_ALIASES: Record<string, string> = {
+  career: "career-recruiting",
+  careerrecruiting: "career-recruiting",
+  academic: "research",
+  academics: "academics",
+  tech: "tech",
+  political: "politics-policy",
+  politics: "politics-policy",
+  art: "visual-arts",
+  visual: "visual-arts",
+  performance: "performing-arts",
+  performing: "performing-arts",
+  cultural: "culture",
+  culture: "culture",
+  sports: "athletics",
+  athletic: "athletics",
+  religious: "religion",
+  religion: "religion",
+  outdoor: "outdoor-adventure",
+  outdoors: "outdoor-adventure",
+  wellness: "wellness-self-care",
+  speaker: "speaker-event",
+  social: "social-event",
+  "free-food": "free-food",
+  "free food": "free-food",
+  "community-service": "community-service",
+  "community service": "community-service",
+  "politics-policy": "politics-policy",
+  "politics policy": "politics-policy",
+  "visual-arts": "visual-arts",
+  "visual arts": "visual-arts",
+  "performing-arts": "performing-arts",
+  "performing arts": "performing-arts",
+  "wellness-self-care": "wellness-self-care",
+  "wellness self care": "wellness-self-care",
+  "speaker-event": "speaker-event",
+  "speaker event": "speaker-event",
+  "social-event": "social-event",
+  "social event": "social-event",
+  stem: "stem",
+};
+
+function normalizeInterestValue(tag: string): string {
+  const normalized = tag.trim().toLowerCase().replace(/\s+/g, "-");
+  return LEGACY_INTEREST_ALIASES[normalized] ?? normalized;
+}
+
+function dedupeInterestValues(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeInterestValue(value)).filter(Boolean))];
+}
 
 const CLASS_YEARS = ["2025", "2026", "2027", "2028", "2029", "Grad"];
 
@@ -57,7 +98,6 @@ interface SettingsClientProps {
   friends: FriendProfile[];
 }
 
-/** Single friend row — was duplicated verbatim in both Friends sections. */
 function FriendRow({ friend }: { friend: FriendProfile }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -91,37 +131,69 @@ function FriendRow({ friend }: { friend: FriendProfile }) {
 export function SettingsClient({ profile, friends }: SettingsClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const initialClassYear = profile.classYear ?? "";
+  const initialMajor = profile.major ?? "";
+  const initialInterests = dedupeInterestValues(profile.interests);
+  const initialAvatar = profile.avatarUrl;
 
-  const [classYear, setClassYear] = useState(profile.classYear ?? "");
-  const [major, setMajor] = useState(profile.major ?? "");
+  const [classYear, setClassYear] = useState(initialClassYear);
+  const [major, setMajor] = useState(initialMajor);
   const [isOrgLeader, setIsOrgLeader] = useState(profile.isOrgLeader);
-  const [interests, setInterests] = useState<string[]>(profile.interests);
+  const [interests, setInterests] = useState<string[]>(initialInterests);
   const [friendSearch, setFriendSearch] = useState("");
   const [orgSearch, setOrgSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
 
   const toggleInterest = (id: string) => {
-    setInterests((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
-  };
-
-  const handleSave = () => {
-    startTransition(async () => {
-      await updateProfile({
-        classYear,
-        major,
-        isOrgLeader,
-        interests,
-        regions: [],
-      });
-      router.push("/explore");
+    setInterests((prev) => {
+      const next = prev.includes(id) ? prev.filter((interest) => interest !== id) : [...prev, id];
+      return dedupeInterestValues(next);
     });
   };
 
+  const interestsChanged =
+    interests.length !== initialInterests.length ||
+    interests.some((interest) => !initialInterests.includes(interest));
+
+  const hasChanges =
+    classYear !== initialClassYear ||
+    major !== initialMajor ||
+    isOrgLeader !== profile.isOrgLeader ||
+    interestsChanged;
+
+  const handleSave = () => {
+    startTransition(async () => {
+      try {
+        const sanitizedInterests = dedupeInterestValues(interests);
+        await updateProfile({
+          classYear,
+          major,
+          isOrgLeader,
+          interests: sanitizedInterests,
+          regions: profile.regions,
+        });
+        setInterests(sanitizedInterests);
+        toast.success("Settings saved");
+      } catch {
+        toast.error("Could not save settings. Please try again.");
+      }
+    });
+  };
+
+  const handleCancel = () => {
+    setClassYear(initialClassYear);
+    setMajor(initialMajor);
+    setIsOrgLeader(profile.isOrgLeader);
+    setInterests(initialInterests);
+    setAvatarPreview(initialAvatar);
+    setTagSearch("");
+    toast.message("Changes discarded");
+  };
+
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(initialAvatar);
 
   const handleAvatarUpload = async (file: File) => {
-    // Preview immediately
     const reader = new FileReader();
     reader.onload = (e) => setAvatarPreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -135,11 +207,20 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
       });
       await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       await updateAvatar(publicUrl);
+      toast.success("Profile photo updated");
     } catch (err) {
       console.error("Avatar upload failed:", err);
       setAvatarPreview(profile.avatarUrl);
+      toast.error("Could not upload avatar. Please try another image.");
     }
   };
+
+  const filteredTags = INTEREST_TAGS.filter(
+    (tag) =>
+      !tagSearch ||
+      tag.label.toLowerCase().includes(tagSearch.toLowerCase()) ||
+      tag.id.toLowerCase().includes(tagSearch.toLowerCase()),
+  );
 
   const filteredFriends = friends.filter(
     (f) =>
@@ -150,17 +231,26 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
 
   return (
     <PageShell width="wide">
-      {/* Top bar — pr reserves space so buttons don't overlap the TopBar notification/avatar */}
       <div className="mb-5 flex items-center justify-between pr-[100px]">
         <Button variant="quiet" size="sm" onClick={() => router.back()}>
           <ArrowLeft />
           Back
         </Button>
         <div className="flex items-center gap-3">
-          <Button variant="quiet" size="sm" onClick={() => router.push("/explore")}>
-            Exit
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={handleCancel}
+            disabled={!hasChanges || isPending}
+          >
+            Cancel
           </Button>
-          <Button variant="coral" size="cta" onClick={handleSave} disabled={isPending}>
+          <Button
+            variant="coral"
+            size="cta"
+            onClick={handleSave}
+            disabled={isPending || !hasChanges}
+          >
             {isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
@@ -168,11 +258,9 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
 
       <PageHeading>My Account</PageHeading>
 
-      {/* ═══ Personal Info ═══ */}
       <section className="mb-8">
         <SectionHeading>Personal Info</SectionHeading>
         <Panel className="flex flex-wrap items-start gap-8">
-          {/* Avatar */}
           <div className="flex flex-col items-center gap-2">
             <div className="size-[120px] overflow-hidden rounded-full border-4 border-forum-medium-gray bg-forum-turquoise/20">
               {avatarPreview ? (
@@ -207,7 +295,6 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
             />
           </div>
 
-          {/* Name + Class Year inline */}
           <div className="flex min-w-[280px] flex-1 flex-wrap gap-5">
             <Field id="display-name" label="Name" required className="min-w-[180px] flex-1">
               <div className="flex items-center gap-2 border-b border-forum-medium-gray pb-1.5">
@@ -217,6 +304,7 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
                 <Pencil size={11} aria-hidden className="text-forum-light-gray" />
               </div>
             </Field>
+
             <Field id="class-year" label="Class Year" required className="w-[140px]">
               <select
                 id="class-year"
@@ -232,13 +320,22 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
                 ))}
               </select>
             </Field>
+
+            <Field id="major" label="Major" className="min-w-[200px] flex-1">
+              <input
+                id="major"
+                type="text"
+                value={major}
+                onChange={(e) => setMajor(e.target.value)}
+                placeholder="e.g. Computer Science"
+                className="w-full border-b border-forum-medium-gray bg-transparent pb-1.5 font-dm-sans text-[15px] text-black outline-none"
+              />
+            </Field>
           </div>
         </Panel>
       </section>
 
-      {/* ═══ Friends + Organizations — two columns ═══ */}
       <div className="mb-8 flex flex-wrap gap-8">
-        {/* Friends column */}
         <section className="min-w-[280px] flex-1">
           <SectionHeading>Friends</SectionHeading>
           <Panel className="flex flex-col gap-3">
@@ -266,7 +363,6 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
           </Panel>
         </section>
 
-        {/* Organizations column */}
         <section className="min-w-[280px] flex-1">
           <SectionHeading>Organizations</SectionHeading>
           <Panel className="flex flex-col gap-3">
@@ -291,12 +387,10 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
         </section>
       </div>
 
-      {/* ═══ Interest Tags ═══ */}
       <section className="mb-8">
         <SectionHeading>Interest Tags</SectionHeading>
         <Panel className="flex flex-col gap-6">
           <div className="flex flex-wrap gap-8">
-            {/* Selected topics */}
             <fieldset className="min-w-[280px] flex-1">
               <legend className="mb-2.5 font-dm-sans text-[12px] font-bold text-forum-dark-gray">
                 Topics
@@ -325,23 +419,26 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
               </div>
             </fieldset>
 
-            {/* Search for new tags */}
             <fieldset className="min-w-[280px] flex-1">
               <legend className="mb-2.5 flex items-center gap-2 font-dm-sans text-[12px] font-bold text-forum-dark-gray">
                 <Search size={12} aria-hidden className="text-forum-placeholder" />
                 Suggested tags
               </legend>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTION_TAGS.map((tag) => (
-                  <FilterChip key={tag} active={interests.includes(tag)} disabled>
-                    {tag}
+                {filteredTags.map((tag) => (
+                  <FilterChip
+                    key={tag.id}
+                    active={interests.includes(tag.id)}
+                    onClick={() => toggleInterest(tag.id)}
+                    aria-label={tag.label}
+                  >
+                    {tag.label}
                   </FilterChip>
                 ))}
               </div>
             </fieldset>
           </div>
 
-          {/* Organizations — link to orgs page */}
           <div>
             <span className="mb-2 block font-dm-sans text-[12px] font-bold text-forum-dark-gray">
               Organizations
@@ -356,137 +453,6 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
           </div>
         </Panel>
       </section>
-
-      {/* ═══ Friends + Organizations (bottom expanded view) ═══ */}
-      <div className="flex gap-[30px] mb-[40px]">
-        {/* Friends expanded */}
-        <div className="flex-1">
-          <div className="flex items-center gap-[8px] mb-[12px]">
-            <div className="w-[12px] h-[12px] rounded-full bg-forum-coral" />
-            <h2 className="font-serif text-[20px] text-forum-coral font-bold">Friends</h2>
-          </div>
-
-          {/* Avatar large */}
-          <div className="w-[120px] h-[120px] rounded-full border-[4px] border-forum-medium-gray overflow-hidden bg-forum-turquoise/20 mx-auto mb-[16px]">
-            {profile.avatarUrl ? (
-              <img
-                src={profile.avatarUrl}
-                alt={profile.displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[40px] font-bold text-black font-serif">
-                {profile.displayName[0]?.toUpperCase()}
-              </div>
-            )}
-          </div>
-
-          <div className="relative mb-[12px]">
-            <Search
-              size={14}
-              className="absolute left-[10px] top-1/2 -translate-y-1/2 text-forum-placeholder"
-            />
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full h-[32px] pl-[30px] pr-[10px] border border-forum-medium-gray rounded-[6px] text-[12px] font-dm-sans outline-none focus:border-forum-cerulean"
-            />
-          </div>
-
-          <div className="space-y-[8px]">
-            {friends.map((friend) => (
-              <div key={`bottom-${friend.id}`} className="flex items-center gap-[10px]">
-                <div className="w-[36px] h-[36px] rounded-full overflow-hidden bg-forum-turquoise/20 flex-shrink-0">
-                  {friend.avatarUrl ? (
-                    <img
-                      src={friend.avatarUrl}
-                      alt={friend.displayName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[13px] font-bold text-black">
-                      {friend.displayName[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[13px] font-bold font-dm-sans text-black truncate block">
-                    {friend.displayName}
-                  </span>
-                  <span className="text-[10px] font-dm-sans text-forum-light-gray">
-                    @{friend.netId}
-                  </span>
-                </div>
-                {friend.classYear && (
-                  <span className="text-[11px] font-dm-sans text-forum-light-gray">
-                    &apos;{friend.classYear.slice(-2)}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <Link
-            href="/friends"
-            className="flex items-center gap-[6px] mt-[12px] px-[12px] py-[6px] border border-forum-medium-gray rounded-[6px] text-[10px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors w-fit"
-          >
-            ADD / EDIT MY FRIENDS LIST
-            <ExternalLink size={10} />
-          </Link>
-        </div>
-
-        {/* Organizations expanded */}
-        <div className="flex-1">
-          <div className="flex items-center gap-[8px] mb-[12px]">
-            <div className="w-[12px] h-[12px] rounded-full bg-forum-coral" />
-            <h2 className="font-serif text-[20px] text-forum-coral font-bold">Organizations</h2>
-          </div>
-
-          <div className="relative mb-[12px]">
-            <Search
-              size={14}
-              className="absolute left-[10px] top-1/2 -translate-y-1/2 text-forum-placeholder"
-            />
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full h-[32px] pl-[30px] pr-[10px] border border-forum-medium-gray rounded-[6px] text-[12px] font-dm-sans outline-none focus:border-forum-cerulean"
-            />
-          </div>
-
-          <div className="space-y-[8px]">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={`org-${i}`} className="flex items-center gap-[10px]">
-                <div className="w-[36px] h-[36px] rounded-[5px] bg-forum-cerulean/20 flex-shrink-0 flex items-center justify-center">
-                  <div className="w-[20px] h-[20px] bg-forum-cerulean rounded-[3px]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[13px] font-bold font-dm-sans text-black block">
-                    Princeton TigerApps
-                  </span>
-                  <span className="text-[10px] font-dm-sans text-forum-light-gray">
-                    Design Lead
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="text-[10px] font-bold font-dm-sans text-forum-light-gray hover:text-forum-dark-gray transition-colors"
-                >
-                  Edit Role
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <Link
-            href="/orgs"
-            className="flex items-center gap-[6px] mt-[12px] px-[12px] py-[6px] border border-forum-medium-gray rounded-[6px] text-[10px] font-bold font-dm-sans text-forum-dark-gray tracking-wider hover:border-forum-dark-gray transition-colors w-fit"
-          >
-            ADD / EDIT MY ORGANIZATIONS
-            <ExternalLink size={10} />
-          </Link>
-        </div>
-      </div>
     </PageShell>
   );
 }

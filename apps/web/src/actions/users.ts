@@ -12,9 +12,52 @@ import {
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
 
-// Derived from the DB schema so these can never drift from the pgEnum values
+const LEGACY_INTEREST_TAG_ALIASES: Record<string, string> = {
+  career: "career-recruiting",
+  academic: "research",
+  academics: "academics",
+  tech: "tech",
+  political: "politics-policy",
+  politics: "politics-policy",
+  art: "visual-arts",
+  visual: "visual-arts",
+  performance: "performing-arts",
+  performing: "performing-arts",
+  cultural: "culture",
+  culture: "culture",
+  sports: "athletics",
+  athletic: "athletics",
+  religious: "religion",
+  religion: "religion",
+  outdoor: "outdoor-adventure",
+  outdoors: "outdoor-adventure",
+  wellness: "wellness-self-care",
+  speaker: "speaker-event",
+  social: "social-event",
+  "free food": "free-food",
+  "free-food": "free-food",
+  "community service": "community-service",
+  "community-service": "community-service",
+  "politics policy": "politics-policy",
+  "visual arts": "visual-arts",
+  "performing arts": "performing-arts",
+  "wellness self care": "wellness-self-care",
+  "speaker event": "speaker-event",
+  "social event": "social-event",
+  stem: "stem",
+};
+
 type InterestTag = (typeof eventTagEnum.enumValues)[number];
 type CampusRegion = (typeof campusRegionEnum.enumValues)[number];
+
+function normalizeInterestTag(tag: string): string {
+  const normalized = tag.trim().toLowerCase().replace(/\s+/g, "-");
+  return LEGACY_INTEREST_TAG_ALIASES[normalized] ?? LEGACY_INTEREST_TAG_ALIASES[tag] ?? normalized;
+}
+
+function dedupeInterests(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeInterestTag(value)).filter(Boolean))];
+}
 
 export async function completeOnboarding(data: {
   interests: string[];
@@ -28,7 +71,6 @@ export async function completeOnboarding(data: {
 
   const userId = session.user.id;
 
-  // Update user profile
   await db
     .update(users)
     .set({
@@ -40,18 +82,17 @@ export async function completeOnboarding(data: {
     })
     .where(eq(users.id, userId));
 
-  // Insert interests
   if (data.interests.length > 0) {
+    const normalizedInterests = dedupeInterests(data.interests);
     await db.delete(userInterests).where(eq(userInterests.userId, userId));
     await db.insert(userInterests).values(
-      data.interests.map((tag) => ({
+      normalizedInterests.map((tag) => ({
         userId,
         tag: tag as InterestTag,
       })),
     );
   }
 
-  // Insert regions
   if (data.regions.length > 0) {
     await db.delete(userRegions).where(eq(userRegions.userId, userId));
     await db.insert(userRegions).values(
@@ -129,6 +170,8 @@ export async function getUserProfile(): Promise<UserProfile> {
     .from(userInterests)
     .where(eq(userInterests.userId, user.id));
 
+  const normalizedInterests = dedupeInterests(interests.map(({ tag }) => tag));
+
   const regions = await db
     .select({ region: userRegions.region })
     .from(userRegions)
@@ -143,7 +186,7 @@ export async function getUserProfile(): Promise<UserProfile> {
     major: user.major,
     avatarUrl: user.avatarUrl,
     isOrgLeader: user.isOrgLeader,
-    interests: interests.map((i) => i.tag),
+    interests: normalizedInterests,
     regions: regions.map((r) => r.region),
   };
 }
@@ -169,10 +212,11 @@ export async function updateProfile(data: {
     .where(eq(users.id, userId));
 
   if (data.interests) {
+    const normalizedInterests = dedupeInterests(data.interests);
     await db.delete(userInterests).where(eq(userInterests.userId, userId));
-    if (data.interests.length > 0) {
+    if (normalizedInterests.length > 0) {
       await db.insert(userInterests).values(
-        data.interests.map((tag) => ({
+        normalizedInterests.map((tag) => ({
           userId,
           tag: tag as InterestTag,
         })),
