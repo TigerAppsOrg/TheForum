@@ -36,6 +36,8 @@ export interface FeedEvent {
   orgId: string | null;
   orgName: string | null;
   datetime: string;
+  datetimeIso?: string;
+  endDatetimeIso?: string;
   location: string;
   tags: string[];
   flyerUrl: string | null;
@@ -754,6 +756,7 @@ export async function getMyEvents(): Promise<{
       title: events.title,
       description: events.description,
       datetime: events.datetime,
+      endDatetime: events.endDatetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
       orgId: events.orgId,
@@ -772,6 +775,7 @@ export async function getMyEvents(): Promise<{
       title: events.title,
       description: events.description,
       datetime: events.datetime,
+      endDatetime: events.endDatetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
       orgId: events.orgId,
@@ -791,6 +795,7 @@ export async function getMyEvents(): Promise<{
       title: events.title,
       description: events.description,
       datetime: events.datetime,
+      endDatetime: events.endDatetime,
       flyerUrl: events.flyerUrl,
       locationName: campusLocations.name,
       orgId: events.orgId,
@@ -803,26 +808,50 @@ export async function getMyEvents(): Promise<{
     .where(eq(savedEvents.userId, userId))
     .orderBy(events.datetime);
 
-  const mapEvent = (e: (typeof createdEvents)[0]): FeedEvent => ({
+  const allEvents = [...createdEvents, ...rsvpedEvents, ...savedEventsResult];
+  const eventIds = [...new Set(allEvents.map((event) => event.id))];
+
+  const attendeeCounts = new Map<string, number>();
+  if (eventIds.length > 0) {
+    const counts = await db
+      .select({
+        eventId: rsvps.eventId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(rsvps)
+      .where(inArray(rsvps.eventId, eventIds))
+      .groupBy(rsvps.eventId);
+
+    for (const row of counts) {
+      attendeeCounts.set(row.eventId, row.count);
+    }
+  }
+
+  const mapEvent = (
+    e: (typeof createdEvents)[0],
+    overrides: Partial<Pick<FeedEvent, "isRsvped" | "isSaved">> = {},
+  ): FeedEvent => ({
     id: e.id,
     title: e.title,
     description: e.description,
     orgId: e.orgId,
     orgName: e.orgName,
     datetime: formatEventDateTime(e.datetime),
+    datetimeIso: e.datetime.toISOString(),
+    endDatetimeIso: e.endDatetime?.toISOString(),
     location: e.locationName ?? "TBD",
     tags: [],
     flyerUrl: e.flyerUrl,
-    rsvpCount: 0,
+    rsvpCount: attendeeCounts.get(e.id) ?? 0,
     friendsAttending: [],
-    isRsvped: false,
-    isSaved: false,
+    isRsvped: overrides.isRsvped ?? false,
+    isSaved: overrides.isSaved ?? false,
   });
 
   return {
-    created: createdEvents.map(mapEvent),
-    rsvped: rsvpedEvents.map(mapEvent),
-    saved: savedEventsResult.map(mapEvent),
+    created: createdEvents.map((event) => mapEvent(event)),
+    rsvped: rsvpedEvents.map((event) => mapEvent(event, { isRsvped: true })),
+    saved: savedEventsResult.map((event) => mapEvent(event, { isSaved: true })),
   };
 }
 
