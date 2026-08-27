@@ -24,7 +24,7 @@ const buttonVariants = cva(
          * elements across the (app) routes. Radius is `rounded-lg` (10px, the
          * --radius token) so every button agrees with the card corner.
          */
-        /** Primary action: RSVP, Save, Create. */
+        /** Primary action: RSVP, Save, Create. Forum cerulean, #0A9CD5. */
         cerulean: "rounded-lg bg-forum-cerulean text-white shadow-sm hover:bg-forum-cerulean/90",
         /** High-contrast action on tinted surfaces. */
         solid: "rounded-lg bg-black text-white hover:bg-forum-dark-gray",

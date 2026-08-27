@@ -24,7 +24,10 @@ export function SearchInput({
   return (
     <div
       className={cn(
-        "flex h-[40px] items-center gap-2 rounded-lg border border-forum-border bg-white px-3.5",
+        // 48px tall: more breathing room above and below the text, and it clears
+        // the 44px minimum touch target for phones. `px-5` keeps the icon off
+        // the border and `gap-3` keeps the placeholder off the icon.
+        "flex h-12 items-center gap-3 rounded-lg border border-forum-border bg-white px-5",
         "transition-colors focus-within:border-forum-cerulean",
         className,
       )}

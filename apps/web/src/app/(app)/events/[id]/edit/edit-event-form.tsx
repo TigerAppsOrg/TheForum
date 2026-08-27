@@ -182,10 +182,10 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
         </Button>
       </div>
 
-      <div className="flex gap-[40px]">
+      <div className="flex flex-col gap-6 md:flex-row md:gap-[40px]">
         {/* Timeline sidebar */}
-        <div className="w-[160px] flex-shrink-0">
-          <div className="sticky top-[20px] flex flex-col gap-[12px]">
+        <div className="w-full shrink-0 md:w-[160px]">
+          <div className="flex gap-3 overflow-x-auto pb-1 md:sticky md:top-5 md:flex-col md:gap-3 md:overflow-visible">
             {TIMELINE_SECTIONS.map(({ id, label, color }) => (
               <button
                 key={id}

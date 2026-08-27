@@ -90,7 +90,8 @@ export function NotificationDropdown() {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-[460px] p-0 rounded-[16px] shadow-[0px_8px_30px_rgba(0,0,0,0.12)] border border-gray-100"
+        // Caps to the viewport on phones — a fixed 460px overflowed a 375px screen.
+        className="w-[calc(100vw-2rem)] max-w-[460px] rounded-[16px] border border-forum-border p-0 shadow-[0px_8px_30px_rgba(0,0,0,0.12)] sm:w-[460px]"
       >
         {/* Header — italic serif title */}
         <div className="px-[24px] pt-[24px] pb-[16px]">

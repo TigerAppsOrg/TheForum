@@ -16,8 +16,10 @@ const PILLS: { key: FilterKey; label: string; icon: typeof Users }[] = [
 ];
 
 export function MapFilterPills({ activeFilters, onToggle }: MapFilterPillsProps) {
+  // Scrolls sideways on phones rather than wrapping into stacked rows that
+  // eat the map.
   return (
-    <fieldset className="flex flex-wrap items-center justify-center gap-2">
+    <fieldset className="scrollbar-cerulean flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-center sm:overflow-visible sm:pb-0">
       <legend className="sr-only">Filter map events</legend>
       {PILLS.map(({ key, label, icon: Icon }) => (
         <FilterChip

@@ -2,14 +2,18 @@
 
 import { usePathname } from "next/navigation";
 import { GeometricBackground } from "~/components/layout/geometric-background";
+import { MobileNav } from "~/components/layout/mobile-nav";
 import { Sidebar } from "~/components/layout/sidebar";
 import { TopBar } from "~/components/layout/top-bar";
+import { cn } from "~/lib/utils";
 
 /**
  * Routes whose content fills the shell edge-to-edge and manages its own
  * scrolling — the map canvas, which must not sit in a scroll container.
  *
- * These still get the Sidebar and TopBar; only the `<main>` box changes.
+ * These still get the same Sidebar and TopBar as every other route; the rail
+ * just floats over the content rather than reserving a column beside it, so
+ * full-width furniture like the map's timeline can span the whole screen.
  */
 const EDGE_TO_EDGE_ROUTES = new Set(["/map"]);
 
@@ -29,7 +33,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
     <div className="relative flex h-screen w-screen overflow-hidden bg-white">
       <GeometricBackground />
       <div className="relative z-10 flex h-full w-full">
-        <Sidebar />
+        <Sidebar floating={isEdgeToEdge} />
         <div className="relative flex-1 overflow-hidden">
           <div className="absolute top-0 right-0 z-20">
             <TopBar />
@@ -38,15 +42,19 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
             Edge-to-edge pages get a positioning context with no scroll of their
             own; ordinary pages scroll vertically inside the shell.
           */}
+          {/* `pb-16` on phones reserves room for the fixed bottom tab bar. */}
           <main
-            className={
-              isEdgeToEdge ? "relative h-full overflow-hidden p-3 pl-0" : "h-full overflow-y-auto"
-            }
+            className={cn(
+              "pb-16 md:pb-0",
+              isEdgeToEdge ? "relative h-full overflow-hidden" : "h-full overflow-y-auto",
+            )}
           >
             {children}
           </main>
         </div>
       </div>
+
+      <MobileNav />
     </div>
   );
 }

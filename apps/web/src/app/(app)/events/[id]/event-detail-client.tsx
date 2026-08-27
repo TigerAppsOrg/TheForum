@@ -4,6 +4,7 @@ import {
   Bookmark,
   BookmarkCheck,
   Calendar,
+  Check,
   ChevronLeft,
   Clock,
   Edit3,
@@ -25,6 +26,7 @@ import {
   toggleSave,
 } from "~/actions/events";
 import { Panel } from "~/components/common/panel";
+import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { getCategoryColor } from "~/components/events/event-card";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
@@ -39,31 +41,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
+import { buildGCalUrl } from "~/lib/calendar";
 import { cn } from "~/lib/utils";
-
-function buildGCalUrl(event: {
-  title: string;
-  description: string;
-  datetime: Date;
-  endDatetime: Date | null;
-  locationName: string;
-}) {
-  const fmt = (d: Date) =>
-    d
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}/, "");
-  const start = fmt(event.datetime);
-  const end = fmt(event.endDatetime ?? new Date(event.datetime.getTime() + 60 * 60 * 1000));
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: event.title,
-    dates: `${start}/${end}`,
-    details: event.description,
-    location: event.locationName,
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
 
 interface EventDetailClientProps {
   event: EventDetail;
@@ -76,6 +55,8 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   const [isRsvped, setIsRsvped] = useState(event.isRsvped);
   const [isSaved, setIsSaved] = useState(event.isSaved);
   const [rsvpCount, setRsvpCount] = useState(event.rsvpCount);
+  /* Local, because the avatar stack below has to move with the RSVP button. */
+  const [attendees, setAttendees] = useState(event.attendees);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const color = getCategoryColor(event.tags);
@@ -95,10 +76,16 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
     const prev = isRsvped;
     setIsRsvped(!prev);
     setRsvpCount((c) => (prev ? c - 1 : c + 1));
+    if (prev) {
+      toast(`Removed your RSVP to ${event.title}`);
+    } else {
+      toast.success(`You're going to ${event.title}`);
+    }
     startTransition(async () => {
       const result = await toggleRsvp(event.id);
       setIsRsvped(result.rsvped);
       setRsvpCount(result.count);
+      setAttendees(result.attendees);
     });
   };
 
@@ -138,8 +125,9 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
       {/* Main content */}
       <div className="flex flex-wrap gap-10">
         {/* Left: Flyer */}
-        <div className="w-[340px] shrink-0">
-          <div className="h-[440px] overflow-hidden rounded-xl shadow-lg">
+        {/* Full width on phones; a fixed column only once there's room beside it. */}
+        <div className="w-full sm:w-[340px] sm:shrink-0">
+          <div className="h-[280px] overflow-hidden rounded-xl shadow-lg sm:h-[440px]">
             {event.flyerUrl ? (
               <img src={event.flyerUrl} alt="" className="size-full object-cover" />
             ) : (
@@ -285,27 +273,34 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
 
           {/* RSVP button */}
           <Button
-            variant={isRsvped ? "solid" : "coral"}
+            variant={isRsvped ? "cerulean" : "coral"}
             size="cta"
             aria-pressed={isRsvped}
             disabled={isPending}
             onClick={handleRsvp}
             className="w-full max-w-[300px]"
           >
-            {isRsvped ? "Cancel RSVP" : "RSVP now"}
+            {isRsvped ? (
+              <>
+                <Check />
+                You're going
+              </>
+            ) : (
+              "RSVP now"
+            )}
           </Button>
 
           {/* Attendees */}
           <div className="flex items-center gap-[12px] mt-[16px]">
-            {event.attendees.length > 0 && (
-              <AvatarStack users={event.attendees} size={30} max={6} />
-            )}
+            {attendees.length > 0 && <AvatarStack users={attendees} size={30} max={6} />}
             <div>
               <div className="flex items-center gap-[6px]">
-                <Users size={14} className="text-forum-light-gray" />
-                <span className="text-[14px] font-bold font-dm-sans text-black">
-                  {rsvpCount} attending
-                </span>
+                <Users size={14} aria-hidden className="text-forum-light-gray" />
+                <AttendeesDialog
+                  attendees={attendees}
+                  count={rsvpCount}
+                  friendIds={new Set(event.friendsAttending.map((f) => f.id))}
+                />
               </div>
               {event.friendsAttending.length > 0 && (
                 <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[2px]">

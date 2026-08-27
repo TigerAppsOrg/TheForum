@@ -10,7 +10,7 @@ import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/ac
 import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
-import { getCategoryColor } from "~/components/events/event-card";
+import { EventCard } from "~/components/events/event-card";
 import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 
@@ -157,39 +157,22 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
         <section className="md:col-span-2">
           <SectionHeading>Upcoming Events</SectionHeading>
           {org.upcomingEvents.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {org.upcomingEvents.map((event) => {
-                const color = getCategoryColor(event.tags);
-                return (
-                  <Panel
-                    asChild
-                    key={event.id}
-                    size="sm"
-                    className="transition-colors hover:border-forum-cerulean"
-                  >
-                    <Link href={`/events/${event.id}`} className="flex items-center gap-4">
-                      <div
-                        aria-hidden
-                        className="flex size-12 shrink-0 items-center justify-center rounded-lg"
-                        style={{ background: color.bg }}
-                      >
-                        <CalendarDays size={16} style={{ color: color.text }} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-dm-sans text-sm font-semibold text-black">
-                          {event.title}
-                        </p>
-                        <p className="mt-0.5 font-dm-sans text-xs text-forum-light-gray">
-                          {event.datetime}
-                          <span className="mx-1.5">·</span>
-                          <MapPin size={10} aria-hidden className="-mt-0.5 inline" />{" "}
-                          {event.locationName}
-                        </p>
-                      </div>
-                    </Link>
-                  </Panel>
-                );
-              })}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {org.upcomingEvents.map((event, index) => (
+                <EventCard
+                  key={event.id}
+                  id={event.id}
+                  title={event.title}
+                  datetime={event.datetime}
+                  location={event.locationName}
+                  tags={event.tags}
+                  orgName={org.name}
+                  orgId={org.id}
+                  density="compact"
+                  source="similar"
+                  position={index}
+                />
+              ))}
             </div>
           ) : (
             <EmptyState icon={CalendarDays} title="No upcoming events" />

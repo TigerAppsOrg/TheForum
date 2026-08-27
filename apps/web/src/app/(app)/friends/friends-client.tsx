@@ -20,7 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 function Avatar({
   name,
   avatarUrl,
-  size = 56,
+  // 44px reads fine on a phone row and still leaves room for the name and
+  // its actions; 56 crowded them.
+  size = 44,
 }: {
   name: string;
   avatarUrl?: string | null;
@@ -150,7 +152,8 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
           <TabsTrigger
             key={id}
             value={id}
-            className="flex-1 py-4 font-dm-sans text-[16px] font-semibold after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
+            // Type scales down on phones so three tabs fit without clipping.
+            className="min-w-0 flex-1 px-1 py-3 font-dm-sans text-[13px] font-semibold after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black sm:px-2 sm:py-4 sm:text-[16px]"
           >
             {label}
             {count > 0 && (
@@ -237,7 +240,7 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
                   <Panel
                     key={friend.id}
                     size="sm"
-                    className="group flex items-center gap-4 transition-colors hover:border-forum-cerulean"
+                    className="flex items-center gap-4 transition-colors hover:border-forum-cerulean"
                   >
                     <Avatar name={friend.displayName} avatarUrl={friend.avatarUrl} />
                     <div className="min-w-0 flex-1">
@@ -250,15 +253,17 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
                       </p>
                     </div>
                     {/*
-                      Kept reachable by keyboard: the control is always in the
-                      tab order and reveals itself on focus, not just on hover.
+                      Always visible rather than hover-revealed: a control you
+                      cannot see is a control you cannot find, and hover doesn't
+                      exist on touch at all. It stays low-contrast until hover,
+                      where it turns coral to signal the destructive action.
                     */}
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Remove ${friend.displayName} from friends`}
                       onClick={() => handleRemove(friend.id)}
-                      className="text-forum-medium-gray opacity-0 transition-opacity hover:text-forum-coral focus-visible:opacity-100 group-hover:opacity-100"
+                      className="text-forum-light-gray transition-colors hover:bg-forum-coral/10 hover:text-forum-coral"
                     >
                       <UserMinus />
                     </Button>
@@ -285,8 +290,13 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
           <TabsContent value="requests">
             {pending.incoming.length > 0 ? (
               <div className="flex flex-col gap-3">
+                {/* Rows wrap on phones so Accept/Decline don't squeeze the name */}
                 {pending.incoming.map((req) => (
-                  <Panel key={req.id} size="sm" className="flex items-center gap-4">
+                  <Panel
+                    key={req.id}
+                    size="sm"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-3"
+                  >
                     <Avatar name={req.displayName} avatarUrl={req.avatarUrl} />
                     <div className="min-w-0 flex-1">
                       <p className="font-dm-sans text-[15px] text-black">

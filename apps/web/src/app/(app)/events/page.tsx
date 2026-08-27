@@ -11,8 +11,9 @@ export default async function MyEventsPage() {
   return (
     <PageShell>
       <PageHeading
+        clearTopBar
         action={
-          <Button asChild variant="solid" size="cta">
+          <Button asChild variant="cerulean" size="cta">
             <Link href="/events/create">
               <Plus />
               Create an event

@@ -42,7 +42,7 @@ export default function LandingPage() {
       {/* ═══ HERO SECTION ═══ */}
       <section
         id="hero"
-        className="relative px-15 pt-2.5 pb-25 min-h-screen bg-forum-yellow-10 overflow-hidden flex flex-col justify-end"
+        className="relative px-6 sm:px-15 pt-2.5 pb-25 min-h-screen bg-forum-yellow-10 overflow-hidden flex flex-col justify-end"
       >
         {/* Geometric background shapes — large, soft, overlapping */}
         <div className=" inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
@@ -70,7 +70,7 @@ export default function LandingPage() {
             Campus Events Platform — Princeton
           </p>
 
-          <h1 className="font-serif text-[72px] font-semibold leading-tight text-black mb-7">
+          <h1 className="font-serif text-[40px] sm:text-[56px] md:text-[72px] font-semibold leading-tight text-black mb-7">
             Campus events,
             <br />
             <span className="text-forum-coral italic font-bold">curated.</span>
@@ -101,7 +101,7 @@ export default function LandingPage() {
       {/* ═══ FOR EVENT ATTENDEES ═══ */}
       <section
         id="attendees"
-        className="flex flex-col md:flex-row bg-forum-turquoise px-8 md:px-30 md:py-20 gap-10 md:gap-20 min-h-[200vh] md:min-h-screen"
+        className="flex flex-col md:flex-row bg-forum-turquoise px-6 md:px-30 md:py-20 gap-10 md:gap-20 min-h-screen"
       >
         {" "}
         {/* Left column */}
@@ -117,7 +117,7 @@ export default function LandingPage() {
           {/* Quote */}
           <div className="flex flex-col gap-4">
             <blockquote className="flex flex-row font-dm-sans text-[20px] md:text-[24px] text-forum-black leading-tight">
-              <p className="font-serif italic text-[80px] md:text-[100px] leading-6 mr-2">
+              <p className="font-serif italic text-[56px] sm:text-[80px] md:text-[100px] leading-none mr-2">
                 &ldquo;
               </p>
               <p>
@@ -146,7 +146,7 @@ export default function LandingPage() {
                 For Event Attendees
               </p>
             </div>
-            <h2 className="font-serif text-[36px] md:text-[48px] font-medium leading-tight text-black text-right">
+            <h2 className="font-serif text-[28px] sm:text-[36px] md:text-[48px] font-medium leading-tight text-black text-right">
               Everything you need to never miss{" "}
               <span className="text-forum-cerulean italic font-bold">a thing.</span>
             </h2>
@@ -207,13 +207,13 @@ export default function LandingPage() {
         </div>
 
         {/* Right — deep coral, join CTA + FORUM wordmark */}
-        <div className="flex-1 bg-forum-pink px-14 py-16 flex flex-col justify-between overflow-hidden relative min-h-screen">
+        <div className="flex-1 bg-forum-pink px-6 py-12 sm:px-14 sm:py-16 flex flex-col justify-between overflow-hidden relative min-h-screen">
           {/* Warm yellow glow blob */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/4 w-72 h-72 rounded-full bg-forum-yellow opacity-50 blur-xl pointer-events-none" />
 
           {/* Centered text + button */}
           <div className="relative z-10 flex flex-col items-center text-center gap-6 mt-16 self-center">
-            <h2 className="font-serif text-[36px] md:text-[42px] leading-tight text-black">
+            <h2 className="font-serif text-[26px] sm:text-[36px] md:text-[42px] leading-tight text-black">
               Whether you&apos;re an attendee or an organizer,{" "}
               <span className="italic font-bold text-forum-coral">The Forum</span> is the best place
               for <span className="italic font-bold">you.</span>
@@ -231,9 +231,14 @@ export default function LandingPage() {
             </form>
           </div>
 
-          {/* FORUM wordmark at bottom */}
-          <div className="absolute bottom-0 z-10 mt-auto overflow-hidden">
-            <h2 className="font-kalnia text-[130px] md:text-[160px] font-bold tracking-[0.06em] text-forum-coral leading-none select-none -mb-6">
+          {/*
+            FORUM wordmark. Scales with the viewport — at a fixed 130px it was
+            wider than a phone screen — and the negative bottom margin is gone:
+            combined with the parent's `overflow-hidden` it was clipping the
+            bottom of the letterforms.
+          */}
+          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center pb-2">
+            <h2 className="select-none whitespace-nowrap font-kalnia text-[28vw] font-bold leading-none tracking-[0.06em] text-forum-coral sm:text-[24vw] md:text-[130px] lg:text-[160px]">
               FORUM
             </h2>
           </div>
@@ -241,7 +246,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="bg-white px-15 py-5 border-t border-gray-100">
+      <footer className="bg-white px-6 sm:px-15 py-5 border-t border-forum-medium-gray">
         <p className="text-[11px] text-forum-light-gray">
           Built for Princeton students — The Forum by TigerApps
         </p>

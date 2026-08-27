@@ -21,9 +21,9 @@ export function TimelineScrubber({
   const timelineDays = useMemo(() => getTimelineDays(days), [days]);
 
   return (
-    <div className="bg-white border-t border-forum-border px-4 py-3 flex items-center gap-6">
-      {/* Legend */}
-      <div className="shrink-0 flex flex-col gap-1">
+    <div className="flex items-center gap-4 border-t border-forum-border bg-white px-3 py-2.5 sm:gap-6 sm:px-4 sm:py-3">
+      {/* Legend — hidden on phones, where the horizontal room matters more */}
+      <div className="hidden shrink-0 flex-col gap-1 sm:flex">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: NOW_COLOR }} />
           <span className="text-[10px] font-bold text-forum-dark-gray tracking-wide">NOW</span>

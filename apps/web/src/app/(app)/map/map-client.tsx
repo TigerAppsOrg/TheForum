@@ -106,6 +106,15 @@ export function MapClient({ initialEvents }: MapClientProps) {
     return groups;
   }, [filteredEvents]);
 
+  /*
+   * The sidebar shows the events at the pin you clicked — not the whole
+   * filtered set. Clicking a pin with four events shows those four.
+   */
+  const panelEvents = useMemo(
+    () => (selectedLocation ? (locationGroups.get(selectedLocation) ?? []) : []),
+    [selectedLocation, locationGroups],
+  );
+
   const eventCountByDate = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of events) {
@@ -130,8 +139,14 @@ export function MapClient({ initialEvents }: MapClientProps) {
     setSelectedLocation(null);
   }, []);
 
+  /** A single event at a pin → open the full detail card. */
   const handleExpandEvent = useCallback((eventId: string) => {
     setDetailEventId(eventId);
+  }, []);
+
+  /** Several events at a pin → open the sidebar listing them. */
+  const handleShowLocationList = useCallback((locId: string) => {
+    setSelectedLocation(locId);
     setPanelOpen(true);
   }, []);
 
@@ -152,47 +167,71 @@ export function MapClient({ initialEvents }: MapClientProps) {
         map painted over the docked Sidebar and the route had to opt out of the
         standard chrome. It now shares the same nav as every other page.
       */}
-      <div className="absolute inset-0 overflow-hidden rounded-[16px]">
-        {/* Map fills everything */}
-        <div className="absolute inset-0">
+      <div className="absolute inset-0 flex flex-col overflow-hidden">
+        {/* Map area — everything that floats is scoped to this box, so no overlay
+            can land on the timeline below it */}
+        <div className="relative min-h-0 flex-1">
           <MapView
             ref={mapRef}
             locationGroups={locationGroups}
             selectedLocation={selectedLocation}
             onSelectLocation={setSelectedLocation}
             onExpandEvent={handleExpandEvent}
+            onShowLocationList={handleShowLocationList}
           />
-        </div>
 
-        {/* ═══ Search bar + filter pills (top center) ═══ */}
-        {/* The wider right inset on ≥sm clears the TopBar's bell + avatar. */}
-        <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:right-32">
-          <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
-            <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
-            <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />
+          {/* ═══ Search bar + filter pills (top center) ═══ */}
+          {/*
+            The rail floats over the map on this route, so the left inset clears
+            its *expanded* 212px width — the controls are never swallowed when it
+            opens. The wider right inset on ≥sm clears the TopBar's bell + avatar.
+          */}
+          <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:left-[224px] sm:right-32">
+            <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
+              <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
+              <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />
+            </div>
           </div>
-        </div>
 
-        {/* ═══ Right-side event list panel (floating overlay) ═══ */}
-        <div
-          className={cn(
-            "absolute top-0 right-0 bottom-0 z-10 transition-transform duration-300 ease-out",
-            panelOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          <div className="h-full w-[360px] bg-white/95 backdrop-blur-xl shadow-[-4px_0_20px_rgba(0,0,0,0.08)]">
+          {/* ═══ Right-side floating event cards ═══ */}
+          {/* No panel chrome — the cards themselves are the surface, so the map
+              shows through the gaps between them. */}
+          <div
+            className={cn(
+              // Full width on phones — a 320px rail leaves too little map beside
+              // it to be worth keeping.
+              "absolute top-16 right-0 bottom-0 z-10 w-full transition-transform duration-300 ease-out sm:w-[320px]",
+              panelOpen ? "translate-x-0" : "translate-x-full",
+            )}
+          >
             <EventListPanel
-              events={filteredEvents}
-              selectedLocation={selectedLocation}
+              events={panelEvents}
+              locationName={panelEvents[0]?.locationName ?? ""}
+              expandedEventId={detailEventId}
               onLocateEvent={handleLocateEvent}
               onExpandEvent={handleExpandEvent}
-              onClose={() => setPanelOpen(false)}
+              onClose={() => {
+                setPanelOpen(false);
+                setSelectedLocation(null);
+              }}
             />
           </div>
+
+          {/* ═══ Loading overlay ═══ */}
+          {isPending && (
+            <output className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/30 backdrop-blur-[2px]">
+              <span className="flex items-center gap-2 rounded-xl border border-forum-border bg-white/95 px-4 py-2 shadow-lg">
+                <span className="size-2 animate-pulse rounded-full bg-forum-cerulean" />
+                <span className="font-dm-sans text-xs font-medium text-forum-dark-gray">
+                  Loading events
+                </span>
+              </span>
+            </output>
+          )}
         </div>
 
-        {/* ═══ Timeline scrubber (bottom, full width) ═══ */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
+        {/* ═══ Timeline scrubber — a bar beneath the map, not an overlay on it ═══ */}
+        <div className="shrink-0">
           <TimelineScrubber
             days={14}
             eventCountByDate={eventCountByDate}
@@ -200,16 +239,6 @@ export function MapClient({ initialEvents }: MapClientProps) {
             onSelectDate={handleSelectDate}
           />
         </div>
-
-        {/* ═══ Loading overlay ═══ */}
-        {isPending && (
-          <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] flex items-center justify-center z-20 pointer-events-none">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/92 backdrop-blur-md shadow-lg border border-forum-border">
-              <div className="w-2 h-2 rounded-full bg-forum-cerulean animate-pulse" />
-              <span className="text-xs font-medium text-forum-dark-gray">Loading events</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ═══ Event detail modal ═══ */}

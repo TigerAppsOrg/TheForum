@@ -11,8 +11,14 @@ import { Field } from "~/components/common/field";
 import { FilterChip } from "~/components/common/filter-chip";
 import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
-import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
+import {
+  PageHeading,
+  PageShell,
+  SectionHeading,
+  TOP_BAR_CLEARANCE,
+} from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 const INTEREST_TAGS = [
   { id: "free food", label: "free food" },
@@ -150,8 +156,8 @@ export function SettingsClient({ profile, friends }: SettingsClientProps) {
 
   return (
     <PageShell width="wide">
-      {/* Top bar — pr reserves space so buttons don't overlap the TopBar notification/avatar */}
-      <div className="mb-5 flex items-center justify-between pr-[100px]">
+      {/* Reserves space so these buttons don't collide with the floating TopBar. */}
+      <div className={cn("mb-5 flex items-center justify-between", TOP_BAR_CLEARANCE)}>
         <Button variant="quiet" size="sm" onClick={() => router.back()}>
           <ArrowLeft />
           Back

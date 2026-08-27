@@ -1,27 +1,12 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { LogOut, Plus } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS, isNavItemActive } from "~/components/layout/nav-items";
 import { cn } from "~/lib/utils";
-
-/**
- * Space reserved in the page flow: the 12px inset plus the *expanded* 200px
- * width, not the collapsed 64px.
- *
- * The panel overlays rather than pushes, so if we only reserved the collapsed
- * width the expanded panel would land on top of the page heading and the first
- * card. Reserving the open width means content always begins to the right of
- * where the panel can ever reach — nothing is covered, and nothing reflows on
- * hover. The cost is a fixed gutter beside the collapsed rail.
- *
- * The widths themselves are literal Tailwind classes below, because the JIT
- * scans source text and cannot read them out of a template string.
- */
-const FOOTPRINT = 212;
 
 /**
  * Row inside the nav.
@@ -61,38 +46,46 @@ function NavRow({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ floating = false }: { floating?: boolean }) {
   const pathname = usePathname();
 
   return (
     /*
-     * The outer element reserves a fixed slice of page flow and never resizes;
-     * the panel inside is absolutely positioned and grows on hover. Animating
-     * the flow width instead would re-wrap the feed on every pointer pass.
+     * The outer element holds the rail's slice of page flow and animates with
+     * it, so page content is pushed rather than covered — matching the design,
+     * where the greeting and search field shift right as the rail opens while
+     * their right edge stays put.
+     *
+     * `floating` reserves nothing, letting the page beneath run the full width
+     * of the shell — used by the map so its timeline can stretch edge to edge
+     * while the rail simply sits on top.
      */
-    <div className="relative z-40 shrink-0" style={{ width: FOOTPRINT }}>
+    <div
+      className={cn(
+        // Hidden on phones — `MobileNav` takes over there, because the
+        // hover-to-expand interaction has no touch equivalent.
+        "group/rail relative z-40 hidden shrink-0 md:block",
+        "transition-[width] duration-200 ease-out motion-reduce:transition-none",
+        floating ? "md:w-0" : "md:w-[76px] md:hover:w-[212px] md:focus-within:w-[212px]",
+      )}
+    >
       <aside
         aria-label="Primary"
         className={cn(
-          "group/rail absolute inset-y-3 left-3 flex flex-col overflow-hidden rounded-[16px]",
+          "absolute left-3 flex flex-col overflow-hidden rounded-[16px]",
+          // Sits 48px from the top and 112px from the bottom — same panel
+          // height as an even 80/80 split, shifted up. The deeper bottom gap
+          // also keeps the map's full-width timeline clear of the rail.
+          "top-12 bottom-28",
           "shadow-[0px_3px_3px_0px_rgba(32,162,255,0.08)]",
           "transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none",
-          "hover:shadow-[0px_8px_24px_0px_rgba(32,162,255,0.18)]",
-          "focus-within:shadow-[0px_8px_24px_0px_rgba(32,162,255,0.18)]",
-          "w-[64px] hover:w-[200px] focus-within:w-[200px]",
+          "group-hover/rail:shadow-[0px_8px_24px_0px_rgba(32,162,255,0.18)]",
+          "group-focus-within/rail:shadow-[0px_8px_24px_0px_rgba(32,162,255,0.18)]",
+          "w-[64px] group-hover/rail:w-[200px] group-focus-within/rail:w-[200px]",
         )}
       >
-        {/*
-          Two backdrop layers. Collapsed, the white one is transparent so the
-          geometric background still reads through the turquoise tint exactly as
-          before. Expanded, it turns opaque so the panel can sit over page
-          content without the feed showing through.
-        */}
-        <span
-          aria-hidden
-          className="absolute inset-0 bg-white opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100 motion-reduce:transition-none"
-        />
-        <span aria-hidden className="absolute inset-0 bg-forum-turquoise-20" />
+        {/* Rail backdrop — #ECFCFC at 50%. */}
+        <span aria-hidden className="absolute inset-0 bg-[#ECFCFC]/50" />
 
         <nav className="relative flex flex-1 flex-col gap-[6px] px-[12px] pt-[14px]">
           {NAV_ITEMS.map(({ href, icon, label }) => {
@@ -114,21 +107,6 @@ export function Sidebar() {
               </Link>
             );
           })}
-
-          {/*
-            Event creation is a secondary action, not the product's headline
-            flow — a quiet ghost item in the nav rather than a filled CTA.
-          */}
-          <Link
-            href="/events/create"
-            className={cn(
-              "mt-2 flex items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] font-dm-sans text-[13px] font-medium transition-colors",
-              "text-forum-light-gray hover:bg-forum-turquoise/20 hover:text-forum-dark-gray",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean",
-            )}
-          >
-            <NavRow icon={Plus} label="Create an event" iconSize={16} />
-          </Link>
         </nav>
 
         <div className="relative mb-3 px-[12px]">
