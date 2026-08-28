@@ -571,10 +571,10 @@ export async function getFeedEvents(params?: {
   const ranked = diversifyByOrg(enriched, ORG_DIVERSITY_CAP);
 
   // Guarantee SOON_QUOTA imminent events land within the first
-  // SOON_INJECTION_WINDOW positions. This finalizes ONE stable order over
-  // the whole pool before pagination, so every page is a plain slice of
-  // the same array — no event can be duplicated or dropped across pages.
-  // See docs/ranking.md.
+  // SOON_INJECTION_WINDOW positions, without exceeding ORG_DIVERSITY_CAP
+  // there. This finalizes ONE stable order over the whole pool before
+  // pagination, so every page is a plain slice of the same array — no
+  // event can be duplicated or dropped across pages. See docs/ranking.md.
   const isSoon = (e: (typeof ranked)[number]) =>
     (e._rawDatetime.getTime() - Date.now()) / (1000 * 60 * 60 * 24) <= SOON_WINDOW_DAYS;
 
@@ -587,9 +587,25 @@ export async function getFeedEvents(params?: {
 
   if (soonInFront < SOON_QUOTA) {
     const frontIds = new Set(front.map((e) => e.id));
-    const missingSoon = tail
-      .filter((e) => isSoon(e) && !frontIds.has(e.id))
-      .slice(0, SOON_QUOTA - soonInFront);
+
+    // Org counts already in front — a candidate whose org is already at
+    // the cap is skipped, so injection can't push an org past it.
+    const frontOrgCounts = new Map<string, number>();
+    for (const e of front) {
+      if (e.orgId) frontOrgCounts.set(e.orgId, (frontOrgCounts.get(e.orgId) ?? 0) + 1);
+    }
+
+    const missingSoon: (typeof ranked)[number][] = [];
+    for (const e of tail) {
+      if (missingSoon.length >= SOON_QUOTA - soonInFront) break;
+      if (!isSoon(e) || frontIds.has(e.id)) continue;
+      if (e.orgId) {
+        const count = frontOrgCounts.get(e.orgId) ?? 0;
+        if (count >= ORG_DIVERSITY_CAP) continue;
+        frontOrgCounts.set(e.orgId, count + 1);
+      }
+      missingSoon.push(e);
+    }
 
     if (missingSoon.length > 0) {
       const missingIds = new Set(missingSoon.map((e) => e.id));

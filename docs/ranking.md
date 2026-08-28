@@ -150,6 +150,11 @@ interleaved into it at evenly-spaced positions, removed from their original late
 everything else keeps its normal score order. It only backfills what score order left out, the
 way feeds inject a freshness quota without letting it take over the whole ranking.
 
+The injection never breaks the org diversity cap above: a soon event whose org already has
+`ORG_DIVERSITY_CAP` events in the front window is skipped, even if that means fewer than
+`SOON_QUOTA` soon events end up there. "Max 3 per org near the top" holds regardless of the
+soon-event guarantee — the two rules compose rather than one silently overriding the other.
+
 All the tunable constants above (`SOON_WINDOW_DAYS`, `SOON_QUOTA`, `SOON_INJECTION_WINDOW`,
 `ORG_DIVERSITY_CAP`, `CANDIDATE_HORIZON_DAYS`, `CANDIDATE_POOL_SAFETY_VALVE`,
 `POPULARITY_VIEW_CAP`, `POPULARITY_WEIGHT`, `RANDOM_WEIGHT`, `ORG_PAST_INTERACTION_AFFINITY`)
