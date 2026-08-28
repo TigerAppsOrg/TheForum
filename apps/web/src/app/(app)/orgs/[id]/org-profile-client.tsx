@@ -1,14 +1,18 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, Heart, MapPin, Search, Shield, Users, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, Heart, MapPin, Shield, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type FriendProfile, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
-import { getCategoryColor } from "~/components/events/event-card";
-import { cn } from "~/lib/utils";
+import { Panel } from "~/components/common/panel";
+import { SearchInput } from "~/components/common/search-input";
+import { EmptyState } from "~/components/common/states";
+import { EventCard } from "~/components/events/event-card";
+import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { Button } from "~/components/ui/button";
 
 function colorFromString(str: string) {
   const colors = ["#6366f1", "#ec4899", "#14b8a6", "#f97316", "#8b5cf6", "#22c55e", "#3b82f6"];
@@ -85,31 +89,24 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-8 py-6">
+    <PageShell>
       {/* Back */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-6 group"
-      >
-        <ChevronLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+      <Button variant="quiet" size="sm" onClick={() => router.back()} className="mb-6">
+        <ChevronLeft />
         Back
-      </button>
+      </Button>
 
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+      <Panel size="none" className="mb-8 overflow-hidden">
         <div
-          className="h-28 flex items-center justify-center"
+          aria-hidden
+          className="flex h-28 items-center justify-center"
           style={{
             background: `linear-gradient(135deg, ${colorFromString(org.name)}20, ${colorFromString(org.name)}40)`,
           }}
         >
           {org.logoUrl ? (
-            <img
-              src={org.logoUrl}
-              alt={org.name}
-              className="w-16 h-16 rounded-2xl object-cover shadow-md"
-            />
+            <img src={org.logoUrl} alt="" className="size-16 rounded-xl object-cover shadow-md" />
           ) : (
             <span className="text-4xl font-black" style={{ color: colorFromString(org.name) }}>
               {org.name[0]?.toUpperCase()}
@@ -117,188 +114,175 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
           )}
         </div>
         <div className="p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{org.name}</h1>
-              <p className="text-sm text-gray-400 capitalize mt-0.5">{org.category}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleFollow}
-              disabled={isPending}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-colors",
-                isFollowing
-                  ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
-                  : "bg-indigo-500 text-white hover:bg-indigo-600",
-              )}
-            >
-              <Heart size={14} fill={isFollowing ? "currentColor" : "none"} />
-              {isFollowing ? "Following" : "Follow"}
-            </button>
-          </div>
+          <PageHeading
+            className="text-[28px] sm:text-[32px] lg:text-[36px]"
+            description={<span className="capitalize">{org.category}</span>}
+            action={
+              <Button
+                variant={isFollowing ? "soft" : "cerulean"}
+                aria-pressed={isFollowing}
+                disabled={isPending}
+                onClick={handleToggleFollow}
+                className="rounded-full"
+              >
+                <Heart fill={isFollowing ? "currentColor" : "none"} />
+                {isFollowing ? "Following" : "Follow"}
+              </Button>
+            }
+          >
+            {org.name}
+          </PageHeading>
 
-          <div className="flex items-center gap-4 mt-4">
-            <span className="text-sm text-gray-500 flex items-center gap-1.5">
-              <Users size={14} className="text-gray-400" />
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 font-dm-sans text-sm text-forum-dark-gray">
+              <Users size={14} aria-hidden className="text-forum-light-gray" />
               {followerCount} follower{followerCount !== 1 ? "s" : ""}
             </span>
-            <span className="text-sm text-gray-500 flex items-center gap-1.5">
-              <CalendarDays size={14} className="text-gray-400" />
+            <span className="flex items-center gap-1.5 font-dm-sans text-sm text-forum-dark-gray">
+              <CalendarDays size={14} aria-hidden className="text-forum-light-gray" />
               {org.upcomingEvents.length} upcoming event{org.upcomingEvents.length !== 1 ? "s" : ""}
             </span>
           </div>
 
           {org.description && (
-            <p className="text-sm text-gray-600 leading-relaxed mt-4 whitespace-pre-wrap">
+            <p className="mt-4 whitespace-pre-wrap font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
               {org.description}
             </p>
           )}
         </div>
-      </div>
+      </Panel>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
         {/* Left: Events */}
-        <div className="md:col-span-2">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">
-            Upcoming Events
-          </h2>
+        <section className="md:col-span-2">
+          <SectionHeading>Upcoming Events</SectionHeading>
           {org.upcomingEvents.length > 0 ? (
-            <div className="space-y-3">
-              {org.upcomingEvents.map((event) => {
-                const color = getCategoryColor(event.tags);
-                return (
-                  <Link key={event.id} href={`/events/${event.id}`}>
-                    <div className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
-                      <div
-                        className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: color.bg }}
-                      >
-                        <CalendarDays size={16} style={{ color: color.text }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {event.title}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {event.datetime}
-                          <span className="mx-1.5">·</span>
-                          <MapPin size={10} className="inline -mt-0.5" /> {event.locationName}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {org.upcomingEvents.map((event, index) => (
+                <EventCard
+                  key={event.id}
+                  id={event.id}
+                  title={event.title}
+                  datetime={event.datetime}
+                  location={event.locationName}
+                  tags={event.tags}
+                  orgName={org.name}
+                  orgId={org.id}
+                  density="compact"
+                  source="similar"
+                  position={index}
+                />
+              ))}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-100 p-8 text-center">
-              <CalendarDays size={20} className="text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">No upcoming events</p>
-            </div>
+            <EmptyState icon={CalendarDays} title="No upcoming events" />
           )}
-        </div>
+        </section>
 
         {/* Right: Members */}
-        <div>
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Team</h2>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+        <section>
+          <SectionHeading>Team</SectionHeading>
+          <Panel size="none" className="divide-y divide-forum-medium-gray">
             {[...owners, ...officers].map((member) => (
               <div key={member.id} className="flex items-center gap-3 px-4 py-3">
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                  aria-hidden
+                  className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white"
                   style={{ background: colorFromString(member.displayName) }}
                 >
                   {member.avatarUrl ? (
                     <img
                       src={member.avatarUrl}
                       alt=""
-                      className="w-full h-full rounded-full object-cover"
+                      className="size-full rounded-full object-cover"
                     />
                   ) : (
                     member.displayName[0]?.toUpperCase()
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">{member.displayName}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-dm-sans text-sm font-medium text-black">
+                    {member.displayName}
+                  </p>
                 </div>
-                <span className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider font-medium">
-                  {member.role === "owner" && <Shield size={10} className="text-amber-500" />}
+                <span className="flex items-center gap-1 font-dm-sans text-[10px] font-medium uppercase tracking-wider text-forum-light-gray">
+                  {member.role === "owner" && (
+                    <Shield size={10} aria-hidden className="text-forum-yellow" />
+                  )}
                   {member.role}
                 </span>
                 {org.isOwner && member.role === "officer" && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveOfficer(member.id, member.displayName)}
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove ${member.displayName} as officer`}
                     disabled={isPending}
-                    className="text-gray-300 hover:text-red-400 transition-colors"
+                    onClick={() => handleRemoveOfficer(member.id, member.displayName)}
+                    className="text-forum-light-gray hover:text-forum-coral"
                   >
-                    <X size={14} />
-                  </button>
+                    <X />
+                  </Button>
                 )}
               </div>
             ))}
             {owners.length === 0 && officers.length === 0 && (
-              <div className="p-4 text-center">
-                <p className="text-xs text-gray-400">No team members listed</p>
-              </div>
+              <p className="p-4 text-center font-dm-sans text-xs text-forum-light-gray">
+                No team members listed
+              </p>
             )}
-          </div>
+          </Panel>
 
           {/* Add officer search — owner only */}
           {org.isOwner && (
             <div className="mt-4">
-              <div className="relative">
-                <Search
-                  size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300"
-                />
-                <input
-                  type="text"
-                  placeholder="Search users to add..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
-                />
-              </div>
+              <SearchInput
+                label="Search users to add as officers"
+                placeholder="Search users to add…"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
               {searchResults.length > 0 && (
-                <div className="mt-2 bg-white rounded-lg border border-gray-100 shadow-sm divide-y divide-gray-50">
+                <Panel size="none" className="mt-2 divide-y divide-forum-medium-gray">
                   {searchResults.map((user) => (
                     <div key={user.id} className="flex items-center gap-3 px-3 py-2">
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                        aria-hidden
+                        className="flex size-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
                         style={{ background: colorFromString(user.displayName) }}
                       >
                         {user.avatarUrl ? (
                           <img
                             src={user.avatarUrl}
                             alt=""
-                            className="w-full h-full rounded-full object-cover"
+                            className="size-full rounded-full object-cover"
                           />
                         ) : (
                           user.displayName[0]?.toUpperCase()
                         )}
                       </div>
-                      <span className="flex-1 text-sm text-gray-700 truncate">
+                      <span className="flex-1 truncate font-dm-sans text-sm text-black">
                         {user.displayName}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleAddOfficer(user)}
+                      <Button
+                        variant="quiet"
+                        size="xs"
                         disabled={isPending}
-                        className="text-xs text-indigo-500 font-medium hover:text-indigo-700"
+                        onClick={() => handleAddOfficer(user)}
+                        className="text-forum-cerulean"
                       >
                         Add
-                      </button>
+                      </Button>
                     </div>
                   ))}
-                </div>
+                </Panel>
               )}
-              {isSearching && <p className="text-xs text-gray-400 mt-2 px-1">Searching...</p>}
+              {isSearching && (
+                <p className="mt-2 px-1 font-dm-sans text-xs text-forum-light-gray">Searching…</p>
+              )}
             </div>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </PageShell>
   );
 }

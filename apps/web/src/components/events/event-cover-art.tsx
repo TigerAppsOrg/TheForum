@@ -12,7 +12,7 @@ interface EventCoverArtProps {
 
 /* ── Color palettes per category ── */
 const PALETTES: Record<string, { bg: string; shapes: string[] }> = {
-  "free-food": {
+  "free food": {
     bg: "#FFF0EB",
     shapes: ["#FF7151", "#FFB199", "#FEE882", "#FFD3EA"],
   },
@@ -28,31 +28,31 @@ const PALETTES: Record<string, { bg: string; shapes: string[] }> = {
     bg: "#FFFBEB",
     shapes: ["#FEE882", "#FF7700", "#FFD3EA", "#A2EFF0"],
   },
-  art: {
+  "visual arts": {
     bg: "#FFF5EB",
     shapes: ["#FF7700", "#FFD3EA", "#A2EFF0", "#FEE882"],
   },
-  social: {
+  "social event": {
     bg: "#FFF0F6",
     shapes: ["#FFD3EA", "#FF7151", "#A2EFF0", "#FEE882"],
   },
-  sports: {
+  athletics: {
     bg: "#EBF5FF",
     shapes: ["#60a5fa", "#A2EFF0", "#FEE882", "#FFD3EA"],
   },
-  academic: {
+  academics: {
     bg: "#EBF8FC",
     shapes: ["#0A9CD5", "#A2EFF0", "#FEE882", "#FFD3EA"],
   },
-  cultural: {
+  culture: {
     bg: "#FFF8EB",
     shapes: ["#f59e0b", "#FF7700", "#FFD3EA", "#A2EFF0"],
   },
-  performance: {
+  "performing arts": {
     bg: "#FFF0F6",
     shapes: ["#f472b6", "#FFD3EA", "#FEE882", "#A2EFF0"],
   },
-  workshop: {
+  research: {
     bg: "#EBFAF8",
     shapes: ["#14b8a6", "#A2EFF0", "#FEE882", "#FFD3EA"],
   },
@@ -60,13 +60,37 @@ const PALETTES: Record<string, { bg: string; shapes: string[] }> = {
     bg: "#F0EDFF",
     shapes: ["#8b5cf6", "#A2EFF0", "#FEE882", "#FF7151"],
   },
-  outdoor: {
+  outdoors: {
     bg: "#EBF8F1",
     shapes: ["#22c55e", "#FEE882", "#A2EFF0", "#FFD3EA"],
+  },
+  sustainability: {
+    bg: "#EBF8F1",
+    shapes: ["#15803d", "#A2EFF0", "#FEE882", "#FFD3EA"],
   },
   wellness: {
     bg: "#FFF8EB",
     shapes: ["#f59e0b", "#FFD3EA", "#A2EFF0", "#FEE882"],
+  },
+  entrepreneurship: {
+    bg: "#FDF4FF",
+    shapes: ["#c026d3", "#FFD3EA", "#A2EFF0", "#FEE882"],
+  },
+  literature: {
+    bg: "#FFFBEB",
+    shapes: ["#92400e", "#FEE882", "#FFD3EA", "#A2EFF0"],
+  },
+  stem: {
+    bg: "#ECFEFF",
+    shapes: ["#155e75", "#A2EFF0", "#FEE882", "#FFD3EA"],
+  },
+  "speaker event": {
+    bg: "#ECFEFF",
+    shapes: ["#0891b2", "#A2EFF0", "#FEE882", "#FFD3EA"],
+  },
+  "community service": {
+    bg: "#EBFAF8",
+    shapes: ["#0d9488", "#FEE882", "#A2EFF0", "#FFD3EA"],
   },
   default: {
     bg: "#F0F8FF",

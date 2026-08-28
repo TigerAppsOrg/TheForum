@@ -1,13 +1,9 @@
 "use client";
 
-import { Building2, CalendarDays, Home, LogOut, Map as MapIcon, Users } from "lucide-react";
-import { signOut } from "next-auth/react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { MapRef } from "react-map-gl/mapbox";
-import { type MapEvent, getMapEvents } from "~/actions/map";
+import type { MapEvent } from "~/actions/map";
 import { cn } from "~/lib/utils";
 import { getTimeGroup } from "./_lib/map-helpers";
 
@@ -17,10 +13,12 @@ const MapView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fixed inset-0 bg-gray-200 flex items-center justify-center z-40">
+      <div className="absolute inset-0 flex items-center justify-center bg-forum-medium-gray">
         <div className="flex flex-col items-center gap-2">
-          <div className="w-7 h-7 rounded-full border-2 border-gray-200 border-t-sky-500 animate-spin" />
-          <span className="text-xs text-gray-400 font-medium">Loading map</span>
+          <div className="size-7 animate-spin rounded-full border-2 border-forum-border border-t-forum-cerulean" />
+          <span className="font-dm-sans text-xs font-medium text-forum-light-gray">
+            Loading map
+          </span>
         </div>
       </div>
     ),
@@ -52,14 +50,6 @@ const EventDetailModal = dynamic(
 /* ═══ Filter types ═══ */
 export type FilterKey = "friends" | "now" | "attending";
 
-/* ═══ Floating mini-nav items ═══ */
-const NAV_ITEMS = [
-  { href: "/explore", icon: Home },
-  { href: "/events", icon: CalendarDays },
-  { href: "/map", icon: MapIcon },
-  { href: "/friends", icon: Users },
-];
-
 /* ═══ Component ═══ */
 interface MapClientProps {
   initialEvents: MapEvent[];
@@ -67,7 +57,6 @@ interface MapClientProps {
 
 export function MapClient({ initialEvents }: MapClientProps) {
   const mapRef = useRef<MapRef>(null);
-  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
   /* Data */
@@ -117,6 +106,15 @@ export function MapClient({ initialEvents }: MapClientProps) {
     return groups;
   }, [filteredEvents]);
 
+  /*
+   * The sidebar shows the events at the pin you clicked — not the whole
+   * filtered set. Clicking a pin with four events shows those four.
+   */
+  const panelEvents = useMemo(
+    () => (selectedLocation ? (locationGroups.get(selectedLocation) ?? []) : []),
+    [selectedLocation, locationGroups],
+  );
+
   const eventCountByDate = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of events) {
@@ -141,8 +139,14 @@ export function MapClient({ initialEvents }: MapClientProps) {
     setSelectedLocation(null);
   }, []);
 
+  /** A single event at a pin → open the full detail card. */
   const handleExpandEvent = useCallback((eventId: string) => {
     setDetailEventId(eventId);
+  }, []);
+
+  /** Several events at a pin → open the sidebar listing them. */
+  const handleShowLocationList = useCallback((locId: string) => {
+    setSelectedLocation(locId);
     setPanelOpen(true);
   }, []);
 
@@ -157,76 +161,77 @@ export function MapClient({ initialEvents }: MapClientProps) {
 
   return (
     <>
-      {/* ═══ FULL-BLEED MAP — covers entire viewport ═══ */}
-      <div className="fixed inset-0 z-40">
-        {/* Map fills everything */}
-        <div className="absolute inset-0">
+      {/*
+        Fills the app shell's content area rather than the viewport. It used to
+        be `fixed inset-0 z-40` with its own floating mini-nav, which meant the
+        map painted over the docked Sidebar and the route had to opt out of the
+        standard chrome. It now shares the same nav as every other page.
+      */}
+      <div className="absolute inset-0 flex flex-col overflow-hidden">
+        {/* Map area — everything that floats is scoped to this box, so no overlay
+            can land on the timeline below it */}
+        <div className="relative min-h-0 flex-1">
           <MapView
             ref={mapRef}
             locationGroups={locationGroups}
             selectedLocation={selectedLocation}
             onSelectLocation={setSelectedLocation}
             onExpandEvent={handleExpandEvent}
+            onShowLocationList={handleShowLocationList}
           />
-        </div>
 
-        {/* ═══ Floating mini-nav (left side) ═══ */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col">
-          <div className="bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-black/10 border border-gray-200/60 flex flex-col overflow-hidden">
-            {NAV_ITEMS.map(({ href, icon: Icon }) => {
-              const isActive = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    "flex items-center justify-center w-11 h-11 transition-colors",
-                    isActive ? "bg-[#A2EFF0]/40 text-gray-900" : "text-gray-600 hover:bg-gray-100",
-                  )}
-                >
-                  <Icon size={20} strokeWidth={1.8} />
-                </Link>
-              );
-            })}
+          {/* ═══ Search bar + filter pills (top center) ═══ */}
+          {/*
+            The rail floats over the map on this route, so the left inset clears
+            its *expanded* 212px width — the controls are never swallowed when it
+            opens. The wider right inset on ≥sm clears the TopBar's bell + avatar.
+          */}
+          <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:left-[224px] sm:right-32">
+            <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
+              <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
+              <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />
+            </div>
           </div>
-          {/* Log out button */}
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="mt-2 flex items-center justify-center w-11 h-11 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg shadow-black/10 border border-gray-200/60 text-gray-400 hover:text-gray-600 transition-colors"
+
+          {/* ═══ Right-side floating event cards ═══ */}
+          {/* No panel chrome — the cards themselves are the surface, so the map
+              shows through the gaps between them. */}
+          <div
+            className={cn(
+              // Full width on phones — a 320px rail leaves too little map beside
+              // it to be worth keeping.
+              "absolute top-16 right-0 bottom-0 z-10 w-full transition-transform duration-300 ease-out sm:w-[320px]",
+              panelOpen ? "translate-x-0" : "translate-x-full",
+            )}
           >
-            <LogOut size={18} strokeWidth={1.8} />
-          </button>
-        </div>
-
-        {/* ═══ Search bar + filter pills (top center) ═══ */}
-        <div className="absolute top-4 left-20 right-4 z-10 pointer-events-none">
-          <div className="pointer-events-auto flex flex-col gap-2 max-w-2xl mx-auto">
-            <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
-            <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />
-          </div>
-        </div>
-
-        {/* ═══ Right-side event list panel (floating overlay) ═══ */}
-        <div
-          className={cn(
-            "absolute top-0 right-0 bottom-0 z-10 transition-transform duration-300 ease-out",
-            panelOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          <div className="h-full w-[360px] bg-white/95 backdrop-blur-xl shadow-[-4px_0_20px_rgba(0,0,0,0.08)]">
             <EventListPanel
-              events={filteredEvents}
-              selectedLocation={selectedLocation}
+              events={panelEvents}
+              locationName={panelEvents[0]?.locationName ?? ""}
+              expandedEventId={detailEventId}
               onLocateEvent={handleLocateEvent}
               onExpandEvent={handleExpandEvent}
-              onClose={() => setPanelOpen(false)}
+              onClose={() => {
+                setPanelOpen(false);
+                setSelectedLocation(null);
+              }}
             />
           </div>
+
+          {/* ═══ Loading overlay ═══ */}
+          {isPending && (
+            <output className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/30 backdrop-blur-[2px]">
+              <span className="flex items-center gap-2 rounded-xl border border-forum-border bg-white/95 px-4 py-2 shadow-lg">
+                <span className="size-2 animate-pulse rounded-full bg-forum-cerulean" />
+                <span className="font-dm-sans text-xs font-medium text-forum-dark-gray">
+                  Loading events
+                </span>
+              </span>
+            </output>
+          )}
         </div>
 
-        {/* ═══ Timeline scrubber (bottom, full width) ═══ */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
+        {/* ═══ Timeline scrubber — a bar beneath the map, not an overlay on it ═══ */}
+        <div className="shrink-0">
           <TimelineScrubber
             days={14}
             eventCountByDate={eventCountByDate}
@@ -234,16 +239,6 @@ export function MapClient({ initialEvents }: MapClientProps) {
             onSelectDate={handleSelectDate}
           />
         </div>
-
-        {/* ═══ Loading overlay ═══ */}
-        {isPending && (
-          <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px] flex items-center justify-center z-20 pointer-events-none">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/92 backdrop-blur-md shadow-lg border border-gray-200/60">
-              <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-              <span className="text-xs font-medium text-gray-600">Loading events</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ═══ Event detail modal ═══ */}

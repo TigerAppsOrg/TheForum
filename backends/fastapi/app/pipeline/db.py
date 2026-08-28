@@ -157,8 +157,13 @@ def insert_event(
     creator_id: str,
     source_message_id: str,
     tags: list[str],
+    is_public: bool = True,
 ) -> str:
-    """Insert an event and its tags. Returns the new event id."""
+    """Insert an event and its tags. Returns the new event id.
+
+    is_public=False keeps the event out of the public feed (used for
+    needs_review events whose datetime is a fallback, not extracted).
+    """
     event_id = uuid4()
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -166,7 +171,7 @@ def insert_event(
                 "INSERT INTO events "
                 "(id, title, description, datetime, end_datetime, location_id, "
                 "org_id, creator_id, source, source_message_id, is_public) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'listserv', %s, true)",
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'listserv', %s, %s)",
                 (
                     event_id,
                     title,
@@ -177,6 +182,7 @@ def insert_event(
                     org_id,
                     creator_id,
                     source_message_id,
+                    is_public,
                 ),
             )
             for tag in tags:
@@ -294,3 +300,20 @@ def get_pipeline_status() -> dict:
                 "FROM pipeline_logs"
             )
             return dict(cur.fetchone())
+
+def get_tag_embeddings() -> list[dict]:
+    """
+    Returns:
+    [
+        {"tag": "music", "embedding": [...]},
+        {"tag": "career", "embedding": [...]}
+    ]
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Cast to float[] so psycopg2 parses the pgvector type into a Python list automatically
+            cur.execute(
+                "SELECT tag_name AS tag, embedding::real[] AS embedding "
+                "FROM event_tag_embeddings;"
+            )
+            return [dict(r) for r in cur.fetchall()]

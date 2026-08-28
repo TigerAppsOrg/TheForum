@@ -6,7 +6,7 @@
 export function GeometricBackground() {
   return (
     <div
-      className="pointer-events-none fixed inset-0 overflow-hidden opacity-80"
+      className="pointer-events-none fixed inset-0 overflow-hidden opacity-80 blur-[8px]"
       aria-hidden="true"
     >
       {/* Large turquoise polygon — bottom left */}

@@ -21,16 +21,16 @@ export function TimelineScrubber({
   const timelineDays = useMemo(() => getTimelineDays(days), [days]);
 
   return (
-    <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-6">
-      {/* Legend */}
-      <div className="shrink-0 flex flex-col gap-1">
+    <div className="flex items-center gap-4 border-t border-forum-border bg-white px-3 py-2.5 sm:gap-6 sm:px-4 sm:py-3">
+      {/* Legend — hidden on phones, where the horizontal room matters more */}
+      <div className="hidden shrink-0 flex-col gap-1 sm:flex">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: NOW_COLOR }} />
-          <span className="text-[10px] font-bold text-gray-600 tracking-wide">NOW</span>
+          <span className="text-[10px] font-bold text-forum-dark-gray tracking-wide">NOW</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: FUTURE_COLOR }} />
-          <span className="text-[10px] font-bold text-gray-600 tracking-wide">FUTURE</span>
+          <span className="text-[10px] font-bold text-forum-dark-gray tracking-wide">FUTURE</span>
         </div>
       </div>
 
@@ -38,7 +38,7 @@ export function TimelineScrubber({
       <div className="flex-1 overflow-x-auto scrollbar-hide">
         <div className="relative flex items-start min-w-max">
           {/* Background track line */}
-          <div className="absolute top-[9px] left-0 right-0 h-[3px] bg-gray-200 rounded-full" />
+          <div className="absolute top-[9px] left-0 right-0 h-[3px] bg-forum-medium-gray rounded-full" />
 
           {/* Filled track segments between dates with events */}
           {timelineDays.map((day, i) => {
@@ -54,7 +54,7 @@ export function TimelineScrubber({
             return (
               <div
                 key={`seg-${day.dateStr}`}
-                className="absolute top-[7px] h-[7px] rounded-full bg-gray-300"
+                className="absolute top-[7px] h-[7px] rounded-full bg-forum-medium-gray"
                 style={{
                   left: `${(i - 1) * 72 + 9}px`,
                   width: "72px",
@@ -82,10 +82,10 @@ export function TimelineScrubber({
                     className={cn(
                       "rounded-full transition-all border-2",
                       isSelected
-                        ? "w-[18px] h-[18px] bg-sky-500 border-sky-300 shadow-md shadow-sky-200/50"
+                        ? "w-[18px] h-[18px] bg-forum-cerulean border-forum-cerulean shadow-md shadow-forum-cerulean/20"
                         : hasEvents
-                          ? "w-[14px] h-[14px] bg-gray-400 border-white shadow-sm"
-                          : "w-[10px] h-[10px] bg-gray-200 border-white mt-[2px]",
+                          ? "w-[14px] h-[14px] bg-forum-light-gray border-white shadow-sm"
+                          : "w-[10px] h-[10px] bg-forum-medium-gray border-white mt-[2px]",
                     )}
                   />
 
@@ -94,12 +94,12 @@ export function TimelineScrubber({
                     className={cn(
                       "text-[9px] font-bold mt-1.5 uppercase tracking-wider leading-none",
                       isSelected
-                        ? "text-sky-600"
+                        ? "text-forum-cerulean"
                         : day.isToday
-                          ? "text-sky-500"
+                          ? "text-forum-cerulean"
                           : hasEvents
-                            ? "text-gray-600"
-                            : "text-gray-400",
+                            ? "text-forum-dark-gray"
+                            : "text-forum-light-gray",
                     )}
                   >
                     {day.isToday ? "TODAY" : day.dayName}
@@ -108,10 +108,10 @@ export function TimelineScrubber({
                     className={cn(
                       "text-[9px] leading-none mt-px",
                       isSelected
-                        ? "text-sky-600 font-bold"
+                        ? "text-forum-cerulean font-bold"
                         : hasEvents
-                          ? "text-gray-500"
-                          : "text-gray-400",
+                          ? "text-forum-dark-gray"
+                          : "text-forum-light-gray",
                     )}
                   >
                     {day.monthShort} {String(day.dayNum).padStart(2, "0")}

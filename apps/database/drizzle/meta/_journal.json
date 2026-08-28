@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1783268661051,
+      "tag": "0000_setup_vector_extension",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785720373000,
+      "tag": "0001_init_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785720843992,
+      "tag": "0002_update_enums",
+      "breakpoints": true
+    }
+  ]
+}

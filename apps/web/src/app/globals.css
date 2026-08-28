@@ -76,6 +76,7 @@
   --color-forum-yellow-50: rgba(254, 232, 130, 0.5);
   --color-forum-yellow-10: rgba(254, 232, 130, 0.1);
   --color-forum-cerulean: #0a9cd5;
+  --color-forum-cerulean-light: rgba(10, 156, 213, 0.25);
   --color-forum-black: #000000;
   --color-forum-dark-gray: #585858;
   --color-forum-medium-gray: #ececec;
@@ -170,6 +171,25 @@
 
   .button-coral:hover {
     background-color: var(--color-forum-coral);
+  }
+
+  /* cerulean-tinted thin scrollbar, kept clear of content above it */
+  .scrollbar-cerulean {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-forum-cerulean) transparent;
+  }
+
+  .scrollbar-cerulean::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .scrollbar-cerulean::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-cerulean::-webkit-scrollbar-thumb {
+    background-color: var(--color-forum-cerulean);
+    border-radius: 9999px;
   }
 
   /* event cards */

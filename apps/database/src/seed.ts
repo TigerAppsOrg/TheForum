@@ -4,11 +4,13 @@
  * Run: bun run db:seed   (from apps/database)
  */
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   events,
   campusLocations,
+  eventTagEmbeddings,
+  type eventTagEnum,
   eventTags,
   friendships,
   interactions,
@@ -22,6 +24,12 @@ import {
   userRegions,
   users,
 } from "./schema";
+
+type TagEmbeddingRecord = {
+  tag: (typeof eventTagEnum.enumValues)[number];
+  description: string;
+  embedding: number[];
+};
 
 /* ── helpers ── */
 function days(n: number) {
@@ -44,7 +52,32 @@ function slugify(title: string): string {
 const now = Date.now();
 
 async function seed() {
-  console.log("Seeding database...");
+  /* ═══ Event Tag Embeddings ═══ */
+
+  const tagEmbeddingData = (await Bun.file(
+    `${import.meta.dir}/seeddata/eventTags_embeddings.json`,
+  ).json()) as TagEmbeddingRecord[];
+
+  for (const row of tagEmbeddingData) {
+    if (row.embedding.length !== 1536) {
+      throw new Error(`Invalid embedding length for ${row.tag}`);
+    }
+  }
+
+  await db
+    .insert(eventTagEmbeddings)
+    .values(
+      tagEmbeddingData.map((row) => ({
+        tagName: row.tag,
+        embedding: row.embedding,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: eventTagEmbeddings.tagName,
+      set: {
+        embedding: sql`excluded.embedding`,
+      },
+    });
 
   /* ═══ 1. Campus Locations ═══ */
   const locationData = [
@@ -188,6 +221,13 @@ async function seed() {
       longitude: -74.6577,
       category: "dining" as const,
     },
+    {
+      id: "other",
+      name: "Other / Off-Campus",
+      latitude: 0.0,
+      longitude: 0.0,
+      category: "social" as const,
+    },
   ];
 
   await db.insert(campusLocations).values(locationData).onConflictDoNothing();
@@ -323,38 +363,42 @@ async function seed() {
   const interestData: {
     userId: string;
     tags: (
-      | "free-food"
-      | "workshop"
-      | "performance"
-      | "speaker"
-      | "social"
+      | "free food"
       | "career"
-      | "sports"
-      | "music"
-      | "art"
-      | "academic"
-      | "cultural"
-      | "community-service"
-      | "religious"
-      | "political"
+      | "research"
+      | "academics"
       | "tech"
+      | "entrepreneurship"
+      | "politics"
+      | "visual arts"
+      | "performing arts"
+      | "literature"
+      | "culture"
+      | "music"
       | "gaming"
-      | "outdoor"
+      | "athletics"
+      | "religion"
+      | "sustainability"
+      | "outdoors"
       | "wellness"
+      | "community service"
+      | "speaker event"
+      | "social event"
+      | "stem"
     )[];
   }[] = [
-    { userId: uid("iamin"), tags: ["tech", "career", "free-food", "social"] },
-    { userId: uid("ajiang"), tags: ["art", "career", "social", "music"] },
-    { userId: uid("arho"), tags: ["academic", "tech", "gaming", "free-food"] },
-    { userId: uid("pkap"), tags: ["tech", "wellness", "social", "outdoor"] },
-    { userId: uid("syou"), tags: ["tech", "art", "career", "free-food"] },
-    { userId: uid("cwang"), tags: ["career", "social", "music", "cultural"] },
-    { userId: uid("gkash"), tags: ["academic", "wellness", "community-service", "cultural"] },
-    { userId: uid("jlee"), tags: ["performance", "social", "music", "art"] },
-    { userId: uid("mkim"), tags: ["academic", "tech", "sports", "gaming"] },
-    { userId: uid("rsingh"), tags: ["academic", "wellness", "career", "speaker"] },
-    { userId: uid("tchen"), tags: ["art", "cultural", "social", "outdoor"] },
-    { userId: uid("dpatel"), tags: ["tech", "career", "free-food", "gaming"] },
+    { userId: uid("iamin"), tags: ["tech", "career", "free food", "social event"] },
+    { userId: uid("ajiang"), tags: ["performing arts", "career", "music"] },
+    { userId: uid("arho"), tags: ["academics", "tech", "gaming", "free food"] },
+    { userId: uid("pkap"), tags: ["tech", "wellness", "community service", "outdoors"] },
+    { userId: uid("syou"), tags: ["tech", "athletics", "career", "free food"] },
+    { userId: uid("cwang"), tags: ["career", "sustainability", "music", "culture"] },
+    { userId: uid("gkash"), tags: ["academics", "wellness", "community service", "culture"] },
+    { userId: uid("jlee"), tags: ["gaming", "stem", "music"] },
+    { userId: uid("mkim"), tags: ["academics", "tech", "athletics", "gaming"] },
+    { userId: uid("rsingh"), tags: ["wellness", "career", "speaker event"] },
+    { userId: uid("tchen"), tags: ["culture", "literature", "outdoors"] },
+    { userId: uid("dpatel"), tags: ["tech", "career", "free food", "gaming"] },
   ];
 
   for (const { userId, tags } of interestData) {
@@ -397,13 +441,13 @@ async function seed() {
     {
       name: "Princeton TigerApps",
       description: "Student-run apps for the Princeton community.",
-      category: "academic" as const,
+      category: "academics" as const,
       creatorId: uid("iamin"),
     },
     {
       name: "Princeton ACM",
       description: "Talks, workshops, and socials for CS enthusiasts.",
-      category: "academic" as const,
+      category: "academics" as const,
       creatorId: uid("dpatel"),
     },
     {
@@ -415,31 +459,31 @@ async function seed() {
     {
       name: "Princeton Tigertones",
       description: "All-male a cappella group.",
-      category: "performance" as const,
+      category: "performing arts" as const,
       creatorId: uid("jlee"),
     },
     {
       name: "Princeton BlockWarriors",
       description: "Web3 and blockchain education and hackathons.",
-      category: "academic" as const,
+      category: "academics" as const,
       creatorId: uid("iamin"),
     },
     {
       name: "Princeton Bhangra",
       description: "Competitive South Asian dance team.",
-      category: "cultural" as const,
+      category: "culture" as const,
       creatorId: uid("rsingh"),
     },
     {
       name: "Outdoor Action",
       description: "Princeton's premier outdoor adventure program.",
-      category: "athletic" as const,
+      category: "athletics" as const,
       creatorId: uid("pkap"),
     },
     {
       name: "Princeton Women in CS",
       description: "Community and mentorship for women in computer science.",
-      category: "affinity" as const,
+      category: "academics" as const,
       creatorId: uid("ajiang"),
     },
     {
@@ -451,7 +495,7 @@ async function seed() {
     {
       name: "Princeton Art Museum Society",
       description: "Connecting students with the Princeton Art Museum.",
-      category: "cultural" as const,
+      category: "culture" as const,
       creatorId: uid("tchen"),
     },
   ];
@@ -542,22 +586,28 @@ async function seed() {
 
   /* ═══ 8. Events — -1 week to +2 weeks ═══ */
   type Tag =
-    | "free-food"
-    | "workshop"
-    | "performance"
-    | "speaker"
-    | "social"
+    | "free food"
     | "career"
-    | "sports"
-    | "music"
-    | "art"
-    | "academic"
-    | "cultural"
-    | "community-service"
+    | "research"
+    | "academics"
     | "tech"
+    | "entrepreneurship"
+    | "politics"
+    | "visual arts"
+    | "performing arts"
+    | "literature"
+    | "culture"
+    | "music"
     | "gaming"
-    | "outdoor"
-    | "wellness";
+    | "athletics"
+    | "religion"
+    | "sustainability"
+    | "outdoors"
+    | "wellness"
+    | "community service"
+    | "speaker event"
+    | "social event"
+    | "stem";
 
   const eventList: {
     title: string;
@@ -577,7 +627,7 @@ async function seed() {
       locationId: "frist",
       orgId: oid("Princeton TigerApps"),
       creatorId: uid("iamin"),
-      tags: ["social", "free-food", "tech"],
+      tags: ["social event", "free food", "tech"],
     },
     {
       title: "Intro to Rust Workshop",
@@ -587,7 +637,7 @@ async function seed() {
       locationId: "cst",
       orgId: oid("Princeton ACM"),
       creatorId: uid("dpatel"),
-      tags: ["tech", "workshop"],
+      tags: ["tech", "stem"],
     },
     {
       title: "Tigertones Fall Concert",
@@ -596,7 +646,7 @@ async function seed() {
       locationId: "mccarter",
       orgId: oid("Princeton Tigertones"),
       creatorId: uid("jlee"),
-      tags: ["music", "performance"],
+      tags: ["music", "performing arts"],
     },
     {
       title: "Resume Workshop",
@@ -605,7 +655,7 @@ async function seed() {
       locationId: "robertson",
       orgId: oid("Princeton Entrepreneurship Club"),
       creatorId: uid("syou"),
-      tags: ["career", "workshop"],
+      tags: ["career", "entrepreneurship"],
     },
     {
       title: "Blockchain 101: What is Web3?",
@@ -615,7 +665,7 @@ async function seed() {
       locationId: "friend",
       orgId: oid("Princeton BlockWarriors"),
       creatorId: uid("iamin"),
-      tags: ["tech", "speaker", "academic"],
+      tags: ["tech", "speaker event", "academics"],
     },
     {
       title: "Free Pizza & Study Break",
@@ -624,7 +674,7 @@ async function seed() {
       endDatetime: new Date(now + hours(7)),
       locationId: "frist",
       creatorId: uid("arho"),
-      tags: ["free-food", "social"],
+      tags: ["free food", "social event"],
     },
     {
       title: "Bhangra Practice (Open to All!)",
@@ -634,7 +684,7 @@ async function seed() {
       locationId: "dillon",
       orgId: oid("Princeton Bhangra"),
       creatorId: uid("rsingh"),
-      tags: ["cultural", "sports", "social"],
+      tags: ["culture", "athletics", "social event"],
     },
     {
       title: "Intro to Taiko Drumming",
@@ -642,7 +692,7 @@ async function seed() {
       datetime: new Date(now + days(1) + hours(16)),
       locationId: "lewis",
       creatorId: uid("tchen"),
-      tags: ["cultural", "music", "workshop"],
+      tags: ["culture", "music"],
     },
     {
       title: "Women in CS: Industry Panel",
@@ -652,7 +702,7 @@ async function seed() {
       locationId: "cst",
       orgId: oid("Princeton Women in CS"),
       creatorId: uid("ajiang"),
-      tags: ["career", "tech", "speaker"],
+      tags: ["career", "tech", "speaker event"],
     },
     {
       title: "Stock Pitch Night",
@@ -661,7 +711,7 @@ async function seed() {
       locationId: "robertson",
       orgId: oid("Princeton Investment Club"),
       creatorId: uid("cwang"),
-      tags: ["career", "free-food"],
+      tags: ["career", "free food"],
     },
     {
       title: "Sourlands Hike",
@@ -671,7 +721,7 @@ async function seed() {
       locationId: "frist",
       orgId: oid("Outdoor Action"),
       creatorId: uid("pkap"),
-      tags: ["outdoor", "sports"],
+      tags: ["outdoors", "athletics"],
     },
     {
       title: "Museum Late Night: Contemporary Art",
@@ -680,7 +730,7 @@ async function seed() {
       locationId: "prospect",
       orgId: oid("Princeton Art Museum Society"),
       creatorId: uid("tchen"),
-      tags: ["art", "cultural", "social"],
+      tags: ["visual arts", "culture", "social event"],
     },
     {
       title: "Competitive Programming Practice",
@@ -689,7 +739,7 @@ async function seed() {
       locationId: "cst",
       orgId: oid("Princeton ACM"),
       creatorId: uid("dpatel"),
-      tags: ["tech", "academic"],
+      tags: ["tech", "academics"],
     },
     {
       title: "TigerApps All Hands",
@@ -698,7 +748,7 @@ async function seed() {
       locationId: "frist",
       orgId: oid("Princeton TigerApps"),
       creatorId: uid("iamin"),
-      tags: ["tech", "social"],
+      tags: ["tech", "social event"],
     },
     {
       title: "Jane Street Info Session",
@@ -706,7 +756,7 @@ async function seed() {
       datetime: new Date(now + days(8) + hours(18)),
       locationId: "friend",
       creatorId: uid("cwang"),
-      tags: ["career", "free-food", "tech"],
+      tags: ["career", "free food", "tech"],
     },
     {
       title: "Princeton Poetry Slam",
@@ -714,7 +764,7 @@ async function seed() {
       datetime: new Date(now + days(8) + hours(20)),
       locationId: "lewis",
       creatorId: uid("jlee"),
-      tags: ["art", "performance", "social"],
+      tags: ["performing arts", "literature", "social event"],
     },
     {
       title: "Yoga on the Green",
@@ -722,7 +772,7 @@ async function seed() {
       datetime: new Date(now + days(9) + hours(8)),
       locationId: "nassau",
       creatorId: uid("gkash"),
-      tags: ["wellness", "outdoor"],
+      tags: ["wellness", "outdoors"],
     },
     {
       title: "E-Club Startup Showcase",
@@ -731,7 +781,7 @@ async function seed() {
       locationId: "robertson",
       orgId: oid("Princeton Entrepreneurship Club"),
       creatorId: uid("syou"),
-      tags: ["career", "tech", "speaker"],
+      tags: ["career", "tech", "speaker event"],
     },
     {
       title: "GameDev Jam: 48-Hour Challenge",
@@ -741,7 +791,7 @@ async function seed() {
       locationId: "cst",
       orgId: oid("Princeton ACM"),
       creatorId: uid("dpatel"),
-      tags: ["tech", "gaming", "social"],
+      tags: ["tech", "gaming", "social event"],
     },
     {
       title: "Spring Bhangra Watch Party",
@@ -750,7 +800,7 @@ async function seed() {
       locationId: "frist",
       orgId: oid("Princeton Bhangra"),
       creatorId: uid("rsingh"),
-      tags: ["cultural", "social", "free-food"],
+      tags: ["culture", "social event", "free food"],
     },
     {
       title: "Super Event",
@@ -758,7 +808,7 @@ async function seed() {
       datetime: new Date(now + days(8) + hours(18)),
       locationId: "butler",
       creatorId: uid("arho"),
-      tags: ["social"],
+      tags: ["social event"],
     },
   ];
 

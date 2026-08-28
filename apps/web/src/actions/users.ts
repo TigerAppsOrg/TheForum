@@ -1,8 +1,20 @@
 "use server";
 
-import { db, eq, userInterests, userRegions, users } from "@the-forum/database";
+import {
+  type campusRegionEnum,
+  db,
+  eq,
+  type eventTagEnum,
+  userInterests,
+  userRegions,
+  users,
+} from "@the-forum/database";
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
+
+// Derived from the DB schema so these can never drift from the pgEnum values
+type InterestTag = (typeof eventTagEnum.enumValues)[number];
+type CampusRegion = (typeof campusRegionEnum.enumValues)[number];
 
 export async function completeOnboarding(data: {
   interests: string[];
@@ -34,25 +46,7 @@ export async function completeOnboarding(data: {
     await db.insert(userInterests).values(
       data.interests.map((tag) => ({
         userId,
-        tag: tag as
-          | "free-food"
-          | "workshop"
-          | "performance"
-          | "speaker"
-          | "social"
-          | "career"
-          | "sports"
-          | "music"
-          | "art"
-          | "academic"
-          | "cultural"
-          | "community-service"
-          | "religious"
-          | "political"
-          | "tech"
-          | "gaming"
-          | "outdoor"
-          | "wellness",
+        tag: tag as InterestTag,
       })),
     );
   }
@@ -63,35 +57,13 @@ export async function completeOnboarding(data: {
     await db.insert(userRegions).values(
       data.regions.map((region) => ({
         userId,
-        region: region as "central" | "east" | "west" | "south" | "north" | "off-campus",
+        region: region as CampusRegion,
       })),
     );
   }
 
   revalidatePath("/");
 }
-
-type InterestTag =
-  | "free-food"
-  | "workshop"
-  | "performance"
-  | "speaker"
-  | "social"
-  | "career"
-  | "sports"
-  | "music"
-  | "art"
-  | "academic"
-  | "cultural"
-  | "community-service"
-  | "religious"
-  | "political"
-  | "tech"
-  | "gaming"
-  | "outdoor"
-  | "wellness";
-
-type CampusRegion = "central" | "east" | "west" | "south" | "north" | "off-campus";
 
 export interface UserProfile {
   id: string;

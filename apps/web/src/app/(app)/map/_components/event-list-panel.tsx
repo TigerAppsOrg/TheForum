@@ -1,146 +1,99 @@
 "use client";
 
-import { Clock, MapPin, Maximize2, X } from "lucide-react";
-import Link from "next/link";
+import { MapPin, X } from "lucide-react";
 import type { MapEvent } from "~/actions/map";
+import { EmptyState } from "~/components/common/states";
+import { EventCard } from "~/components/events/event-card";
+import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import { URGENCY_STYLES, getEventColor, getRelativeLabel } from "../_lib/map-helpers";
 
 interface EventListPanelProps {
+  /** Only the events at the clicked pin, not the whole filtered set. */
   events: MapEvent[];
-  selectedLocation: string | null;
+  /** Name of the clicked location, shown in the header. */
+  locationName: string;
+  /**
+   * The event whose detail card is currently open — the only card that gets
+   * the highlighted fill.
+   *
+   * This used to be the selected *location*, which meant clicking a pin holding
+   * four events highlighted all four cards at once.
+   */
+  expandedEventId: string | null;
   onLocateEvent: (event: MapEvent) => void;
   onExpandEvent: (eventId: string) => void;
   onClose: () => void;
 }
 
+/**
+ * The map's right-hand event list.
+ *
+ * Rendered as separate floating cards over the map rather than one opaque
+ * full-height panel, matching the design — the map stays visible in the gaps
+ * between cards.
+ */
 export function EventListPanel({
   events,
-  selectedLocation,
+  locationName,
+  expandedEventId,
   onLocateEvent,
   onExpandEvent,
   onClose,
 }: EventListPanelProps) {
   return (
-    <div className="flex flex-col h-full w-[380px]">
-      {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span className="text-sm font-semibold text-gray-800">
-          {events.length} event{events.length !== 1 ? "s" : ""}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <X size={16} />
-        </button>
+    <div className="flex h-full w-full flex-col gap-2.5 overflow-y-auto overscroll-contain py-3 pl-3 pr-2 scrollbar-cerulean">
+      <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl bg-white px-3 py-1.5 shadow-md">
+        <div className="min-w-0">
+          <p className="truncate font-dm-sans text-[13px] font-semibold text-black">
+            {locationName || "Events"}
+          </p>
+          <p className="font-dm-sans text-[11px] text-forum-light-gray">
+            {events.length} event{events.length !== 1 ? "s" : ""} here
+          </p>
+        </div>
+        <Button variant="ghost" size="icon-xs" aria-label="Close event list" onClick={onClose}>
+          <X />
+        </Button>
       </div>
 
-      {/* Event cards */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        {events.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <MapPin size={20} className="text-gray-300 mb-2" />
-            <p className="text-sm font-medium text-gray-500">No events found</p>
-            <p className="text-xs text-gray-400 mt-0.5">Try adjusting your filters</p>
-          </div>
-        )}
-
-        {events.map((event) => (
-          <PanelEventCard
-            key={event.id}
-            event={event}
-            isActive={selectedLocation === event.locationId}
-            onLocate={() => onLocateEvent(event)}
-            onExpand={() => onExpandEvent(event.id)}
+      {events.length === 0 ? (
+        <div className="rounded-xl bg-white shadow-md">
+          <EmptyState
+            icon={MapPin}
+            title="No events found"
+            description="Try adjusting your filters."
           />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PanelEventCard({
-  event,
-  isActive,
-  onLocate,
-  onExpand,
-}: {
-  event: MapEvent;
-  isActive: boolean;
-  onLocate: () => void;
-  onExpand: () => void;
-}) {
-  const color = getEventColor(event.tags);
-  const rel = getRelativeLabel(event.rawDatetime);
-  const urgency = URGENCY_STYLES[rel.urgency];
-  const eventDate = new Date(event.rawDatetime);
-
-  return (
-    <button
-      type="button"
-      className={cn(
-        "w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer",
-        isActive && "bg-sky-50/50 border-l-2 border-l-sky-400",
-      )}
-      onClick={onLocate}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-bold text-gray-900 leading-tight truncate">{event.title}</h4>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {eventDate.toLocaleDateString("en-US", {
-              weekday: "long",
+        </div>
+      ) : (
+        events.map((event, index) => (
+          <EventCard
+            key={event.id}
+            id={event.id}
+            title={event.title}
+            orgName={event.orgName}
+            datetime={new Date(event.rawDatetime).toLocaleString("en-US", {
+              weekday: "short",
               month: "short",
               day: "numeric",
-            })}
-          </p>
-          <p className="text-xs text-gray-500">
-            {eventDate.toLocaleTimeString("en-US", {
               hour: "numeric",
               minute: "2-digit",
             })}
-            {" - "}
-            {new Date(eventDate.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onExpand();
-          }}
-          className="shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <Maximize2 size={14} />
-        </button>
-      </div>
-
-      {/* Tags */}
-      {event.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          {event.tags.slice(0, 3).map((tag) => {
-            const tagColor = getEventColor([tag]);
-            return (
-              <span
-                key={tag}
-                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: tagColor.bg, color: tagColor.text }}
-              >
-                {tag.replace(/-/g, " ")}
-              </span>
-            );
-          })}
-        </div>
+            location={event.locationName}
+            tags={event.tags}
+            friendsAttending={event.friendsAttending}
+            density="compact"
+            source="map"
+            position={index}
+            onLocate={() => onLocateEvent(event)}
+            onOpen={() => onExpandEvent(event.id)}
+            className={cn(
+              "shrink-0 border-0 shadow-md transition-colors",
+              // Tinted only while this card's own detail view is open.
+              expandedEventId === event.id ? "bg-[#ECFCFC]" : "bg-white",
+            )}
+          />
+        ))
       )}
-
-      {/* Org */}
-      {event.orgName && <p className="text-[11px] text-gray-400 mt-1 truncate">{event.orgName}</p>}
-    </button>
+    </div>
   );
 }

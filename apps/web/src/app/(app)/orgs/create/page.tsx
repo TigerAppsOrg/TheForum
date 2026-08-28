@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { createOrg } from "~/actions/orgs";
 import { getPresignedUploadUrl } from "~/actions/upload";
+import { Field, fieldControlProps } from "~/components/common/field";
+import { FilterChip } from "~/components/common/filter-chip";
+import { Panel } from "~/components/common/panel";
+import { PageHeading, PageShell } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -14,14 +18,14 @@ import { cn } from "~/lib/utils";
 const ORG_CATEGORIES = [
   { id: "career", label: "Career" },
   { id: "affinity", label: "Affinity" },
-  { id: "performance", label: "Performance" },
-  { id: "academic", label: "Academic" },
-  { id: "athletic", label: "Athletic" },
-  { id: "social", label: "Social" },
-  { id: "cultural", label: "Cultural" },
-  { id: "religious", label: "Religious" },
-  { id: "political", label: "Political" },
-  { id: "service", label: "Service" },
+  { id: "performing arts", label: "Performing Arts" },
+  { id: "academics", label: "Academics" },
+  { id: "athletics", label: "Athletics" },
+  { id: "social event", label: "Social" },
+  { id: "culture", label: "Culture" },
+  { id: "religion", label: "Religion" },
+  { id: "politics", label: "Politics" },
+  { id: "community service", label: "Service" },
 ];
 
 export default function CreateOrgPage() {
@@ -101,49 +105,55 @@ export default function CreateOrgPage() {
   };
 
   return (
-    <div className="px-8 py-8 max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Create Organization</h1>
-        <p className="text-sm text-gray-400 mt-1">Set up your student group on The Forum.</p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeading description="Set up your student group on The Forum.">
+        Create Organization
+      </PageHeading>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-8">
+      <Panel size="lg" className="space-y-8">
         {/* Logo */}
         <div className="flex items-center gap-6">
           {logoPreview ? (
             <div className="relative">
-              <img src={logoPreview} alt="Logo" className="w-20 h-20 rounded-2xl object-cover" />
-              <button
-                type="button"
+              <img src={logoPreview} alt="" className="size-20 rounded-xl object-cover" />
+              <Button
+                variant="solid"
+                size="icon-xs"
+                aria-label="Remove logo"
                 onClick={() => {
                   setLogoPreview(null);
                   setLogoUrl(null);
                 }}
-                className="absolute -top-1.5 -right-1.5 p-1 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                className="absolute -right-1.5 -top-1.5 rounded-full"
               >
-                <X size={10} />
-              </button>
+                <X />
+              </Button>
               {isUploading && (
-                <div className="absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center">
-                  <Upload size={14} className="animate-bounce text-gray-500" />
-                </div>
+                <output className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/80">
+                  <span className="sr-only">Uploading logo…</span>
+                  <Upload size={14} aria-hidden className="animate-bounce text-forum-dark-gray" />
+                </output>
               )}
             </div>
           ) : (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 hover:border-indigo-300 bg-gray-50/50 flex items-center justify-center group cursor-pointer transition-colors"
+              className="group flex size-20 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-forum-border transition-colors hover:border-forum-cerulean focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
             >
+              <span className="sr-only">Upload organization logo</span>
               <ImagePlus
                 size={20}
-                className="text-gray-400 group-hover:text-indigo-500 transition-colors"
+                aria-hidden
+                className="text-forum-light-gray transition-colors group-hover:text-forum-cerulean"
               />
             </button>
           )}
           <div>
-            <p className="text-sm font-semibold text-gray-700">Organization Logo</p>
-            <p className="text-xs text-gray-400 mt-0.5">Optional. JPEG, PNG, or WebP.</p>
+            <p className="font-dm-sans text-sm font-semibold text-black">Organization Logo</p>
+            <p className="mt-0.5 font-dm-sans text-xs text-forum-light-gray">
+              Optional. JPEG, PNG, or WebP.
+            </p>
           </div>
           <input
             ref={fileInputRef}
@@ -157,34 +167,22 @@ export default function CreateOrgPage() {
           />
         </div>
 
-        {/* Name */}
-        <div>
-          <Label htmlFor="name" className="text-sm font-semibold text-gray-700 mb-2 block">
-            Organization Name
-          </Label>
+        <Field id="name" label="Organization Name" error={errors.name} required>
           <Input
-            id="name"
+            {...fieldControlProps("name", errors.name)}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
               if (errors.name) setErrors((prev) => ({ ...prev, name: "" }));
             }}
             placeholder="e.g. Princeton Entrepreneurship Club"
-            className={cn(
-              "h-12 text-base border-gray-200 bg-gray-50/50 placeholder:text-gray-300",
-              errors.name && "border-red-300",
-            )}
+            className={cn("h-12 text-base", errors.name && "border-forum-coral")}
           />
-          {errors.name && <p className="text-xs text-red-400 mt-1.5">{errors.name}</p>}
-        </div>
+        </Field>
 
-        {/* Description */}
-        <div>
-          <Label htmlFor="desc" className="text-sm font-semibold text-gray-700 mb-2 block">
-            Description
-          </Label>
+        <Field id="desc" label="Description" error={errors.description} required>
           <Textarea
-            id="desc"
+            {...fieldControlProps("desc", errors.description)}
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);
@@ -192,55 +190,45 @@ export default function CreateOrgPage() {
             }}
             placeholder="What does your organization do?"
             rows={4}
-            className={cn(
-              "text-base border-gray-200 bg-gray-50/50 placeholder:text-gray-300 resize-none",
-              errors.description && "border-red-300",
-            )}
+            className={cn("resize-none text-base", errors.description && "border-forum-coral")}
           />
-          {errors.description && (
-            <p className="text-xs text-red-400 mt-1.5">{errors.description}</p>
-          )}
-        </div>
+        </Field>
 
         {/* Category */}
-        <div>
-          <Label className="text-sm font-semibold text-gray-700 mb-3 block">Category</Label>
+        <fieldset>
+          <Label asChild>
+            <legend className="mb-3 font-dm-sans text-sm font-semibold text-black">
+              Category<span className="text-forum-coral">*</span>
+            </legend>
+          </Label>
           <div className="flex flex-wrap gap-2">
             {ORG_CATEGORIES.map(({ id, label }) => (
-              <button
+              <FilterChip
                 key={id}
-                type="button"
+                active={category === id}
                 onClick={() => {
                   setCategory(id);
                   if (errors.category) setErrors((prev) => ({ ...prev, category: "" }));
                 }}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-sm font-medium border transition-colors",
-                  category === id
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300",
-                )}
               >
                 {label}
-              </button>
+              </FilterChip>
             ))}
           </div>
-          {errors.category && <p className="text-xs text-red-400 mt-2">{errors.category}</p>}
-        </div>
-      </div>
+          {errors.category && (
+            <p className="mt-2 font-dm-sans text-xs text-forum-coral">{errors.category}</p>
+          )}
+        </fieldset>
+      </Panel>
 
-      <div className="flex items-center justify-end gap-3 mt-8 pb-8">
-        <Button variant="ghost" onClick={() => router.back()} className="text-gray-500">
+      <div className="mt-8 flex items-center justify-end gap-3">
+        <Button variant="quiet" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl px-8 h-11 font-semibold"
-        >
-          {isPending ? "Creating..." : "Create Organization"}
+        <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+          {isPending ? "Creating…" : "Create Organization"}
         </Button>
       </div>
-    </div>
+    </PageShell>
   );
 }
