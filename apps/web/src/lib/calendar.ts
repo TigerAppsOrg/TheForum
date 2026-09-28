@@ -1,8 +1,11 @@
+import { eventEndOrDefault, eventLocationText, formatIcsDate } from "~/lib/ics";
+
 /**
- * Google Calendar "add event" link.
+ * Google Calendar "add event" link for a single event.
  *
- * Lived inside the event detail page; the map's event modal needs the same
- * "+ Calendar" action, so it moved here rather than being written twice.
+ * Shares its rules with the iCalendar feeds (`lib/ics.ts`): UTC timestamps,
+ * a one-hour default when there's no end, and "Venue, Room" locations — so an
+ * event reads the same whether it's added one-off or via a subscription.
  */
 export function buildGCalUrl(event: {
   title: string;
@@ -10,23 +13,20 @@ export function buildGCalUrl(event: {
   datetime: Date;
   endDatetime: Date | null;
   locationName: string | null;
+  locationDetail?: string | null;
+  /** Absolute event URL, appended to the details. */
+  url?: string | null;
 }) {
-  const fmt = (d: Date) =>
-    d
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}/, "");
-
-  const start = fmt(event.datetime);
-  // Default to a one-hour block when the event has no explicit end.
-  const end = fmt(event.endDatetime ?? new Date(event.datetime.getTime() + 60 * 60 * 1000));
+  const start = formatIcsDate(event.datetime);
+  const end = formatIcsDate(eventEndOrDefault(event.datetime, event.endDatetime));
+  const details = [event.description?.trim(), event.url].filter(Boolean).join("\n\n");
 
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: event.title,
     dates: `${start}/${end}`,
-    details: event.description ?? "",
-    location: event.locationName ?? "",
+    details,
+    location: eventLocationText(event.locationName, event.locationDetail),
   });
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;

@@ -26,6 +26,7 @@ import {
   toggleSave,
 } from "~/actions/events";
 import { OrgAvatar } from "~/components/common/org-avatar";
+import { RichText } from "~/components/common/rich-text";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { MiniEventList } from "~/components/events/mini-event-list";
@@ -288,9 +289,7 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
             </div>
           )}
 
-          <p className="mt-4 whitespace-pre-wrap text-[14px] leading-relaxed text-forum-dark-gray">
-            {event.description}
-          </p>
+          <RichText text={event.description} className="mt-4" />
 
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forum-border pt-3 text-[12px] text-forum-light-gray">
             {event.source === "myprincetonu" || event.source === "listserv" ? (

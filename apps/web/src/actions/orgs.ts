@@ -57,6 +57,8 @@ export interface OrgDetail {
   acronym: string | null;
   tagline: string | null;
   groupType: string | null;
+  /** MyPrincetonU id ("mpu:70043") for imported groups — keys their emails in InboxEngine. */
+  externalId: string | null;
   /** The group's MyPrincetonU page. */
   groupUrl: string | null;
   website: string | null;
@@ -262,6 +264,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     acronym: org.acronym,
     tagline: org.tagline,
     groupType: org.groupType,
+    externalId: org.externalId,
     groupUrl: org.groupUrl,
     website: org.website,
     contactEmail: org.contactEmail,

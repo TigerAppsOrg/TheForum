@@ -28,6 +28,8 @@ export default auth((req) => {
     "/terms",
     "/opengraph-image",
     "/twitter-image",
+    // iCalendar feeds: authorized purely by the secret token in the URL.
+    "/cal",
   ];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
