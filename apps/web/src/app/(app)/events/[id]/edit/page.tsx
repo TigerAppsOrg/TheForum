@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCampusLocations, getEvent } from "~/actions/events";
 import { EditEventForm } from "./edit-event-form";
+
+export const metadata: Metadata = { title: "Edit Event" };
 
 export default async function EditEventPage({
   params,
