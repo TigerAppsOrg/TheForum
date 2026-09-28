@@ -1,9 +1,6 @@
-import { getFriends } from "~/actions/friends";
-import { getUserProfile } from "~/actions/users";
-import { SettingsClient } from "../settings/settings-client";
+import { redirect } from "next/navigation";
 
-export default async function ProfilePage() {
-  const [profile, friends] = await Promise.all([getUserProfile(), getFriends()]);
-
-  return <SettingsClient profile={profile} friends={friends} />;
+/** `/profile` used to render a second copy of Settings. One page now. */
+export default function ProfilePage() {
+  redirect("/settings");
 }
