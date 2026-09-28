@@ -19,7 +19,7 @@ import {
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatTime } from "~/lib/date-format";
-import { eventDiscoverableBy } from "~/lib/event-visibility";
+import { eventDiscoverableBy, notFromHiddenOrg } from "~/lib/event-visibility";
 import { loadFriendIds } from "~/lib/social-graph";
 import { dateInputSchema, parseInput } from "~/lib/validation";
 
@@ -85,6 +85,8 @@ export async function getMapEvents(opts?: {
         lt(events.datetime, endDate),
         // Published AND visible to this viewer — see ~/lib/event-visibility.ts.
         eventDiscoverableBy(userId),
+        // Not from an org the viewer hid.
+        notFromHiddenOrg(userId),
         // The "other" placeholder location sits at (0, 0) — off the coast of
         // Africa. Events there have no real coordinates, so keep them off the map.
         or(ne(campusLocations.latitude, 0), ne(campusLocations.longitude, 0)),

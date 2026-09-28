@@ -7,6 +7,7 @@ import {
   orgCategoryEnum,
 } from "@the-forum/database";
 import { z } from "zod";
+import { FEED_SORTS } from "~/lib/feed-ranking";
 
 /**
  * Parse server-action input, throwing a readable Error on failure.
@@ -35,6 +36,9 @@ export const campusRegionSchema = z.enum(campusRegionEnum.enumValues);
 export const eventStatusSchema = z.enum(eventStatusEnum.enumValues);
 export const interactionTypeSchema = z.enum(interactionTypeEnum.enumValues);
 export const itemTypeSchema = z.enum(itemTypeEnum.enumValues);
+
+/** Explore sort ("For you" / "Soonest" / "Recently posted"), e.g. from `?sort=`. */
+export const feedSortSchema = z.enum(FEED_SORTS);
 
 /** De-duplicated list of enum values (at most one of each). */
 export function uniqueEnumArray<E extends z.ZodEnum>(schema: E) {

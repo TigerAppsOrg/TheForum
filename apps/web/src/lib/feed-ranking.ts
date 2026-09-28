@@ -27,13 +27,29 @@ export const CANDIDATE_HORIZON_DAYS = 45;
 export const CANDIDATE_POOL_CAP = 1000;
 export const PERSONAL_CANDIDATE_CAP = 500;
 
+// ── Sorts ─────────────────────────────────────────────────
+
+/**
+ * Home/Explore sort options. Every sort ranks the same candidate set (same
+ * filters, same horizon, blocked orgs excluded); only the order differs.
+ *  - `foryou`: the weighted score below, plus the org-diversity cap and the
+ *    soon-event quota.
+ *  - `soonest`: start time ascending.
+ *  - `recent`: when it was posted — first listserv announcement, else when it
+ *    entered The Forum — newest first.
+ */
+export const FEED_SORTS = ["foryou", "soonest", "recent"] as const;
+export type FeedSort = (typeof FEED_SORTS)[number];
+export const DEFAULT_FEED_SORT: FeedSort = "foryou";
+
 // ── Scoring ───────────────────────────────────────────────
 
 export const WEIGHTS = {
   interest: 3.0,
   time: 2.0,
   friends: 4.0,
-  org: 1.0,
+  org: 4.0,
+  source: 2.5,
   recency: 1.0,
   popularity: 0.5,
   random: 0.5,
@@ -42,8 +58,27 @@ export const WEIGHTS = {
 /** Time proximity halves every this many days. */
 export const TIME_HALF_LIFE_DAYS = 4;
 
-/** Org affinity when you've RSVP'd to the org before but don't follow/belong to it. */
-export const ORG_PAST_INTERACTION_AFFINITY = 0.5;
+/**
+ * Org affinity when you've RSVP'd to the org before but don't follow/belong to
+ * it. With WEIGHTS.org = 4 that is worth 0.6 — about what it was before
+ * following was strengthened — while a follow is worth the full 4.0.
+ */
+export const ORG_PAST_INTERACTION_AFFINITY = 0.15;
+
+/**
+ * Source quality, multiplied by WEIGHTS.source. Events announced on a campus
+ * listserv earn up to 1.0, growing gently with repeat announcements (see
+ * `sourceQuality`). Official MyPrincetonU listings nobody emailed about are
+ * numerous and uneven, so they sit slightly below neutral and fill in under
+ * announced events. Events created in The Forum are posted by a student on
+ * purpose: slightly positive.
+ */
+export const SOURCE_QUALITY = {
+  /** An announcement count that earns the full boost (log2(1 + 3) / 2 = 1). */
+  announcementsForFull: 3,
+  unannouncedOfficial: -0.3,
+  manual: 0.2,
+} as const;
 
 /** View count treated as "maximally popular" (log-scaled, caps at 1.0). */
 export const POPULARITY_VIEW_CAP = 50;
@@ -87,10 +122,32 @@ export interface ScoringInput {
   id: string;
   orgId: string | null;
   startsAt: number;
-  createdAt: number;
+  /** When the event was posted: first listserv announcement, else when it entered The Forum. */
+  postedAt: number;
   tags: readonly string[];
   friendsAttendingCount: number;
   viewCount: number;
+  /** 'manual' | 'myprincetonu' | 'listserv' (or a legacy value, treated as neutral). */
+  source: string;
+  /** Campus listserv emails that announced the event (InboxEngine). */
+  announcementCount: number;
+}
+
+/**
+ * Source-quality signal in [-0.3, 1]:
+ *  - announced on a listserv (any source): min(1, log2(1 + emails) / 2) —
+ *    0.5 for one email, ~0.79 for two, 1.0 from three on;
+ *  - official MyPrincetonU listing never announced: SOURCE_QUALITY.unannouncedOfficial;
+ *  - created in The Forum: SOURCE_QUALITY.manual;
+ *  - anything else: 0.
+ */
+export function sourceQuality(source: string, announcementCount: number): number {
+  if (announcementCount > 0) {
+    return Math.min(1, Math.log2(1 + announcementCount) / 2);
+  }
+  if (source === "myprincetonu") return SOURCE_QUALITY.unannouncedOfficial;
+  if (source === "manual") return SOURCE_QUALITY.manual;
+  return 0;
 }
 
 export function scoreEvent(event: ScoringInput, ctx: ScoringContext): number {
@@ -114,8 +171,10 @@ export function scoreEvent(event: ScoringInput, ctx: ScoringContext): number {
         ? ORG_PAST_INTERACTION_AFFINITY
         : 0;
 
-  const hoursSinceCreated = (ctx.now - event.createdAt) / HOUR_MS;
-  const recencyBoost = hoursSinceCreated <= 24 ? 1.0 : hoursSinceCreated <= 72 ? 0.5 : 0.0;
+  const hoursSincePosted = (ctx.now - event.postedAt) / HOUR_MS;
+  const recencyBoost = hoursSincePosted <= 24 ? 1.0 : hoursSincePosted <= 72 ? 0.5 : 0.0;
+
+  const source = sourceQuality(event.source, event.announcementCount);
 
   const popularityScore = Math.min(
     1.0,
@@ -131,6 +190,7 @@ export function scoreEvent(event: ScoringInput, ctx: ScoringContext): number {
     WEIGHTS.time * timeProximity +
     WEIGHTS.friends * friendRsvpScore +
     WEIGHTS.org * orgAffinity +
+    WEIGHTS.source * source +
     WEIGHTS.recency * recencyBoost +
     WEIGHTS.popularity * popularityScore +
     WEIGHTS.random * randomNudge
@@ -145,6 +205,33 @@ export function compareScored(
   if (b.score !== a.score) return b.score - a.score;
   if (a.startsAt !== b.startsAt) return a.startsAt - b.startsAt;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * When an event was posted, for "Recently posted" and the recency boost: its
+ * first listserv announcement if it had one, else when it entered The Forum
+ * (created there, or first synced from MyPrincetonU).
+ */
+export function postedAt(event: { announcedAt: Date | null; createdAt: Date }): number {
+  return (event.announcedAt ?? event.createdAt).getTime();
+}
+
+/** "Soonest": start time ascending, then id. */
+export function compareSoonest(
+  a: { id: string; startsAt: number },
+  b: { id: string; startsAt: number },
+): number {
+  if (a.startsAt !== b.startsAt) return a.startsAt - b.startsAt;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** "Recently posted": posted time descending, then soonest first, then id. */
+export function compareRecentlyPosted(
+  a: { id: string; postedAt: number; startsAt: number },
+  b: { id: string; postedAt: number; startsAt: number },
+): number {
+  if (a.postedAt !== b.postedAt) return b.postedAt - a.postedAt;
+  return compareSoonest(a, b);
 }
 
 export interface OrderingOptions {

@@ -214,6 +214,24 @@ export const orgFollowers = pgTable(
   ],
 );
 
+/** Orgs a user has hidden: their events are removed from every discovery surface. */
+export const orgBlocks = pgTable(
+  "org_blocks",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.orgId] }),
+    index("org_blocks_user_id_idx").on(t.userId),
+  ],
+);
+
 export const events = pgTable(
   "events",
   {
@@ -244,6 +262,14 @@ export const events = pgTable(
     sourceUrl: text("source_url"),
     /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */
     locationDetail: varchar("location_detail", { length: 200 }),
+    /**
+     * How many campus listserv emails announced this event (its own source
+     * email plus folded-in reminders), from InboxEngine. 0 for unannounced
+     * MyPrincetonU listings and Forum-created events. A ranking signal.
+     */
+    announcementCount: integer("announcement_count").default(0).notNull(),
+    /** When the event was first announced on a listserv, if ever ("Recently posted" sort). */
+    announcedAt: timestamp("announced_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

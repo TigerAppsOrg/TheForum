@@ -1,4 +1,16 @@
-import { events, and, db, eq, inArray, or, orgMembers } from "@the-forum/database";
+import {
+  events,
+  and,
+  db,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  orgBlocks,
+  orgMembers,
+} from "@the-forum/database";
 
 /**
  * Event visibility — the ONE place this rule is defined. Server-only.
@@ -39,11 +51,45 @@ export function eventVisibleTo(viewerId: string) {
  * friends' activity): published AND visible. Drafts never appear in discovery,
  * even to their authors — they live in My Events and on the org page.
  * Private published events still show for their creator and org managers.
+ * Discovery surfaces also apply `notFromHiddenOrg`, below.
  */
 export function eventDiscoverableBy(viewerId: string) {
   const discoverable = and(eq(events.status, "published"), eventVisibleTo(viewerId));
   if (!discoverable) throw new Error("unreachable: empty visibility predicate");
   return discoverable;
+}
+
+/** Subquery: ids of orgs the viewer has hidden, optionally only those hidden by `asOf`. */
+export function hiddenOrgIdsQuery(viewerId: string, asOf?: Date) {
+  return db
+    .select({ orgId: orgBlocks.orgId })
+    .from(orgBlocks)
+    .where(
+      asOf
+        ? and(eq(orgBlocks.userId, viewerId), lte(orgBlocks.createdAt, asOf))
+        : eq(orgBlocks.userId, viewerId),
+    );
+}
+
+/**
+ * WHERE fragment for discovery surfaces: the event is not hosted by an org the
+ * viewer hid ("Hide events from <Org>"). Events without an org always pass.
+ *
+ * Applied to Explore (every sort, and its search), the map, similar events and
+ * friends' activity. Deliberately NOT applied to the org's own page, direct
+ * event links, or the viewer's own RSVPs/saves — hiding an org filters
+ * discovery; it doesn't make its events unreachable.
+ *
+ * `asOf` limits it to orgs hidden by then, so a paginated feed keeps slicing
+ * the ranking page 1 came from (see docs/ranking.md, "Pagination").
+ */
+export function notFromHiddenOrg(viewerId: string, asOf?: Date) {
+  const clause = or(
+    isNull(events.orgId),
+    notInArray(events.orgId, hiddenOrgIdsQuery(viewerId, asOf)),
+  );
+  if (!clause) throw new Error("unreachable: empty hidden-org predicate");
+  return clause;
 }
 
 /** WHERE fragment: the viewer may edit the event (creator, or owner/officer of its org). */

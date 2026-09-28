@@ -7,7 +7,6 @@ import {
   Clock,
   Edit3,
   Eye,
-  EyeOff,
   MapPin,
   Maximize2,
   Plus,
@@ -20,6 +19,7 @@ import { toast } from "sonner";
 import { logInteraction } from "~/actions/interactions";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
+import { EventActionsMenu } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
@@ -91,12 +91,21 @@ export interface EventCardProps {
   onSaveToggle?: () => void | Promise<void>;
   onRsvpToggle?: () => void | Promise<void>;
   onShare?: () => void;
+  /** "Not interested in this event", in the card's "⋯" menu. */
   onHide?: () => void;
   /** When true the card collapses to a stub that can be restored. */
   isHidden?: boolean;
   onUnhide?: () => void;
   /** Extra action, e.g. the map's "Show on map". */
   onLocate?: () => void;
+  /**
+   * Host-org actions, in the "⋯" menu: follow/unfollow (hoists the org in the
+   * feed) and hide its events. The menu renders only when the event has an org
+   * and both handlers are supplied.
+   */
+  isFollowingOrg?: boolean;
+  onToggleFollowOrg?: () => void;
+  onHideOrg?: () => void;
   /**
    * Open the event in place instead of navigating to its page. The map uses
    * this so opening a card doesn't throw you off the map.
@@ -157,6 +166,9 @@ export function EventCard({
   isHidden = false,
   onUnhide,
   onLocate,
+  isFollowingOrg = false,
+  onToggleFollowOrg,
+  onHideOrg,
   onOpen,
   density = "default",
   calendarUrl,
@@ -224,7 +236,48 @@ export function EventCard({
     logInteraction({ itemId: id, interactionType: "click", metadata: { source, position } });
   };
 
-  const hasUtilityRow = Boolean(onSaveToggle || onShare || onHide);
+  /*
+   * "Not interested": the per-event hide. The card collapses to a stub with
+   * Unhide, and the toast offers the same Undo.
+   */
+  const handleNotInterested = onHide
+    ? () => {
+        logInteraction({ itemId: id, interactionType: "hide", metadata: { source, position } });
+        onHide();
+        toast(`Hid ${title}`, {
+          description: "We'll show you fewer events like this.",
+          action: onUnhide ? { label: "Undo", onClick: onUnhide } : undefined,
+        });
+      }
+    : undefined;
+
+  const orgActions =
+    orgId && orgName && onToggleFollowOrg && onHideOrg
+      ? {
+          name: orgName,
+          isFollowing: isFollowingOrg,
+          onToggleFollow: onToggleFollowOrg,
+          onHide: onHideOrg,
+        }
+      : null;
+
+  /*
+   * The single "⋯" menu: "Not interested", then Follow / Hide the host org.
+   * Present on every feed card (org-less events get "Not interested" alone),
+   * so the top row reads the same on every card.
+   */
+  const actionsMenu = (className: string, iconClassName?: string) => (
+    <EventActionsMenu
+      eventTitle={title}
+      onNotInterested={handleNotInterested}
+      org={orgActions}
+      className={className}
+      iconClassName={iconClassName}
+    />
+  );
+
+  const hasActionsMenu = Boolean(handleNotInterested || orgActions);
+  const hasUtilityRow = Boolean(onSaveToggle || onShare || hasActionsMenu);
 
   /*
    * Hidden events collapse to a stub rather than disappearing. Removing the
@@ -349,27 +402,6 @@ export function EventCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {onHide && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                utilityButton,
-                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-              )}
-              aria-label={`Hide ${title}`}
-              onClick={() => {
-                logInteraction({
-                  itemId: id,
-                  interactionType: "hide",
-                  metadata: { source, position },
-                });
-                onHide();
-              }}
-            >
-              <EyeOff />
-            </Button>
-          )}
           {onShare && (
             <Button
               variant="ghost"
@@ -391,6 +423,7 @@ export function EventCard({
               <Share2 />
             </Button>
           )}
+          {actionsMenu(utilityButton)}
           {editHref && (
             <Button
               asChild
@@ -760,43 +793,21 @@ export function EventCard({
                 <Share2 className="text-forum-coral" />
               </Button>
             )}
-            {/* Hide: revealed on hover/focus on desktop so the resting card shows the
-               Figma's two icons; always visible on touch. */}
-            {onHide && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={cn(
-                  UTILITY_HOVER,
-                  "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-                )}
-                aria-label={`Hide ${title}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  logInteraction({
-                    itemId: id,
-                    interactionType: "hide",
-                    metadata: { source, position },
-                  });
-                  onHide();
-                  toast(`Hid ${title}`, { description: "Use Unhide to bring it back." });
-                }}
-              >
-                <EyeOff className="text-forum-coral" />
-              </Button>
-            )}
           </div>
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-sm"
-            className={UTILITY_HOVER}
-            aria-label={`Open ${title}`}
-          >
-            <Link href={`/events/${id}`} onClick={trackClick}>
-              <Maximize2 className="text-forum-coral" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-0.5">
+            {actionsMenu(UTILITY_HOVER, "text-forum-coral")}
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              className={UTILITY_HOVER}
+              aria-label={`Open ${title}`}
+            >
+              <Link href={`/events/${id}`} onClick={trackClick}>
+                <Maximize2 className="text-forum-coral" />
+              </Link>
+            </Button>
+          </div>
         </div>
       )}
 
