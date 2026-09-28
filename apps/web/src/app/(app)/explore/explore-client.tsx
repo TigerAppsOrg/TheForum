@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   type FeedEvent,
@@ -13,12 +13,15 @@ import {
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, ErrorState, EventCardSkeletonList } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
+import { EventCollection, EventViewToggle } from "~/components/events/event-collection";
 import { EventFilters } from "~/components/events/event-filters";
-import { EventList } from "~/components/events/event-list";
 import { MiniEventList } from "~/components/events/mini-event-list";
+import { Greeting } from "~/components/layout/greeting";
 import { PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
-import { formatLongDate, formatRelativeDay } from "~/lib/date-format";
+import { buildGCalUrl } from "~/lib/calendar";
+import { formatRelativeDay } from "~/lib/date-format";
+import { useEventView } from "~/lib/use-event-view";
 
 interface ExploreClientProps {
   initialEvents: FeedEvent[];
@@ -30,10 +33,6 @@ interface ExploreClientProps {
   initialSearch?: string;
   userName?: string;
   userAvatarUrl?: string | null;
-}
-
-function getTodayString() {
-  return formatLongDate(new Date());
 }
 
 export function ExploreClient({
@@ -73,6 +72,7 @@ export function ExploreClient({
    */
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [view, setView] = useEventView("cards");
   const [isPending, startTransition] = useTransition();
   /** Set when a feed fetch fails, so the list can offer a retry. */
   const [loadError, setLoadError] = useState(false);
@@ -252,46 +252,48 @@ export function ExploreClient({
     }
   }, []);
 
-  const upcomingList = useMemo(
-    () => (savedEvents.length > 0 ? savedEvents : events).slice(0, 5),
-    [savedEvents, events],
-  );
-
   const describeWhen = (event: FeedEvent) =>
     event.rawDatetime
       ? `${formatRelativeDay(new Date(event.rawDatetime)).replace(/^on /, "")} · ${event.location}`
       : `${event.datetime} · ${event.location}`;
 
+  const filtered = Boolean(searchQuery.trim() || activeFilters.length > 0);
+
   /*
-   * Search-first and dense: search + topic chips, then one list of event rows.
-   * The side panels sit beside the list from `lg` and below it on smaller
-   * screens, so friends' plans and saved events are reachable on phones too.
+   * Figma Home: greeting, pill search, topic chips, then the feed as cards
+   * (two columns on wide screens) or compact rows — the reader's choice,
+   * remembered. The side column holds friends' plans and saved events; it sits
+   * beside the feed from `xl` and below it on smaller screens.
    */
   return (
     <PageShell>
-      <h1 className="sr-only">Explore events</h1>
-      <div className="mb-3 flex flex-col gap-2.5">
+      <Greeting name={userName} />
+
+      <div className="mb-4 flex flex-col gap-3">
         <SearchInput
           label="Search events"
           shortcut
-          placeholder="Search events, places, organizations…"
+          placeholder="Search for events, places or organizations"
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
         />
         <EventFilters activeFilters={activeFilters} onFilterToggle={handleFilterToggle} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px]">
         <section aria-label="Events" className="min-w-0">
-          <p className="mb-2 font-dm-sans text-[12px] text-forum-light-gray">
-            {searchQuery.trim() || activeFilters.length > 0
-              ? loadError
-                ? "Search failed"
-                : isPending
-                  ? "Searching…"
-                  : `${total} ${total === 1 ? "event matches" : "events match"}`
-              : `Upcoming · ${getTodayString()}`}
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="font-dm-sans text-[12px] text-forum-light-gray">
+              {filtered
+                ? loadError
+                  ? "Search failed"
+                  : isPending
+                    ? "Searching…"
+                    : `${total} ${total === 1 ? "event matches" : "events match"}`
+                : `${total} upcoming ${total === 1 ? "event" : "events"}`}
+            </p>
+            <EventViewToggle view={view} onChange={setView} />
+          </div>
 
           {loadError ? (
             <ErrorState
@@ -308,18 +310,33 @@ export function ExploreClient({
             <EmptyState
               title="No events found"
               description={
-                activeFilters.length > 0 || searchQuery
+                filtered
                   ? "Try adjusting your filters or search."
                   : "Events will appear here once they're created."
               }
             />
           ) : (
-            <EventList className={isPending ? "opacity-60 transition-opacity" : undefined}>
-              {events.map((event, index) => (
+            <EventCollection
+              items={events}
+              view={view}
+              className={isPending ? "opacity-60 transition-opacity" : undefined}
+              renderItem={(event, index, density) => (
                 <EventCard
                   key={event.id}
                   {...event}
-                  density="row"
+                  density={density}
+                  className={density === "default" ? "h-full" : undefined}
+                  calendarUrl={
+                    density === "default" && event.rawDatetime
+                      ? buildGCalUrl({
+                          title: event.title,
+                          description: event.description,
+                          datetime: new Date(event.rawDatetime),
+                          endDatetime: null,
+                          locationName: event.location,
+                        })
+                      : undefined
+                  }
                   source="feed"
                   position={index}
                   onSaveToggle={() => handleSaveToggle(event.id)}
@@ -340,15 +357,16 @@ export function ExploreClient({
                     });
                   }}
                 />
-              ))}
-            </EventList>
+              )}
+            />
           )}
 
           {hasMore && !loadError && events.length > 0 && (
-            <div className="mt-3 flex justify-center">
+            <div className="mt-5 flex justify-center">
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full bg-white px-5"
                 onClick={loadMore}
                 disabled={isLoadingMore || isPending}
               >
@@ -358,7 +376,7 @@ export function ExploreClient({
           )}
         </section>
 
-        <aside aria-label="Highlights" className="flex flex-col gap-6 lg:pt-6">
+        <aside aria-label="Highlights" className="flex flex-col gap-6 xl:pt-10">
           <section>
             <SectionHeading>Friends going</SectionHeading>
             <MiniEventList
@@ -380,21 +398,30 @@ export function ExploreClient({
               href="/friends"
               className="mt-2 inline-block font-dm-sans text-[12px] font-medium text-forum-cerulean hover:underline"
             >
-              Friends →
+              Find friends →
             </Link>
           </section>
 
-          <section>
-            <SectionHeading>{savedEvents.length > 0 ? "Saved" : "Coming up"}</SectionHeading>
-            <MiniEventList
-              empty="No upcoming events yet."
-              items={upcomingList.map((event) => ({
-                id: event.id,
-                title: event.title,
-                meta: describeWhen(event),
-              }))}
-            />
-          </section>
+          {/* Only saved events — "coming up" just repeated the top of the feed. */}
+          {savedEvents.length > 0 && (
+            <section>
+              <SectionHeading>Saved</SectionHeading>
+              <MiniEventList
+                empty=""
+                items={savedEvents.slice(0, 5).map((event) => ({
+                  id: event.id,
+                  title: event.title,
+                  meta: describeWhen(event),
+                }))}
+              />
+              <Link
+                href="/events"
+                className="mt-2 inline-block font-dm-sans text-[12px] font-medium text-forum-cerulean hover:underline"
+              >
+                My Events →
+              </Link>
+            </section>
+          )}
         </aside>
       </div>
     </PageShell>

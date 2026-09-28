@@ -184,6 +184,19 @@ export function formatDateBadge(date: Date) {
   };
 }
 
+/** "Monday, 16 March 2026" — the greeting line on Home, in Princeton time. */
+export function formatGreetingDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: EVENT_TIME_ZONE,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(date);
+  const get = (t: Intl.DateTimeFormatPartTypes) => partValue(parts, t);
+  return `${get("weekday")}, ${get("day")} ${get("month")} ${get("year")}`;
+}
+
 /** "Sep 28" */
 export function formatMonthDay(date: Date) {
   return date.toLocaleDateString("en-US", {
