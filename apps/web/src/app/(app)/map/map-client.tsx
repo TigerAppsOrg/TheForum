@@ -184,12 +184,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
           />
 
           {/* ═══ Search bar + filter pills (top center) ═══ */}
-          {/*
-            The rail floats over the map on this route, so the left inset clears
-            its *expanded* 212px width — the controls are never swallowed when it
-            opens. The wider right inset on ≥sm clears the TopBar's bell + avatar.
-          */}
-          <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:left-[224px] sm:right-32">
+          <div className="pointer-events-none absolute top-3 right-3 left-3 z-10">
             <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
               <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
               <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />

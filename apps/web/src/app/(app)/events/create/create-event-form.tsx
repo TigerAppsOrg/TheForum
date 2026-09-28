@@ -21,7 +21,7 @@ import {
   resolveEventWhen,
 } from "~/components/events/event-form-fields";
 import { EventPreviewModal } from "~/components/events/event-preview-modal";
-import { PageShell, TOP_BAR_CLEARANCE } from "~/components/layout/page-shell";
+import { PageShell } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Textarea } from "~/components/ui/textarea";
@@ -152,9 +152,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   return (
     <PageShell width="wide">
       {/* Top buttons */}
-      <div
-        className={cn("mb-8 flex flex-wrap items-center justify-between gap-3", TOP_BAR_CLEARANCE)}
-      >
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <Button variant="outline" size="sm" onClick={() => router.back()} disabled={isPending}>
             Cancel

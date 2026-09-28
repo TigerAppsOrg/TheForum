@@ -16,9 +16,8 @@ export interface NavItem {
 /**
  * Single source of truth for primary navigation.
  *
- * Both the docked `Sidebar` and the map route's floating mini-nav read from
- * this list — previously they were separate arrays and had already drifted
- * (the map nav was missing Orgs entirely).
+ * Read by both the desktop `AppHeader` and the phone `MobileNav`, so the two
+ * can never drift.
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/explore", icon: Home, label: "Home" },
