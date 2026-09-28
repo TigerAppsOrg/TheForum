@@ -104,10 +104,11 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
       <div className="flex items-center gap-2">
         <SearchInput
           label="Search organizations"
+          shortcut
           placeholder="Search organizations…"
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
-          className="h-10 flex-1"
+          className="flex-1"
         />
         <Button asChild variant="cerulean" size="sm" className="h-10">
           <Link href="/orgs/create">

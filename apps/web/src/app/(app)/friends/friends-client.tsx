@@ -202,10 +202,10 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
       {/* Search is always here — it's how you find people to add. */}
       <SearchInput
         label="Find people by name or NetID"
+        shortcut
         placeholder="Find people by name or NetID"
         value={searchQuery}
         onChange={(e) => handleSearch(e.target.value)}
-        className="h-10"
       />
 
       {isSearchActive ? (

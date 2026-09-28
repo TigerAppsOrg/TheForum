@@ -31,9 +31,6 @@ const MAJOR_OPTIONS = PRINCETON_MAJORS.map((d) => (d.degree ? `${d.name} (${d.de
 const SELECT_CLASS =
   "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-/** Compact chip sizing for dense multi-selects. */
-const CHIP_CLASS = "h-7 px-3 text-[12px]";
-
 function sameSet(a: string[], b: string[]) {
   return a.length === b.length && a.every((v) => b.includes(v));
 }
@@ -229,7 +226,6 @@ export function SettingsClient({ profile }: { profile: UserProfile }) {
                 key={value}
                 active={regions.includes(value)}
                 title={desc}
-                className={CHIP_CLASS}
                 onClick={() => setRegions((prev) => toggle(prev, value))}
               >
                 {label}
@@ -248,7 +244,6 @@ export function SettingsClient({ profile }: { profile: UserProfile }) {
               <FilterChip
                 key={value}
                 active={interests.includes(value)}
-                className={CHIP_CLASS}
                 onClick={() => setInterests((prev) => toggle(prev, value))}
               >
                 {label}

@@ -217,10 +217,10 @@ export function ExploreClient({
       <div className="mb-3 flex flex-col gap-2.5">
         <SearchInput
           label="Search events"
+          shortcut
           placeholder="Search events, places, organizations…"
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="h-10"
         />
         <EventFilters activeFilters={activeFilters} onFilterToggle={handleFilterToggle} />
       </div>
