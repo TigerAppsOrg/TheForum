@@ -16,7 +16,7 @@ import { cn } from "~/lib/utils";
  * Padding steps with `size` rather than being respecified per page; the border
  * and radius are fixed so panels never disagree corner-to-corner.
  */
-const panelVariants = cva("rounded-xl border border-forum-border bg-white", {
+const panelVariants = cva("rounded-[20px] border border-forum-border bg-white", {
   variants: {
     size: {
       sm: "p-4",

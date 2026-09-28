@@ -143,7 +143,7 @@ export function EventRowSkeleton() {
 /** Mirrors the event list (bordered, divided rows) so loading doesn't reflow the page. */
 export function EventCardSkeletonList({ count = 6 }: { count?: number }) {
   return (
-    <output className="block divide-y divide-forum-border overflow-hidden rounded-lg border border-forum-border bg-white">
+    <output className="block divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white">
       <span className="sr-only">Loading events…</span>
       {Array.from({ length: count }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder list

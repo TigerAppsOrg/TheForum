@@ -6,6 +6,7 @@ import { useCallback, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type OrgListItem, getOrgs, toggleFollowOrg } from "~/actions/orgs";
 import { FilterChip, FilterChipGroup } from "~/components/common/filter-chip";
+import { OrgAvatar } from "~/components/common/org-avatar";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { Button } from "~/components/ui/button";
@@ -24,25 +25,6 @@ const ORG_CATEGORIES = [
   { id: "politics", label: "Politics" },
   { id: "community service", label: "Service" },
 ];
-
-function orgColor(name: string) {
-  const colors = [
-    { bg: "#eef2ff", text: "#4338ca" },
-    { bg: "#fef3c7", text: "#92400e" },
-    { bg: "#ecfdf5", text: "#065f46" },
-    { bg: "#fce7f3", text: "#9d174d" },
-    { bg: "#eff6ff", text: "#1e40af" },
-    { bg: "#fef9c3", text: "#854d0e" },
-    { bg: "#f0fdf4", text: "#166534" },
-    { bg: "#faf5ff", text: "#6b21a8" },
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i);
-    hash |= 0;
-  }
-  return colors[Math.abs(hash) % colors.length] ?? colors[0];
-}
 
 interface OrgsClientProps {
   initialOrgs: OrgListItem[];
@@ -110,7 +92,7 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1"
         />
-        <Button asChild variant="cerulean" size="sm" className="h-10">
+        <Button asChild variant="cerulean" size="sm" className="h-11 rounded-full px-4">
           <Link href="/orgs/create">
             <Plus />
             <span className="hidden sm:inline">New organization</span>
@@ -151,30 +133,17 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
       {orgs.length > 0 ? (
         <ul
           className={cn(
-            "divide-y divide-forum-border overflow-hidden rounded-lg border border-forum-border bg-white",
+            "divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white",
             isPending && "opacity-70 transition-opacity",
           )}
         >
           {orgs.map((org) => {
-            const color = orgColor(org.name);
             return (
               <li
                 key={org.id}
-                className="relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-forum-turquoise/10 sm:px-4"
+                className="relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-forum-turquoise/10 sm:px-5"
               >
-                <div
-                  aria-hidden
-                  className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md"
-                  style={{ background: color?.bg }}
-                >
-                  {org.logoUrl ? (
-                    <img src={org.logoUrl} alt="" className="size-full bg-white object-contain" />
-                  ) : (
-                    <span className="text-[13px] font-bold" style={{ color: color?.text }}>
-                      {org.name[0]?.toUpperCase()}
-                    </span>
-                  )}
-                </div>
+                <OrgAvatar name={org.name} logoUrl={org.logoUrl} size={36} />
                 <div className="min-w-0 flex-1 font-dm-sans">
                   <Link
                     href={`/orgs/${org.id}`}
