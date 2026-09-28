@@ -1,0 +1,16 @@
+[Unit]
+Description=The Forum (@ENV@): sync organizations, venues and events from InboxEngine
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=theforum
+Group=theforum
+WorkingDirectory=/opt/theforum/@ENV@/current
+ExecStart=@BUN@ --env-file=/opt/theforum/@ENV@/shared/environment tools/sync.js
+Environment=BUN_INSTALL_CACHE_DIR=/tmp/bun-cache
+TimeoutStartSec=300
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

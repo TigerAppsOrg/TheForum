@@ -1,0 +1,115 @@
+name: Deploy
+
+# staging → forumdev.tigerapps.org, main → forum.tigerapps.org, after the CI checks pass.
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy from this ref
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: theforum-deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+    env:
+      AWS_REGION: us-east-1
+      BUCKET: theforum-deploy-104733724423-us-east-1
+      INSTANCE_ID: i-00a811982e8784203
+      SHA: ${{ github.sha }}
+      BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Choose environment
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then target="${{ inputs.environment }}";
+          elif [ "$BRANCH" = main ]; then target=production; else target=staging; fi
+          if [ "$target" = production ]; then site=https://forum.tigerapps.org; else site=https://forumdev.tigerapps.org; fi
+          echo "TARGET=$target" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SITE_URL=$site" >> "$GITHUB_ENV"
+          echo "Deploying $SHA ($BRANCH) to $target"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Fetch the InboxEngine submodule (private)
+        env:
+          KEY: ${{ secrets.INBOX_ENGINE_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/inbox_engine && chmod 600 ~/.ssh/inbox_engine
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git -c url."git@github.com:TigerAppsOrg/InboxEngine".insteadOf="https://github.com/TigerAppsOrg/InboxEngine" \
+            -c core.sshCommand="ssh -i ~/.ssh/inbox_engine -o IdentitiesOnly=yes" \
+            submodule update --init --depth 1
+          rm -f ~/.ssh/inbox_engine
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build
+        env:
+          SKIP_ENV_VALIDATION: "1"
+          # Placeholders for build-time module evaluation; nothing connects during the build.
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+          AUTH_SECRET: build-time-placeholder
+          NEXT_TELEMETRY_DISABLED: "1"
+          TURBO_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_MAPBOX_TOKEN: ${{ vars.NEXT_PUBLIC_MAPBOX_TOKEN }}
+          NEXT_PUBLIC_CAMPUS_MAP_TOKEN: ${{ vars.NEXT_PUBLIC_CAMPUS_MAP_TOKEN }}
+          NEXT_PUBLIC_CAMPUS_MAP_STYLE: ${{ vars.NEXT_PUBLIC_CAMPUS_MAP_STYLE }}
+        run: |
+          bun run build --filter=@the-forum/web
+          deploy/build-release.sh /tmp/release.tar.gz
+          echo "DIGEST=$(sha256sum /tmp/release.tar.gz | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::104733724423:role/TheForumGitHubDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload release
+        run: aws s3 cp /tmp/release.tar.gz "s3://$BUCKET/releases/theforum/$TARGET/$SHA.tar.gz" --only-show-errors
+
+      - name: Deploy through SSM
+        run: |
+          set -euo pipefail
+          params=$(jq -n --arg e "$TARGET" --arg r "$SHA" --arg c "$DIGEST" '{Environment:[$e],Release:[$r],Checksum:[$c]}')
+          id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name TheForumDeploy --parameters "$params" --query Command.CommandId --output text)
+          echo "SSM command $id"
+          for _ in $(seq 1 100); do
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in
+              Success) aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text | tail -8; exit 0 ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query '{out:StandardOutputContent,err:StandardErrorContent}'; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo 'Deployment did not finish in time'; exit 1
+
+      - name: Smoke test through Cloudflare
+        run: |
+          if [ "$TARGET" = production ]; then url=https://forum.tigerapps.org; else url=https://forumdev.tigerapps.org; fi
+          for _ in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url/") && [ "$code" = 200 ] && { echo "$url is up"; exit 0; }
+            sleep 6
+          done
+          echo "$url did not return 200"; exit 1
