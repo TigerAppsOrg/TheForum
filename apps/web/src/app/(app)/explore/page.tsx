@@ -1,4 +1,5 @@
 import { getFeedEvents, getFriendsEvents, getSavedEvents } from "~/actions/events";
+import { getGreetingName } from "~/actions/users";
 import { auth } from "~/auth";
 import { DEFAULT_FEED_SORT } from "~/lib/feed-ranking";
 import { feedSortSchema } from "~/lib/validation";
@@ -14,11 +15,12 @@ export default async function ExplorePage({
   const parsedSort = feedSortSchema.safeParse(sortParam);
   const sort = parsedSort.success ? parsedSort.data : DEFAULT_FEED_SORT;
 
-  const [feedResult, savedEvents, friendsEvents, session] = await Promise.all([
+  const [feedResult, savedEvents, friendsEvents, session, greetingName] = await Promise.all([
     getFeedEvents({ search: search || undefined, sort }),
     getSavedEvents(),
     getFriendsEvents(),
     auth(),
+    getGreetingName(),
   ]);
 
   return (
@@ -33,7 +35,7 @@ export default async function ExplorePage({
       savedEvents={savedEvents}
       friendsEvents={friendsEvents}
       initialSearch={search ?? ""}
-      userName={session?.user?.name ?? "there"}
+      greetingName={greetingName}
       userAvatarUrl={session?.user?.image ?? null}
     />
   );

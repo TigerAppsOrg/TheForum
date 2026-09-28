@@ -47,7 +47,8 @@ interface ExploreClientProps {
   savedEvents: FeedEvent[];
   friendsEvents: FriendsEvent[];
   initialSearch?: string;
-  userName?: string;
+  /** First name to greet by, or null for a plain "Hello," (see ~/lib/greeting-name). */
+  greetingName: string | null;
   userAvatarUrl?: string | null;
 }
 
@@ -62,7 +63,7 @@ export function ExploreClient({
   savedEvents,
   friendsEvents,
   initialSearch = "",
-  userName = "there",
+  greetingName,
   userAvatarUrl,
 }: ExploreClientProps) {
   /*
@@ -432,7 +433,7 @@ export function ExploreClient({
    */
   return (
     <PageShell>
-      <Greeting name={userName} />
+      <Greeting name={greetingName} />
 
       <div className="mb-4 flex flex-col gap-3">
         <SearchInput
