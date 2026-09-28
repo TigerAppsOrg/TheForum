@@ -8,15 +8,13 @@ import { cn } from "~/lib/utils";
 /**
  * Bottom tab bar for phones.
  *
- * The docked rail expands on hover, which does not exist on touch — a
- * touch-only user could never see the labels. Below `md` the rail is hidden
- * entirely and this takes over: every destination visible at once, thumb-height,
- * with labels always shown.
+ * Below `md` the header's inline nav is hidden and this takes over: every
+ * destination visible at once, thumb-height, with labels always shown.
  *
  * `pb-[env(safe-area-inset-bottom)]` keeps the tabs clear of the iOS home
  * indicator.
  *
- * Log Out is deliberately not a tab — it's in the TopBar's account menu, so
+ * Log Out is deliberately not a tab — it's in the header's account menu, so
  * it can't be hit by a stray thumb aiming for Orgs.
  */
 export function MobileNav() {

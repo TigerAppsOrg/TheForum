@@ -285,42 +285,43 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
 
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forum-border pt-3 text-[12px] text-forum-light-gray">
             <span>Posted by {event.creatorName}</span>
+            {/* Org owners/officers can edit; only the creator can delete. */}
+            {event.canEdit && (
+              <Link
+                href={`/events/${event.id}/edit`}
+                className="inline-flex items-center gap-1 font-medium text-forum-cerulean hover:underline"
+              >
+                <Edit3 size={12} aria-hidden /> Edit
+              </Link>
+            )}
             {event.isOwner && (
-              <>
-                <Link
-                  href={`/events/${event.id}/edit`}
-                  className="inline-flex items-center gap-1 font-medium text-forum-cerulean hover:underline"
-                >
-                  <Edit3 size={12} aria-hidden /> Edit
-                </Link>
-                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                  <DialogTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 font-medium text-forum-coral hover:underline"
-                    >
-                      <Trash2 size={12} aria-hidden /> Delete
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete event</DialogTitle>
-                      <DialogDescription>
-                        This will permanently delete &ldquo;{event.title}&rdquo;. This cannot be
-                        undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button variant="coral" onClick={handleDelete} disabled={isPending}>
-                        {isPending ? "Deleting…" : "Delete event"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </>
+              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-medium text-forum-coral hover:underline"
+                  >
+                    <Trash2 size={12} aria-hidden /> Delete
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete event</DialogTitle>
+                    <DialogDescription>
+                      This will permanently delete &ldquo;{event.title}&rdquo;. This cannot be
+                      undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="coral" onClick={handleDelete} disabled={isPending}>
+                      {isPending ? "Deleting…" : "Delete event"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         </div>

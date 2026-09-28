@@ -10,9 +10,14 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     AUTH_SECRET: z.string().min(1),
-    AUTH_AZURE_AD_CLIENT_ID: z.string().min(1),
-    AUTH_AZURE_AD_CLIENT_SECRET: z.string().min(1),
-    AUTH_AZURE_AD_TENANT_ID: z.string().min(1),
+    /**
+     * Canonical public URL of the app (e.g. https://forum.tigerapps.org).
+     * Used by Auth.js and to build the CAS `service` URL. Strongly recommended
+     * in production; when unset, the origin is derived from request headers.
+     */
+    AUTH_URL: z.string().url().optional(),
+    /** Princeton CAS base URL, e.g. https://fed.princeton.edu/cas/ */
+    CAS_BASE_URL: z.string().url().default("https://fed.princeton.edu/cas/"),
     AWS_S3_BUCKET: z.string().min(1).optional(),
     AWS_REGION: z.string().min(1).optional(),
   },
@@ -43,9 +48,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CAMPUS_MAP_STYLE: process.env.NEXT_PUBLIC_CAMPUS_MAP_STYLE,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
-    AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
-    AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
-    AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
+    AUTH_URL: process.env.AUTH_URL,
+    CAS_BASE_URL: process.env.CAS_BASE_URL,
     AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
     AWS_REGION: process.env.AWS_REGION,
   },

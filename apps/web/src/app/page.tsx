@@ -1,4 +1,3 @@
-import { signIn } from "~/auth";
 import { FeedPreview, TonightPreview } from "~/components/landing/product-preview";
 import { SiteFooter } from "~/components/layout/site-footer";
 
@@ -27,12 +26,8 @@ export default function LandingPage() {
               EVENT ORGANIZERS
             </a>
           </div>
-          <form
-            action={async () => {
-              "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-            }}
-          >
+          <form action="/api/auth/cas/login" method="get">
+            <input type="hidden" name="callbackUrl" value="/explore" />
             <button type="submit" className="button-coral">
               LOG IN
             </button>
@@ -85,12 +80,8 @@ export default function LandingPage() {
               <span className="text-forum-coral font-bold">one beautifully curated feed, </span>
               personalized around you, your friends, and the things you actually love.
             </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/explore" />
               <button type="submit" className="button-white">
                 Get Started
               </button>
@@ -190,12 +181,8 @@ export default function LandingPage() {
                 reach students whose interests actually align with what you&apos;re building.
               </span>
             </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/events/create" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/events/create" />
               <button
                 type="submit"
                 className="px-8 py-4 border-2 border-forum-coral text-forum-black text-small font-bold tracking-[0.22em] uppercase hover:bg-forum-coral hover:text-white transition-colors duration-500 rounded-md"
@@ -219,12 +206,8 @@ export default function LandingPage() {
               for <span className="italic font-bold">you.</span>
             </h2>
             <div className="w-0.5 h-30 bg-black" />
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/explore" />
               <button type="submit" className="button-white">
                 Join Today
               </button>

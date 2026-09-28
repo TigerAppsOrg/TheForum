@@ -1,20 +1,51 @@
 "use server";
 
-import {
-  type campusRegionEnum,
-  db,
-  eq,
-  type eventTagEnum,
-  userInterests,
-  userRegions,
-  users,
-} from "@the-forum/database";
+import { db, eq, userInterests, userRegions, users } from "@the-forum/database";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { auth } from "~/auth";
+import { uploadedImageUrlSchema } from "~/lib/s3";
+import { campusRegionSchema, eventTagSchema, parseInput, uniqueEnumArray } from "~/lib/validation";
 
-// Derived from the DB schema so these can never drift from the pgEnum values
-type InterestTag = (typeof eventTagEnum.enumValues)[number];
-type CampusRegion = (typeof campusRegionEnum.enumValues)[number];
+// Enum arrays are validated against the pgEnum values (never cast), and
+// de-duplicated so a repeated value can't trip the composite primary key.
+const profileFieldsSchema = z.object({
+  classYear: z.string().trim().max(10),
+  major: z.string().trim().max(255),
+  isOrgLeader: z.boolean(),
+  interests: uniqueEnumArray(eventTagSchema),
+  regions: uniqueEnumArray(campusRegionSchema),
+  // Optional everywhere: omitted means "leave the stored name alone".
+  displayName: z.string().trim().min(1).max(255).optional(),
+});
+
+const onboardingSchema = profileFieldsSchema;
+const updateProfileSchema = profileFieldsSchema.partial();
+
+type InterestTag = z.output<typeof eventTagSchema>;
+type CampusRegion = z.output<typeof campusRegionSchema>;
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function replaceInterests(tx: Tx, userId: string, interests: InterestTag[]) {
+  await tx.delete(userInterests).where(eq(userInterests.userId, userId));
+  if (interests.length > 0) {
+    await tx
+      .insert(userInterests)
+      .values(interests.map((tag) => ({ userId, tag })))
+      .onConflictDoNothing();
+  }
+}
+
+async function replaceRegions(tx: Tx, userId: string, regions: CampusRegion[]) {
+  await tx.delete(userRegions).where(eq(userRegions.userId, userId));
+  if (regions.length > 0) {
+    await tx
+      .insert(userRegions)
+      .values(regions.map((region) => ({ userId, region })))
+      .onConflictDoNothing();
+  }
+}
 
 export async function completeOnboarding(data: {
   interests: string[];
@@ -28,41 +59,26 @@ export async function completeOnboarding(data: {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const input = parseInput(onboardingSchema, data);
 
-  // Update user profile
-  await db
-    .update(users)
-    .set({
-      displayName: data.displayName?.trim().slice(0, 255) || undefined,
-      classYear: data.classYear,
-      major: data.major,
-      isOrgLeader: data.isOrgLeader,
-      onboarded: true,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId));
+  // One transaction, so a double-submit can't interleave two delete+insert
+  // sequences and a failure can't leave a half-onboarded profile.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({
+        displayName: input.displayName,
+        classYear: input.classYear,
+        major: input.major,
+        isOrgLeader: input.isOrgLeader,
+        onboarded: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
 
-  // Insert interests
-  if (data.interests.length > 0) {
-    await db.delete(userInterests).where(eq(userInterests.userId, userId));
-    await db.insert(userInterests).values(
-      data.interests.map((tag) => ({
-        userId,
-        tag: tag as InterestTag,
-      })),
-    );
-  }
-
-  // Insert regions
-  if (data.regions.length > 0) {
-    await db.delete(userRegions).where(eq(userRegions.userId, userId));
-    await db.insert(userRegions).values(
-      data.regions.map((region) => ({
-        userId,
-        region: region as CampusRegion,
-      })),
-    );
-  }
+    if (input.interests.length > 0) await replaceInterests(tx, userId, input.interests);
+    if (input.regions.length > 0) await replaceRegions(tx, userId, input.regions);
+  });
 
   revalidatePath("/");
 }
@@ -160,51 +176,40 @@ export async function updateProfile(data: {
 }): Promise<void> {
   const user = await getCurrentUser();
   const userId = user.id;
+  const input = parseInput(updateProfileSchema, data);
 
-  await db
-    .update(users)
-    .set({
-      displayName: data.displayName?.trim().slice(0, 255) || undefined,
-      classYear: data.classYear,
-      major: data.major,
-      isOrgLeader: data.isOrgLeader,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({
+        displayName: input.displayName,
+        classYear: input.classYear,
+        major: input.major,
+        isOrgLeader: input.isOrgLeader,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
 
-  if (data.interests) {
-    await db.delete(userInterests).where(eq(userInterests.userId, userId));
-    if (data.interests.length > 0) {
-      await db.insert(userInterests).values(
-        data.interests.map((tag) => ({
-          userId,
-          tag: tag as InterestTag,
-        })),
-      );
-    }
-  }
-
-  if (data.regions) {
-    await db.delete(userRegions).where(eq(userRegions.userId, userId));
-    if (data.regions.length > 0) {
-      await db.insert(userRegions).values(
-        data.regions.map((region) => ({
-          userId,
-          region: region as CampusRegion,
-        })),
-      );
-    }
-  }
+    if (input.interests) await replaceInterests(tx, userId, input.interests);
+    if (input.regions) await replaceRegions(tx, userId, input.regions);
+  });
 
   revalidatePath("/settings");
   revalidatePath("/profile");
   revalidatePath("/explore");
 }
 
+const avatarUrlSchema = uploadedImageUrlSchema("avatars");
+
 export async function updateAvatar(avatarUrl: string): Promise<void> {
   const user = await getCurrentUser();
+  // Must be one of our uploads (or empty to clear it).
+  const url = parseInput(avatarUrlSchema, avatarUrl);
 
-  await db.update(users).set({ avatarUrl, updatedAt: new Date() }).where(eq(users.id, user.id));
+  await db
+    .update(users)
+    .set({ avatarUrl: url, updatedAt: new Date() })
+    .where(eq(users.id, user.id));
 
   revalidatePath("/settings");
   revalidatePath("/profile");

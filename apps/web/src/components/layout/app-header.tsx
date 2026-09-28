@@ -115,7 +115,7 @@ export function AppHeader() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut({ callbackUrl: "/" })}>
+            <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/api/auth/cas/logout" })}>
               <LogOut aria-hidden />
               Log out
             </DropdownMenuItem>

@@ -17,11 +17,14 @@ import { EventFilters } from "~/components/events/event-filters";
 import { EventList } from "~/components/events/event-list";
 import { MiniEventList } from "~/components/events/mini-event-list";
 import { PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { Button } from "~/components/ui/button";
 import { formatLongDate, formatRelativeDay } from "~/lib/date-format";
 
 interface ExploreClientProps {
   initialEvents: FeedEvent[];
   initialTotal: number;
+  /** The instant the first page was ranked at — echoed back so later pages slice the same ranking. */
+  initialAsOf: string;
   savedEvents: FeedEvent[];
   friendsEvents: FriendsEvent[];
   initialSearch?: string;
@@ -36,6 +39,7 @@ function getTodayString() {
 export function ExploreClient({
   initialEvents,
   initialTotal,
+  initialAsOf,
   savedEvents,
   friendsEvents,
   initialSearch = "",
@@ -54,6 +58,14 @@ export function ExploreClient({
    * capped the message at "20 events match" no matter how many there were.
    */
   const [total, setTotal] = useState(initialTotal);
+  /*
+   * Pagination. `nextOffset` counts rows the server has handed us (not
+   * `events.length`, which is after de-duplication), and `asOf` pins later
+   * pages to the ranking page 1 came from.
+   */
+  const [nextOffset, setNextOffset] = useState(initialEvents.length);
+  const [asOf, setAsOf] = useState(initialAsOf);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   /*
    * Hidden events stay in the list as collapsed stubs rather than being
@@ -71,6 +83,11 @@ export function ExploreClient({
    * and without this the slower-but-older response lands last and wins.
    */
   const latestRequest = useRef(0);
+  /** Filters + search the current list was fetched with; "Load more" must reuse them. */
+  const currentQuery = useRef<{ filters: string[]; search: string }>({
+    filters: [],
+    search: initialSearch.trim(),
+  });
 
   /** Drop a queued debounced search — it carries whatever filters were active when it was armed. */
   const cancelPendingSearch = useCallback(() => {
@@ -82,6 +99,8 @@ export function ExploreClient({
 
   const refreshEvents = useCallback((filters: string[], search: string) => {
     const requestId = ++latestRequest.current;
+    currentQuery.current = { filters, search };
+    setIsLoadingMore(false);
     startTransition(async () => {
       try {
         const result = await getFeedEvents({
@@ -91,6 +110,8 @@ export function ExploreClient({
         if (requestId !== latestRequest.current) return;
         setEvents(result.events);
         setTotal(result.total);
+        setNextOffset(result.events.length);
+        setAsOf(result.asOf);
         setLoadError(false);
       } catch {
         if (requestId !== latestRequest.current) return;
@@ -100,6 +121,41 @@ export function ExploreClient({
       }
     });
   }, []);
+
+  /*
+   * Append the next page. Shares `latestRequest` with `refreshEvents`, so a
+   * filter or search change while this is in flight discards the stale page.
+   * Rows already on screen are skipped in case the ranking shifted between
+   * requests (e.g. a friend RSVP'd in the meantime).
+   */
+  const loadMore = useCallback(async () => {
+    const requestId = latestRequest.current;
+    const { filters, search } = currentQuery.current;
+    setIsLoadingMore(true);
+    try {
+      const result = await getFeedEvents({
+        tags: filters.length > 0 ? filters : undefined,
+        search: search || undefined,
+        offset: nextOffset,
+        asOf,
+      });
+      if (requestId !== latestRequest.current) return;
+      setEvents((prev) => {
+        const seen = new Set(prev.map((e) => e.id));
+        return [...prev, ...result.events.filter((e) => !seen.has(e.id))];
+      });
+      setTotal(result.total);
+      setNextOffset(nextOffset + result.events.length);
+      setAsOf(result.asOf);
+    } catch {
+      if (requestId !== latestRequest.current) return;
+      toast.error("Couldn't load more events. Please try again.");
+    } finally {
+      if (requestId === latestRequest.current) setIsLoadingMore(false);
+    }
+  }, [nextOffset, asOf]);
+
+  const hasMore = nextOffset < total;
 
   // A queued search outliving the component would fetch for a dead screen.
   useEffect(() => cancelPendingSearch, [cancelPendingSearch]);
@@ -286,6 +342,19 @@ export function ExploreClient({
                 />
               ))}
             </EventList>
+          )}
+
+          {hasMore && !loadError && events.length > 0 && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMore}
+                disabled={isLoadingMore || isPending}
+              >
+                {isLoadingMore ? "Loading…" : `Load more (${total - nextOffset} left)`}
+              </Button>
+            </div>
           )}
         </section>
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "~/auth";
 
-export const runtime = "nodejs";
+// Next 16 "proxy" (formerly middleware). Always runs on the Node.js runtime,
+// so no `runtime` segment config is allowed here.
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -15,10 +16,14 @@ export default auth((req) => {
 
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
 
-  // Public routes — always accessible
+  // Public routes — always accessible. `/api/auth` covers Auth.js and the CAS
+  // login/callback/logout routes; `/auth/error` is Auth.js' `pages.error`.
+  // Privacy/Terms are readable without login; the OG/Twitter images must be
+  // fetchable by link unfurlers.
   const publicRoutes = [
     "/",
     "/api/auth",
+    "/auth/error",
     "/privacy",
     "/terms",
     "/opengraph-image",

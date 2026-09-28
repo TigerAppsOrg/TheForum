@@ -27,7 +27,7 @@ bun run format    # format only
 ### Monorepo structure
 
 ```
-apps/web        — Next.js 15 (App Router)  → @the-forum/web
+apps/web        — Next.js 16 (App Router)  → @the-forum/web
 apps/database   — Drizzle ORM              → @the-forum/database
 backends/fastapi — FastAPI Python          → @the-forum/fastapi
 ```
