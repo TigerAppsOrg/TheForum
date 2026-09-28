@@ -12,18 +12,8 @@ import {
 } from "~/actions/notifications";
 import { ErrorState } from "~/components/common/states";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { formatTimeAgo } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
-
-function formatTimeAgo(isoDate: string) {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 export function NotificationDropdown() {
   const router = useRouter();
@@ -229,7 +219,7 @@ function NotificationRow({
           {restText}
         </p>
         <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[3px]">
-          {formatTimeAgo(item.createdAt)}
+          {formatTimeAgo(new Date(item.createdAt))}
         </p>
       </div>
 

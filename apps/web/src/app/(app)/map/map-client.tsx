@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { MapRef } from "react-map-gl/mapbox";
 import type { MapEvent } from "~/actions/map";
 import { cn } from "~/lib/utils";
-import { getTimeGroup } from "./_lib/map-helpers";
+import { eventDateKey, getTimeGroup } from "./_lib/map-helpers";
 
 /* Dynamic import for MapView — mapbox-gl accesses `window` at module init */
 const MapView = dynamic(
@@ -78,7 +78,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
   const filteredEvents = useMemo(() => {
     let result = events;
     if (selectedDate) {
-      result = result.filter((e) => e.rawDatetime.startsWith(selectedDate));
+      result = result.filter((e) => eventDateKey(e.rawDatetime) === selectedDate);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -118,7 +118,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
   const eventCountByDate = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of events) {
-      const d = event.rawDatetime.slice(0, 10);
+      const d = eventDateKey(event.rawDatetime);
       counts.set(d, (counts.get(d) ?? 0) + 1);
     }
     return counts;

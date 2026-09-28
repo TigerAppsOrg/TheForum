@@ -18,7 +18,7 @@ import { EventFilters } from "~/components/events/event-filters";
 import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
-import { formatRelativeDay } from "~/lib/date-format";
+import { formatLongDate, formatRelativeDay } from "~/lib/date-format";
 
 interface ExploreClientProps {
   initialEvents: FeedEvent[];
@@ -31,12 +31,7 @@ interface ExploreClientProps {
 }
 
 function getTodayString() {
-  return new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return formatLongDate(new Date());
 }
 
 export function ExploreClient({

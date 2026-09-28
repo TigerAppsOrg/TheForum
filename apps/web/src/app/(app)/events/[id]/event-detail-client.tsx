@@ -42,6 +42,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
+import { formatLongDate, formatTime } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
 
 interface EventDetailClientProps {
@@ -60,17 +61,6 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const color = getCategoryColor(event.tags);
-
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-
-  const formatTime = (d: Date) =>
-    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
   const handleRsvp = () => {
     const prev = isRsvped;
@@ -129,7 +119,11 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
         <div className="w-full sm:w-[340px] sm:shrink-0">
           <div className="h-[280px] overflow-hidden rounded-xl shadow-lg sm:h-[440px]">
             {event.flyerUrl ? (
-              <img src={event.flyerUrl} alt="" className="size-full object-cover" />
+              <img
+                src={event.flyerUrl}
+                alt={`Flyer for ${event.title}`}
+                className="size-full object-cover"
+              />
             ) : (
               <EventCoverArt title={event.title} tags={event.tags} className="size-full" />
             )}
@@ -243,12 +237,12 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
           <div className="space-y-[10px] mb-[20px]">
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <Calendar size={16} className="text-forum-light-gray" />
-              {formatDate(event.datetime)}
+              {formatLongDate(event.datetime)}
             </div>
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <Clock size={16} className="text-forum-light-gray" />
               {formatTime(event.datetime)}
-              {event.endDatetime && ` - ${formatTime(event.endDatetime)}`}
+              {event.endDatetime && ` – ${formatTime(event.endDatetime)}`} ET
             </div>
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <MapPin size={16} className="text-forum-light-gray" />

@@ -16,6 +16,7 @@ import {
   users,
 } from "@the-forum/database";
 import { auth } from "~/auth";
+import { formatTime } from "~/lib/date-format";
 
 export interface MapEvent {
   id: string;
@@ -129,10 +130,7 @@ export async function getMapEvents(opts?: {
     locationId: r.locationId ?? "",
     locationName: r.locationName ?? "TBD",
     rawDatetime: r.datetime.toISOString(),
-    datetime: r.datetime.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatTime(r.datetime),
     tags: tagsByEvent.get(r.id) ?? [],
   }));
 }
