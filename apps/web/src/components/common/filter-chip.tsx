@@ -18,9 +18,9 @@ import { cn } from "~/lib/utils";
  */
 const filterChipVariants = cva(
   cn(
-    // Compact by default (28px): chips sit in dense filter bars and forms.
-    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border",
-    "px-3 font-dm-sans text-[12px] font-medium transition-colors",
+    // Compact (32px): chips sit in dense filter bars and forms.
+    "inline-flex h-8 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border",
+    "px-3.5 font-dm-sans text-[13px] font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean focus-visible:ring-offset-1",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
@@ -28,9 +28,10 @@ const filterChipVariants = cva(
   {
     variants: {
       active: {
-        true: "border-forum-cerulean bg-forum-cerulean text-white",
+        // Figma: outlined pills; the active one takes a coral/peach tint.
+        true: "border-forum-coral bg-forum-coral-light text-black",
         false:
-          "border-forum-border bg-white text-forum-dark-gray hover:border-forum-cerulean hover:text-black",
+          "border-forum-border bg-white/80 text-forum-dark-gray hover:border-forum-coral hover:text-black",
       },
     },
     defaultVariants: {

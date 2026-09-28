@@ -12,7 +12,7 @@ function isTypingTarget(el: EventTarget | null) {
 }
 
 /**
- * Standard search field: 40px, icon inside, border reacts to focus.
+ * Standard search field: the Figma pill (44px, pale turquoise, blue icon).
  *
  * `label` is required and rendered visually hidden — a placeholder is not an
  * accessible name. With `shortcut`, pressing "/" anywhere on the page (outside
@@ -43,12 +43,14 @@ export function SearchInput({
   return (
     <div
       className={cn(
-        "flex h-10 items-center gap-2.5 rounded-lg border border-forum-border bg-white px-3.5",
-        "transition-colors focus-within:border-forum-cerulean",
+        // Figma pill: pale turquoise fill, blue icon; turns white with a cerulean
+        // ring while focused so the caret and text stay high-contrast.
+        "flex h-11 items-center gap-2.5 rounded-full border border-forum-turquoise/60 bg-forum-turquoise-20 px-4",
+        "transition-colors focus-within:border-forum-cerulean focus-within:bg-white",
         className,
       )}
     >
-      <Search size={15} aria-hidden className="shrink-0 text-forum-placeholder" />
+      <Search size={17} strokeWidth={2.2} aria-hidden className="shrink-0 text-forum-cerulean" />
       <input
         ref={inputRef}
         type="search"
@@ -56,7 +58,7 @@ export function SearchInput({
         aria-keyshortcuts={shortcut ? "/" : undefined}
         className={cn(
           "min-w-0 flex-1 bg-transparent font-dm-sans text-[14px] text-black outline-none",
-          "placeholder:text-forum-placeholder",
+          "placeholder:text-forum-dark-gray/70",
           // Hide WebKit's built-in clear affordance; it clashes with the border.
           "[&::-webkit-search-cancel-button]:appearance-none",
         )}
@@ -69,7 +71,7 @@ export function SearchInput({
       {shortcut && (
         <kbd
           aria-hidden
-          className="hidden shrink-0 rounded border border-forum-border px-1.5 font-dm-mono text-[11px] text-forum-light-gray sm:inline"
+          className="hidden shrink-0 rounded border border-forum-border bg-white px-1.5 font-dm-mono text-[11px] text-forum-light-gray sm:inline"
         >
           /
         </kbd>

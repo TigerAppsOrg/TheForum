@@ -18,10 +18,12 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { logInteraction } from "~/actions/interactions";
+import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import { formatDateBadge, formatTime } from "~/lib/date-format";
+import { descriptionPreview, eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
 
 export const CATEGORY_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
@@ -66,8 +68,11 @@ export interface EventCardProps {
   /** ISO start time — powers the date block on `row` density. */
   rawDatetime?: string | null;
   location: string;
+  /** Room or free-text place within the venue, e.g. "Room 207". */
+  locationDetail?: string | null;
   description?: string | null;
   tags: string[];
+  /** Event photo (MyPrincetonU events often have one) — a thumbnail when present. */
   flyerUrl?: string | null;
   rsvpCount?: number;
   friendsAttending?: { id: string; displayName: string; avatarUrl?: string | null }[];
@@ -135,8 +140,10 @@ export function EventCard({
   datetime,
   rawDatetime,
   location,
+  locationDetail,
   description,
   tags,
+  flyerUrl,
   rsvpCount,
   friendsAttending = [],
   attendees = [],
@@ -168,6 +175,9 @@ export function EventCard({
    * reads as a bug. Treat it as absent and drop the row instead.
    */
   const hasLocation = Boolean(location) && location !== "TBD";
+  const locationLine = hasLocation && locationDetail ? `${location} · ${locationDetail}` : location;
+  const photoUrl = eventPhotoUrl(flyerUrl);
+  const preview = descriptionPreview(description);
 
   const displayedFriendNames = friendsAttending.slice(0, 2).map((friend) => friend.displayName);
   const remainingFriends = friendsAttending.length - displayedFriendNames.length;
@@ -672,8 +682,8 @@ export function EventCard({
       /* Width is owned by the parent list/grid — the card fills its slot so it
          renders identically on Explore, My Events, Map and org pages. */
       className={cn(
-        "card group relative flex w-full flex-col overflow-hidden rounded-xl",
-        compact ? "gap-2 p-3" : "gap-0.5 px-5 py-5",
+        "card group relative flex w-full flex-col overflow-hidden",
+        compact ? "gap-2 rounded-xl p-3" : "gap-0.5 rounded-[24px] px-5 pt-4 pb-5",
         className,
       )}
     >
@@ -736,12 +746,16 @@ export function EventCard({
                 <Share2 className="text-forum-coral" />
               </Button>
             )}
-            {/* Hide was previously an unreachable prop — no control ever called it. */}
+            {/* Hide: revealed on hover/focus on desktop so the resting card shows the
+               Figma's two icons; always visible on touch. */}
             {onHide && (
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className={UTILITY_HOVER}
+                className={cn(
+                  UTILITY_HOVER,
+                  "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+                )}
                 aria-label={`Hide ${title}`}
                 onClick={(e) => {
                   e.preventDefault();
@@ -772,72 +786,86 @@ export function EventCard({
         </div>
       )}
 
-      {/* Org */}
-      {orgName && (
-        <div className={cn("flex items-center gap-2", !compact && "mt-4")}>
-          <div className="size-6 shrink-0 overflow-hidden rounded border-2 border-forum-medium-gray bg-forum-turquoise/30">
-            {orgLogoUrl && <img src={orgLogoUrl} alt="" className="size-full object-cover" />}
-          </div>
-          <p className="min-w-0 truncate font-dm-sans text-[12px] text-forum-dark-gray">
-            {orgId ? (
-              <Link
-                href={`/orgs/${orgId}`}
-                onClick={(e) => e.stopPropagation()}
-                className="font-bold transition-colors hover:text-forum-cerulean"
-              >
-                {orgName}
-              </Link>
-            ) : (
-              <span className="font-bold">{orgName}</span>
-            )}
-          </p>
-        </div>
-      )}
+      {/*
+        Org + title, with the event photo as a thumbnail beside them when one
+        exists. A thumbnail rather than a banner keeps cards with and without
+        photos the same height in the grid.
+      */}
+      <div className={cn("flex items-start gap-3", !compact && "mt-3")}>
+        <div className="min-w-0 flex-1">
+          {orgName && (
+            <div className="flex items-center gap-2.5">
+              <OrgAvatar name={orgName} logoUrl={orgLogoUrl} size={compact ? 26 : 40} />
+              <p className="min-w-0 truncate font-dm-sans text-[13px] text-forum-dark-gray">
+                {orgId ? (
+                  <Link
+                    href={`/orgs/${orgId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-semibold transition-colors hover:text-forum-cerulean"
+                  >
+                    {orgName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold">{orgName}</span>
+                )}
+              </p>
+            </div>
+          )}
 
-      {/* Title — opens in place when `onOpen` is given, otherwise navigates */}
-      {onOpen ? (
-        <button
-          type="button"
-          onClick={() => {
-            trackClick();
-            onOpen();
-          }}
-          className="mt-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
-        >
-          <h3
-            className={cn(
-              "font-serif leading-[1.2] text-black line-clamp-2 hover:underline",
-              compact ? "text-[17px] font-bold" : "text-[18px]",
-            )}
-          >
-            {title}
-          </h3>
-        </button>
-      ) : (
-        <Link href={`/events/${id}`} onClick={trackClick} className="mt-1">
-          <h3
-            className={cn(
-              "font-serif leading-[1.2] text-black line-clamp-2 hover:underline",
-              compact ? "text-[17px] font-bold" : "text-[18px]",
-            )}
-          >
-            {title}
-          </h3>
-        </Link>
-      )}
+          {/* Title — opens in place when `onOpen` is given, otherwise navigates */}
+          {onOpen ? (
+            <button
+              type="button"
+              onClick={() => {
+                trackClick();
+                onOpen();
+              }}
+              className="mt-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+            >
+              <h3
+                className={cn(
+                  "font-serif leading-[1.2] text-black line-clamp-2 hover:underline",
+                  compact ? "text-[17px] font-bold" : "text-[18px]",
+                )}
+              >
+                {title}
+              </h3>
+            </button>
+          ) : (
+            <Link href={`/events/${id}`} onClick={trackClick} className="mt-2 block">
+              <h3
+                className={cn(
+                  "font-serif leading-[1.2] text-black line-clamp-2 hover:underline",
+                  compact ? "text-[17px] font-bold" : "text-[20px] font-semibold",
+                )}
+              >
+                {title}
+              </h3>
+            </Link>
+          )}
+        </div>
+        {!compact && photoUrl && (
+          <img
+            src={photoUrl}
+            alt=""
+            loading="lazy"
+            className="size-[76px] shrink-0 rounded-2xl border border-forum-medium-gray object-cover"
+          />
+        )}
+      </div>
 
       {/* Location & Time */}
-      <div className="mt-1 flex flex-col gap-1">
+      <div className="mt-1.5 flex flex-col gap-1">
         {hasLocation && (
           <div className="flex items-center gap-1.5">
-            <MapPin size={11} aria-hidden className="shrink-0 text-forum-light-gray" />
+            <MapPin size={12} aria-hidden className="shrink-0 text-forum-light-gray" />
             <span className="truncate font-dm-sans text-[12px] text-forum-dark-gray">
-              {location}
+              {locationLine}
             </span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <Clock size={11} aria-hidden className="shrink-0 text-forum-light-gray" />
+          <Clock size={12} aria-hidden className="shrink-0 text-forum-light-gray" />
           <span className="font-dm-sans text-[12px] text-forum-dark-gray">{datetime}</span>
         </div>
       </div>
@@ -855,12 +883,13 @@ export function EventCard({
               : "flex-wrap",
           )}
         >
-          {tags.slice(0, compact ? 2 : 3).map((tag, i) => (
+          {tags.slice(0, compact ? 2 : 3).map((tag) => (
             <span
               key={tag}
               className={cn(
-                "rounded-[10px] px-2 py-px font-dm-sans text-[12px] text-black",
-                (compact ? i === 1 : i > 0) ? "bg-forum-turquoise-50" : "bg-forum-yellow-50",
+                "rounded-full px-2.5 py-0.5 font-dm-sans text-[12px] text-black",
+                // Figma: free food is pale yellow; every other tag pale turquoise.
+                tag === "free food" ? "bg-forum-yellow-50" : "bg-forum-turquoise-50",
               )}
             >
               {tag}
@@ -890,10 +919,10 @@ export function EventCard({
 
       {/* Description — full card only. Clamped to the mock's three lines, with
           "See Details" carrying the rest. */}
-      {!compact && description && (
+      {!compact && preview && (
         <>
           <p className="mt-2.5 font-dm-sans text-[12px] leading-relaxed text-forum-dark-gray line-clamp-3">
-            {description}
+            {preview}
           </p>
           <Link
             href={`/events/${id}`}
