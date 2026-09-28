@@ -9,6 +9,7 @@ export {
   asc,
   sql,
   inArray,
+  notInArray,
   like,
   ilike,
   count,
