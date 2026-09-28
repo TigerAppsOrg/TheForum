@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { type FeedEvent, deleteEvent, toggleRsvp, toggleSave } from "~/actions/events";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
-import { EventList } from "~/components/events/event-list";
+import { EventCollection, EventViewToggle } from "~/components/events/event-collection";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useEventView } from "~/lib/use-event-view";
 
 const TABS = [
   {
@@ -48,6 +49,7 @@ interface MyEventsClientProps {
 
 export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>("rsvped");
+  const [view, setView] = useEventView("my-events", "rows");
   const [lists, setLists] = useState<Record<TabId, FeedEvent[]>>({ created, rsvped, saved });
 
   /**
@@ -116,32 +118,35 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabId)}>
-      <TabsList
-        variant="line"
-        className="h-auto w-full justify-start gap-4 border-b border-forum-border"
-      >
-        {TABS.map(({ id, label }) => (
-          <TabsTrigger
-            key={id}
-            value={id}
-            // Type scales down on phones so three tabs fit without clipping.
-            className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
-          >
-            {label}
-            <span className="ml-1 font-normal text-forum-light-gray">{eventMap[id].length}</span>
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      <div className="flex items-end justify-between gap-3 border-b border-forum-border">
+        <TabsList variant="line" className="h-auto justify-start gap-4">
+          {TABS.map(({ id, label }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              // Type scales down on phones so three tabs fit without clipping.
+              className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
+            >
+              {label}
+              <span className="ml-1 font-normal text-forum-light-gray">{eventMap[id].length}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <EventViewToggle view={view} onChange={setView} className="mb-1.5" />
+      </div>
 
       {TABS.map(({ id, emptyTitle, emptyBody }) => (
         <TabsContent key={id} value={id} className="mt-3">
           {eventMap[id].length > 0 ? (
-            <EventList>
-              {eventMap[id].map((event, index) => (
+            <EventCollection
+              items={eventMap[id]}
+              view={view}
+              renderItem={(event, index, density) => (
                 <EventCard
                   key={event.id}
                   {...event}
-                  density="row"
+                  density={density}
+                  className={density === "default" ? "h-full" : undefined}
                   {...(id === "created"
                     ? {
                         editHref: `/events/${event.id}/edit`,
@@ -157,8 +162,8 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
                   source="feed"
                   position={index}
                 />
-              ))}
-            </EventList>
+              )}
+            />
           ) : (
             <EmptyState title={emptyTitle} description={emptyBody} />
           )}

@@ -72,7 +72,7 @@ export function ExploreClient({
    */
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [view, setView] = useEventView("cards");
+  const [view, setView] = useEventView("home", "cards");
   const [isPending, startTransition] = useTransition();
   /** Set when a feed fetch fails, so the list can offer a retry. */
   const [loadError, setLoadError] = useState(false);

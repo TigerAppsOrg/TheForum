@@ -22,6 +22,7 @@ import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
+import { buildGCalUrl } from "~/lib/calendar";
 import { formatDateBadge, formatTime } from "~/lib/date-format";
 import { descriptionPreview, eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
@@ -177,6 +178,18 @@ export function EventCard({
   const hasLocation = Boolean(location) && location !== "TBD";
   const locationLine = hasLocation && locationDetail ? `${location} · ${locationDetail}` : location;
   const photoUrl = eventPhotoUrl(flyerUrl);
+  // Full cards always offer "+ Calendar" (Figma); built here when the caller didn't.
+  const cardCalendarUrl =
+    calendarUrl ??
+    (density === "default" && rawDatetime
+      ? buildGCalUrl({
+          title,
+          description: description ?? null,
+          datetime: new Date(rawDatetime),
+          endDatetime: null,
+          locationName: hasLocation ? location : null,
+        })
+      : undefined);
   const preview = descriptionPreview(description);
 
   const displayedFriendNames = friendsAttending.slice(0, 2).map((friend) => friend.displayName);
@@ -934,8 +947,31 @@ export function EventCard({
         </>
       )}
 
+      {/* Owner controls — only passed for events the viewer created. */}
+      {!compact && (editHref || onDelete) && (
+        <div className="mt-2.5 flex items-center gap-3 font-dm-sans text-[12px]">
+          {editHref && (
+            <Link
+              href={editHref}
+              className="inline-flex items-center gap-1 font-medium text-forum-cerulean hover:underline"
+            >
+              <Edit3 size={12} aria-hidden /> Edit
+            </Link>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="inline-flex items-center gap-1 font-medium text-forum-coral hover:underline"
+            >
+              <Trash2 size={12} aria-hidden /> Delete
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Footer actions — right gutter keeps clear of the corner avatar cluster */}
-      {(onRsvpToggle || onLocate || calendarUrl) && (
+      {(onRsvpToggle || onLocate || cardCalendarUrl) && (
         <div
           /* `mt-auto` pins the actions to the card's bottom edge, so RSVP
              buttons line up across a grid row even when one card's blurb is
@@ -977,14 +1013,14 @@ export function EventCard({
 
           {/* Calendar + RSVP, gathered at the card's bottom-right as in the mock. */}
           <div className="ml-auto flex items-center gap-2">
-            {calendarUrl && (
+            {cardCalendarUrl && (
               <Button
                 asChild
                 variant="outline"
                 size="sm"
                 className="text-[11px] font-bold uppercase tracking-wide"
               >
-                <a href={calendarUrl} target="_blank" rel="noopener noreferrer">
+                <a href={cardCalendarUrl} target="_blank" rel="noopener noreferrer">
                   <Plus />
                   Calendar
                 </a>
