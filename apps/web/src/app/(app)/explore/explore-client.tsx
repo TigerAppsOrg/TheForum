@@ -341,7 +341,7 @@ export function ExploreClient({
           <SectionHeading>Find My Friends</SectionHeading>
           {friendsEvents.length === 0 ? (
             <p className="font-dm-sans text-[13px] text-forum-light-gray">
-              None of your friends have added an event yet.
+              None of your friends have RSVP'd to an event yet.
             </p>
           ) : (
             /* Hairline dividers instead of gaps — keeps a longer list calm. */
@@ -370,8 +370,8 @@ export function ExploreClient({
                         <span className="font-bold text-forum-cerulean">
                           {friend?.displayName.split(" ")[0] ?? "A friend"}
                         </span>{" "}
-                        added <span className="font-bold text-forum-cerulean">{event.title}</span>{" "}
-                        to their calendar.
+                        is going to{" "}
+                        <span className="font-bold text-forum-cerulean">{event.title}</span>.
                       </p>
                       <p className="mt-1 truncate font-dm-sans text-[11px] text-forum-light-gray">
                         {event.location} @ {event.datetime}
