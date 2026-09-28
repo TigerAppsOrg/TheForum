@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { logInteraction } from "~/actions/interactions";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
+import { EventOrgMenu, menuTriggerRevealClass } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
@@ -98,6 +99,14 @@ export interface EventCardProps {
   /** Extra action, e.g. the map's "Show on map". */
   onLocate?: () => void;
   /**
+   * Host-org actions, in the "⋯" menu: follow/unfollow (hoists the org in the
+   * feed) and hide its events. The menu renders only when the event has an org
+   * and both handlers are supplied.
+   */
+  isFollowingOrg?: boolean;
+  onToggleFollowOrg?: () => void;
+  onHideOrg?: () => void;
+  /**
    * Open the event in place instead of navigating to its page. The map uses
    * this so opening a card doesn't throw you off the map.
    */
@@ -157,6 +166,9 @@ export function EventCard({
   isHidden = false,
   onUnhide,
   onLocate,
+  isFollowingOrg = false,
+  onToggleFollowOrg,
+  onHideOrg,
   onOpen,
   density = "default",
   calendarUrl,
@@ -224,7 +236,20 @@ export function EventCard({
     logInteraction({ itemId: id, interactionType: "click", metadata: { source, position } });
   };
 
-  const hasUtilityRow = Boolean(onSaveToggle || onShare || onHide);
+  const orgMenu = (className: string, iconClassName?: string) =>
+    orgId && orgName && onToggleFollowOrg && onHideOrg ? (
+      <EventOrgMenu
+        orgName={orgName}
+        isFollowing={isFollowingOrg}
+        onToggleFollow={onToggleFollowOrg}
+        onHide={onHideOrg}
+        className={className}
+        iconClassName={iconClassName}
+      />
+    ) : null;
+
+  const hasOrgMenu = Boolean(orgId && orgName && onToggleFollowOrg && onHideOrg);
+  const hasUtilityRow = Boolean(onSaveToggle || onShare || onHide || hasOrgMenu);
 
   /*
    * Hidden events collapse to a stub rather than disappearing. Removing the
@@ -391,6 +416,7 @@ export function EventCard({
               <Share2 />
             </Button>
           )}
+          {orgMenu(cn(utilityButton, menuTriggerRevealClass))}
           {editHref && (
             <Button
               asChild
@@ -786,17 +812,20 @@ export function EventCard({
               </Button>
             )}
           </div>
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-sm"
-            className={UTILITY_HOVER}
-            aria-label={`Open ${title}`}
-          >
-            <Link href={`/events/${id}`} onClick={trackClick}>
-              <Maximize2 className="text-forum-coral" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-0.5">
+            {orgMenu(UTILITY_HOVER, "text-forum-coral")}
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              className={UTILITY_HOVER}
+              aria-label={`Open ${title}`}
+            >
+              <Link href={`/events/${id}`} onClick={trackClick}>
+                <Maximize2 className="text-forum-coral" />
+              </Link>
+            </Button>
+          </div>
         </div>
       )}
 

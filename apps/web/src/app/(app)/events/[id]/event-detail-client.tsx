@@ -25,12 +25,14 @@ import {
   toggleRsvp,
   toggleSave,
 } from "~/actions/events";
+import { toggleFollowOrg, unblockOrg } from "~/actions/orgs";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { RichText } from "~/components/common/rich-text";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { MiniEventList } from "~/components/events/mini-event-list";
 import { PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { EventOrgMenu, hideOrgWithUndo } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import {
@@ -61,6 +63,8 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   /* Local, because the avatar stack below has to move with the RSVP button. */
   const [attendees, setAttendees] = useState(event.attendees);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isFollowingOrg, setIsFollowingOrg] = useState(event.isFollowingOrg);
+  const [isOrgHidden, setIsOrgHidden] = useState(event.isOrgHidden);
 
   /*
    * Optimistic, then reconciled with the server. On failure the local state
@@ -112,6 +116,56 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
       }
     } catch {
       // Dismissing the share sheet rejects; nothing to report.
+    }
+  };
+
+  /* Following unhides; hiding unfollows — mirrored locally. */
+  const handleToggleFollowOrg = async () => {
+    if (!event.orgId || !event.orgName) return;
+    const prev = { isFollowingOrg, isOrgHidden };
+    setIsFollowingOrg(!prev.isFollowingOrg);
+    if (!prev.isFollowingOrg) setIsOrgHidden(false);
+    try {
+      const { following } = await toggleFollowOrg(event.orgId);
+      setIsFollowingOrg(following);
+      toast(
+        following
+          ? `Following ${event.orgName}. Their events will rank higher.`
+          : `Unfollowed ${event.orgName}`,
+      );
+    } catch {
+      setIsFollowingOrg(prev.isFollowingOrg);
+      setIsOrgHidden(prev.isOrgHidden);
+      toast.error("Couldn't update that follow. Please try again.");
+    }
+  };
+
+  const handleHideOrg = () => {
+    if (!event.orgId || !event.orgName) return;
+    const wasFollowing = isFollowingOrg;
+    void hideOrgWithUndo({
+      orgId: event.orgId,
+      orgName: event.orgName,
+      onHidden: () => {
+        setIsOrgHidden(true);
+        setIsFollowingOrg(false);
+      },
+      onRestored: () => {
+        setIsOrgHidden(false);
+        setIsFollowingOrg(wasFollowing);
+      },
+    });
+  };
+
+  const handleUnhideOrg = async () => {
+    if (!event.orgId || !event.orgName) return;
+    setIsOrgHidden(false);
+    try {
+      await unblockOrg(event.orgId);
+      toast(`Events from ${event.orgName} will show in your feed again`);
+    } catch {
+      setIsOrgHidden(true);
+      toast.error("Couldn't update that. Please try again.");
     }
   };
 
@@ -251,6 +305,17 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 /> Share
             </Button>
+            {event.orgId && event.orgName && (
+              <EventOrgMenu
+                orgName={event.orgName}
+                isFollowing={isFollowingOrg}
+                isHidden={isOrgHidden}
+                onToggleFollow={handleToggleFollowOrg}
+                onHide={handleHideOrg}
+                onUnhide={handleUnhideOrg}
+                variant="outline"
+              />
+            )}
           </div>
 
           {/* Attendance */}
