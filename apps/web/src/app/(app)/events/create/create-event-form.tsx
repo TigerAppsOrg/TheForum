@@ -154,7 +154,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
             Preview
           </Button>
         </div>
-        <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+        <Button variant="cerulean" onClick={handleSubmit} disabled={isPending}>
           {isPending ? "Publishing…" : "Publish"}
         </Button>
       </div>
@@ -169,7 +169,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 <img
                   src={flyerPreview}
                   alt={`Cover for ${title || "your event"}`}
-                  className="w-full h-[160px] sm:h-[200px] object-cover"
+                  className="w-full h-[120px] sm:h-[150px] object-cover"
                 />
                 <button
                   type="button"
@@ -196,7 +196,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="w-full h-[160px] sm:h-[200px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
+                className="w-full h-[120px] sm:h-[150px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-4 cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
               >
                 <span className="flex items-center gap-[6px] text-[13px] font-bold font-dm-sans text-forum-cerulean">
                   <Pencil size={13} aria-hidden />
@@ -220,11 +220,16 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
             />
           </div>
 
-          {/* Cover presets — shown when no flyer is uploaded */}
+          {/* Cover presets — optional, folded away so the form stays short */}
           {!flyerPreview && (
-            <div className="mb-4">
-              <CoverPresetsPicker selected={coverPreset} onSelect={(id) => setCoverPreset(id)} />
-            </div>
+            <details className="mb-4 font-dm-sans" open={Boolean(coverPreset)}>
+              <summary className="cursor-pointer text-[12px] font-medium text-forum-cerulean hover:underline">
+                {coverPreset ? "Preset cover selected — change" : "No flyer? Pick a preset cover"}
+              </summary>
+              <div className="mt-2">
+                <CoverPresetsPicker selected={coverPreset} onSelect={(id) => setCoverPreset(id)} />
+              </div>
+            </details>
           )}
 
           {/* ── Event Title ── */}
@@ -418,7 +423,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 Preview
               </Button>
             </div>
-            <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+            <Button variant="cerulean" onClick={handleSubmit} disabled={isPending}>
               {isPending ? "Publishing…" : "Publish"}
             </Button>
           </div>

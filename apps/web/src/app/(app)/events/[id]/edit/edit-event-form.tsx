@@ -151,7 +151,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
             Preview
           </Button>
         </div>
-        <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+        <Button variant="cerulean" onClick={handleSubmit} disabled={isPending}>
           {isPending ? "Saving…" : "Save changes"}
         </Button>
       </div>
@@ -166,7 +166,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 <img
                   src={flyerPreview}
                   alt={`Cover for ${title || "your event"}`}
-                  className="w-full h-[160px] sm:h-[200px] object-cover"
+                  className="w-full h-[120px] sm:h-[150px] object-cover"
                 />
                 <button
                   type="button"
@@ -193,7 +193,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="w-full h-[160px] sm:h-[200px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
+                className="w-full h-[120px] sm:h-[150px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-4 cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
               >
                 <span className="flex items-center gap-[6px] text-[13px] font-bold font-dm-sans text-forum-cerulean">
                   <Pencil size={13} aria-hidden /> Add Cover Image
@@ -363,7 +363,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
             >
               <ArrowUp /> Back to top
             </Button>
-            <Button variant="cerulean" size="cta" onClick={handleSubmit} disabled={isPending}>
+            <Button variant="cerulean" onClick={handleSubmit} disabled={isPending}>
               {isPending ? "Saving…" : "Save changes"}
             </Button>
           </div>

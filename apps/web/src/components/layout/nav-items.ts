@@ -34,5 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
  * a hypothetical `/events-archive` route the way a bare `startsWith` would.
  */
 export function isNavItemActive(pathname: string, href: string): boolean {
+  // Event pages are usually opened from Explore, so only /events itself is "My Events".
+  if (href === "/events") return pathname === "/events";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
