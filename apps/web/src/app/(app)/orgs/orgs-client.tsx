@@ -61,9 +61,13 @@ export function OrgsClient({
   const viewingHidden = activeCategory === HIDDEN;
   const hiddenChipRef = useRef<HTMLButtonElement>(null);
 
-  // Arriving on /orgs?view=hidden: bring the chip into view in the scrolling row (phones).
+  /*
+   * Arriving on /orgs?view=hidden: scroll the chip row (not the page — which
+   * scrollIntoView would also move) to its end, where the Hidden chip sits.
+   */
   useEffect(() => {
-    if (showHidden) hiddenChipRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const row = hiddenChipRef.current?.parentElement;
+    if (showHidden && row) row.scrollLeft = row.scrollWidth;
   }, [showHidden]);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
