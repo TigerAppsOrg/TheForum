@@ -22,6 +22,7 @@ export async function completeOnboarding(data: {
   major: string;
   regions: string[];
   isOrgLeader: boolean;
+  displayName?: string;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
@@ -32,6 +33,7 @@ export async function completeOnboarding(data: {
   await db
     .update(users)
     .set({
+      displayName: data.displayName?.trim().slice(0, 255) || undefined,
       classYear: data.classYear,
       major: data.major,
       isOrgLeader: data.isOrgLeader,
@@ -154,6 +156,7 @@ export async function updateProfile(data: {
   isOrgLeader?: boolean;
   interests?: string[];
   regions?: string[];
+  displayName?: string;
 }): Promise<void> {
   const user = await getCurrentUser();
   const userId = user.id;
@@ -161,6 +164,7 @@ export async function updateProfile(data: {
   await db
     .update(users)
     .set({
+      displayName: data.displayName?.trim().slice(0, 255) || undefined,
       classYear: data.classYear,
       major: data.major,
       isOrgLeader: data.isOrgLeader,
