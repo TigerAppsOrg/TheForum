@@ -20,10 +20,10 @@ export interface NavItem {
  * can never drift.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/explore", icon: Home, label: "Home" },
+  { href: "/explore", icon: Home, label: "Explore" },
   { href: "/events", icon: CalendarDays, label: "My Events" },
   { href: "/map", icon: MapIcon, label: "Map" },
-  { href: "/friends", icon: Users, label: "My Friends" },
+  { href: "/friends", icon: Users, label: "Friends" },
   { href: "/orgs", icon: Building2, label: "Orgs" },
 ];
 

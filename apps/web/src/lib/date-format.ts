@@ -169,6 +169,21 @@ export function formatWeekdayTime(date: Date) {
   });
 }
 
+/** { month: "SEP", day: "28", weekday: "Mon" } — the date block on list rows. */
+export function formatDateBadge(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: EVENT_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+  }).formatToParts(date);
+  return {
+    month: partValue(parts, "month").toUpperCase(),
+    day: partValue(parts, "day"),
+    weekday: partValue(parts, "weekday"),
+  };
+}
+
 /** "Sep 28" */
 export function formatMonthDay(date: Date) {
   return date.toLocaleDateString("en-US", {

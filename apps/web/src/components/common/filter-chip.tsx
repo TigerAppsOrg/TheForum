@@ -18,8 +18,9 @@ import { cn } from "~/lib/utils";
  */
 const filterChipVariants = cva(
   cn(
-    "inline-flex h-[32px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full",
-    "px-[14px] font-dm-sans text-[13px] font-medium transition-colors",
+    // Compact by default (28px): chips sit in dense filter bars and forms.
+    "inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border",
+    "px-3 font-dm-sans text-[12px] font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean focus-visible:ring-offset-1",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
@@ -27,9 +28,9 @@ const filterChipVariants = cva(
   {
     variants: {
       active: {
-        true: "bg-forum-cerulean text-white",
+        true: "border-forum-cerulean bg-forum-cerulean text-white",
         false:
-          "border border-forum-border bg-white text-forum-dark-gray hover:border-forum-cerulean hover:text-black",
+          "border-forum-border bg-white text-forum-dark-gray hover:border-forum-cerulean hover:text-black",
       },
     },
     defaultVariants: {
