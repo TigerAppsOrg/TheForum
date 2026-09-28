@@ -42,7 +42,9 @@ function referencedEventStillVisible(userId: string) {
         .from(events)
         .where(
           and(
-            sql`${events.id}::text = ${notifications.payload}->>'eventId'`,
+            // Cast (guarded, so a malformed payload can't error) rather than
+            // comparing as text, so the lookup can use the events primary key.
+            sql`${events.id} = (CASE WHEN ${notifications.payload}->>'eventId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (${notifications.payload}->>'eventId')::uuid END)`,
             eventVisibleTo(userId),
           ),
         ),
