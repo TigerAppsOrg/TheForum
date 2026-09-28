@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { completeOnboarding } from "~/actions/users";
+import { greetingName } from "~/lib/greeting-name";
 import { PRINCETON_MAJORS } from "~/lib/princeton-departments";
 import {
   CAMPUS_REGION_OPTIONS,
@@ -437,9 +438,16 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
       {step === 4 && (
         <div className={cn(CARD, "text-center")}>
           <h1 className="font-serif text-[32px] sm:text-[40px] text-black leading-tight">
-            You are all set
-            <br />
-            <span className="text-forum-orange">{firstName.trim() || "there"}</span>!
+            {/* Same rule as Home's greeting: no real name, no name at all. */}
+            {greetingName(firstName, netId) ? (
+              <>
+                You are all set
+                <br />
+                <span className="text-forum-orange">{greetingName(firstName, netId)}</span>!
+              </>
+            ) : (
+              "You are all set!"
+            )}
           </h1>
           <p className="text-[17px] sm:text-[20px] font-dm-sans font-medium text-forum-dark-gray mt-[12px] mb-[24px]">
             Your personalized Forum feed is ready.

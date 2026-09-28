@@ -11,6 +11,7 @@ import {
   ilike,
   inArray,
   or,
+  orgBlocks,
   orgFollowers,
   orgMembers,
   organizations,
@@ -23,6 +24,7 @@ import { z } from "zod";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
 import { eventVisibleTo } from "~/lib/event-visibility";
+import { clearFollowing, clearHidden, setFollowing, setHidden } from "~/lib/org-preferences";
 import { enforceRateLimit } from "~/lib/rate-limit";
 import { uploadedImageUrlSchema } from "~/lib/s3";
 import { loadFriendIds } from "~/lib/social-graph";
@@ -37,6 +39,8 @@ export interface OrgListItem {
   category: string;
   followerCount: number;
   isFollowing: boolean;
+  /** The viewer hid this org's events from their feed. */
+  isHidden: boolean;
 }
 
 export interface OrgPerson {
@@ -68,6 +72,8 @@ export interface OrgDetail {
   memberCount: number | null;
   followerCount: number;
   isFollowing: boolean;
+  /** The viewer hid this org's events from their feed (its page still lists them). */
+  isHidden: boolean;
   isOwner: boolean;
   /** The viewer's friends who follow this org (social proof; never the full follower list). */
   friendsFollowing: OrgPerson[];
@@ -130,7 +136,7 @@ export async function getOrgs(params?: {
   // Follower counts + the viewer's follow state: two grouped queries for the
   // whole list, instead of two queries per org.
   const orgIds = orgs.map((o) => o.id);
-  const [countRows, myFollows] = await Promise.all([
+  const [countRows, myFollows, myHidden] = await Promise.all([
     db
       .select({ orgId: orgFollowers.orgId, count: sql<number>`count(*)::int` })
       .from(orgFollowers)
@@ -140,14 +146,17 @@ export async function getOrgs(params?: {
       .select({ orgId: orgFollowers.orgId })
       .from(orgFollowers)
       .where(and(eq(orgFollowers.userId, userId), inArray(orgFollowers.orgId, orgIds))),
+    db.select({ orgId: orgBlocks.orgId }).from(orgBlocks).where(eq(orgBlocks.userId, userId)),
   ]);
   const countByOrg = new Map(countRows.map((r) => [r.orgId, r.count]));
   const followed = new Set(myFollows.map((r) => r.orgId));
+  const hidden = new Set(myHidden.map((r) => r.orgId));
 
   return orgs.map((org) => ({
     ...org,
     followerCount: countByOrg.get(org.id) ?? 0,
     isFollowing: followed.has(org.id),
+    isHidden: hidden.has(org.id),
   }));
 }
 
@@ -165,7 +174,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
   if (!org) return null;
 
   const friendIds = await loadFriendIds(userId);
-  const [[countResult], [following], friendsFollowing, team] = await Promise.all([
+  const [[countResult], [following], [hidden], friendsFollowing, team] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(orgFollowers)
@@ -174,6 +183,11 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
       .select({ userId: orgFollowers.userId })
       .from(orgFollowers)
       .where(and(eq(orgFollowers.orgId, orgId), eq(orgFollowers.userId, userId)))
+      .limit(1),
+    db
+      .select({ userId: orgBlocks.userId })
+      .from(orgBlocks)
+      .where(and(eq(orgBlocks.orgId, orgId), eq(orgBlocks.userId, userId)))
       .limit(1),
     friendIds.length === 0
       ? Promise.resolve([] as OrgPerson[])
@@ -272,6 +286,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     memberCount: org.memberCount,
     followerCount: countResult?.count ?? 0,
     isFollowing: !!following,
+    isHidden: !!hidden,
     isOwner: !!org.creatorId && org.creatorId === userId,
     friendsFollowing,
     team,
@@ -335,12 +350,18 @@ export async function createOrg(data: {
   return { id: orgId };
 }
 
+/**
+ * Follow or unfollow. Following hoists the org's events in the feed and
+ * clears a hide (the two are mutually exclusive — see ~/lib/org-preferences).
+ */
 export async function toggleFollowOrg(orgId: string): Promise<{ following: boolean }> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
   const id = parseInput(idSchema, orgId);
+  enforceRateLimit("orgPreference", userId);
+  await assertOrgExists(id);
 
   const [existing] = await db
     .select({ orgId: orgFollowers.orgId })
@@ -349,18 +370,106 @@ export async function toggleFollowOrg(orgId: string): Promise<{ following: boole
     .limit(1);
 
   // Idempotent either way, so a double-click can't throw on the primary key.
-  if (existing) {
-    await db
-      .delete(orgFollowers)
-      .where(and(eq(orgFollowers.orgId, id), eq(orgFollowers.userId, userId)));
-  } else {
-    await db.insert(orgFollowers).values({ orgId: id, userId }).onConflictDoNothing();
-  }
+  if (existing) await clearFollowing(userId, id);
+  else await setFollowing(userId, id);
 
   revalidatePath(`/orgs/${id}`);
   revalidatePath("/orgs");
 
   return { following: !existing };
+}
+
+async function assertOrgExists(orgId: string) {
+  const [org] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  if (!org) throw new Error("Organization not found");
+}
+
+/**
+ * Hide an org's events from discovery — Explore (every sort and search), the
+ * map, similar events and friends' activity. Its own page and direct event
+ * links still work. Hiding unfollows; `unfollowed` tells the caller whether
+ * Undo should restore the follow. Idempotent.
+ */
+export async function blockOrg(orgId: string): Promise<{ hidden: true; unfollowed: boolean }> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const userId = session.user.id;
+  const id = parseInput(idSchema, orgId);
+  enforceRateLimit("orgPreference", userId);
+  await assertOrgExists(id);
+
+  const { unfollowed } = await setHidden(userId, id);
+
+  revalidatePath(`/orgs/${id}`);
+  revalidatePath("/orgs");
+
+  return { hidden: true, unfollowed };
+}
+
+const unblockOrgSchema = z.object({
+  orgId: idSchema,
+  /** Undo of a hide that unfollowed: follow again. */
+  refollow: z.boolean().default(false),
+});
+
+/** Show a hidden org's events again (optionally re-following it, for Undo). Idempotent. */
+export async function unblockOrg(
+  orgId: string,
+  opts?: { refollow?: boolean },
+): Promise<{ hidden: false; following: boolean }> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const userId = session.user.id;
+  const input = parseInput(unblockOrgSchema, { orgId, refollow: opts?.refollow });
+  enforceRateLimit("orgPreference", userId);
+
+  if (input.refollow) {
+    await assertOrgExists(input.orgId);
+    await setFollowing(userId, input.orgId);
+  } else {
+    await clearHidden(userId, input.orgId);
+  }
+
+  revalidatePath(`/orgs/${input.orgId}`);
+  revalidatePath("/orgs");
+
+  return { hidden: false, following: input.refollow };
+}
+
+export interface HiddenOrg {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  category: string;
+  /** ISO timestamp the viewer hid it. */
+  hiddenAt: string;
+}
+
+/** Orgs the viewer has hidden, most recently hidden first. */
+export async function getBlockedOrgs(): Promise<HiddenOrg[]> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const rows = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      logoUrl: organizations.logoUrl,
+      category: organizations.category,
+      hiddenAt: orgBlocks.createdAt,
+    })
+    .from(orgBlocks)
+    .innerJoin(organizations, eq(orgBlocks.orgId, organizations.id))
+    .where(eq(orgBlocks.userId, session.user.id))
+    .orderBy(desc(orgBlocks.createdAt), organizations.name);
+
+  return rows.map((r) => ({ ...r, hiddenAt: r.hiddenAt.toISOString() }));
 }
 
 const officerSchema = z.object({ orgId: idSchema, userId: idSchema });
@@ -467,7 +576,13 @@ export async function getRecommendedOrgs(): Promise<OrgListItem[]> {
     .from(orgFollowers)
     .where(eq(orgFollowers.userId, userId));
 
-  const followedOrgIds = followedOrgs.map((f) => f.orgId);
+  // Hidden orgs are never suggested either.
+  const hiddenOrgs = await db
+    .select({ orgId: orgBlocks.orgId })
+    .from(orgBlocks)
+    .where(eq(orgBlocks.userId, userId));
+
+  const excludedOrgIds = [...followedOrgs, ...hiddenOrgs].map((f) => f.orgId);
 
   // Find orgs whose events have matching tags, ranked by overlap count
   const recommended = await db
@@ -488,9 +603,9 @@ export async function getRecommendedOrgs(): Promise<OrgListItem[]> {
         // Only publicly listed events count as evidence of what an org hosts.
         eq(events.status, "published"),
         eq(events.isPublic, true),
-        followedOrgIds.length > 0
+        excludedOrgIds.length > 0
           ? sql`${organizations.id} NOT IN (${sql.join(
-              followedOrgIds.map((id) => sql`${id}`),
+              excludedOrgIds.map((id) => sql`${id}`),
               sql`, `,
             )})`
           : undefined,
@@ -514,5 +629,6 @@ export async function getRecommendedOrgs(): Promise<OrgListItem[]> {
     category: org.category,
     followerCount: 0,
     isFollowing: false,
+    isHidden: false,
   }));
 }

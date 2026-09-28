@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   type FeedEvent,
@@ -10,39 +10,60 @@ import {
   toggleRsvp,
   toggleSave,
 } from "~/actions/events";
+import { toggleFollowOrg } from "~/actions/orgs";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, ErrorState, EventCardSkeletonList } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
 import { EventCollection, EventViewToggle } from "~/components/events/event-collection";
 import { EventFilters } from "~/components/events/event-filters";
+import { FeedSortMenu } from "~/components/events/feed-sort-menu";
 import { MiniEventList } from "~/components/events/mini-event-list";
 import { Greeting } from "~/components/layout/greeting";
 import { PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { hideOrgWithUndo } from "~/components/orgs/org-feed-menu";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
 import { formatRelativeDay } from "~/lib/date-format";
+import { DEFAULT_FEED_SORT, FEED_SORTS, type FeedSort } from "~/lib/feed-ranking";
 import { useEventView } from "~/lib/use-event-view";
+
+const SORT_STORAGE_KEY = "forum:feed-sort";
+
+function isFeedSort(value: unknown): value is FeedSort {
+  return typeof value === "string" && (FEED_SORTS as readonly string[]).includes(value);
+}
 
 interface ExploreClientProps {
   initialEvents: FeedEvent[];
   initialTotal: number;
+  /** Offset of the next page, and how many visible events lie beyond it. */
+  initialNextOffset: number;
+  initialRemaining: number;
   /** The instant the first page was ranked at — echoed back so later pages slice the same ranking. */
   initialAsOf: string;
+  initialSort: FeedSort;
+  /** `?sort=` was in the URL — it wins over the sort remembered in this browser. */
+  sortFromUrl: boolean;
   savedEvents: FeedEvent[];
   friendsEvents: FriendsEvent[];
   initialSearch?: string;
-  userName?: string;
+  /** First name to greet by, or null for a plain "Hello," (see ~/lib/greeting-name). */
+  greetingName: string | null;
   userAvatarUrl?: string | null;
 }
 
 export function ExploreClient({
   initialEvents,
   initialTotal,
+  initialNextOffset,
+  initialRemaining,
   initialAsOf,
+  initialSort,
+  sortFromUrl,
   savedEvents,
   friendsEvents,
   initialSearch = "",
-  userName = "there",
+  greetingName,
   userAvatarUrl,
 }: ExploreClientProps) {
   /*
@@ -51,6 +72,11 @@ export function ExploreClient({
    * render on first load, which is precisely the case this screen has to handle.
    */
   const [events, setEvents] = useState(initialEvents);
+  /** Latest `events`, for callbacks that outlive a render (the hide toast's Undo). */
+  const eventsRef = useRef(events);
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
   /*
    * The full match count, not the page size. `getFeedEvents` pages at 20 while
    * returning a separate count over every match, so reporting `events.length`
@@ -58,12 +84,16 @@ export function ExploreClient({
    */
   const [total, setTotal] = useState(initialTotal);
   /*
-   * Pagination. `nextOffset` counts rows the server has handed us (not
-   * `events.length`, which is after de-duplication), and `asOf` pins later
-   * pages to the ranking page 1 came from.
+   * Pagination. `nextOffset` is the server's position in its ordering (not
+   * `events.length`, which is after de-duplication and hidden orgs), and
+   * `asOf` pins later pages to the ordering page 1 came from.
    */
-  const [nextOffset, setNextOffset] = useState(initialEvents.length);
+  const [nextOffset, setNextOffset] = useState(initialNextOffset);
+  const [remaining, setRemaining] = useState(initialRemaining);
   const [asOf, setAsOf] = useState(initialAsOf);
+  const [sort, setSort] = useState<FeedSort>(initialSort);
+  /** Orgs hidden from this screen — their cards drop out at once, Undo brings them back. */
+  const [hiddenOrgIds, setHiddenOrgIds] = useState<Set<string>>(new Set());
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   /*
@@ -83,10 +113,11 @@ export function ExploreClient({
    * and without this the slower-but-older response lands last and wins.
    */
   const latestRequest = useRef(0);
-  /** Filters + search the current list was fetched with; "Load more" must reuse them. */
-  const currentQuery = useRef<{ filters: string[]; search: string }>({
+  /** Filters, search and sort the current list was fetched with; "Load more" must reuse them. */
+  const currentQuery = useRef<{ filters: string[]; search: string; sort: FeedSort }>({
     filters: [],
     search: initialSearch.trim(),
+    sort: initialSort,
   });
 
   /** Drop a queued debounced search — it carries whatever filters were active when it was armed. */
@@ -97,20 +128,22 @@ export function ExploreClient({
     }
   }, []);
 
-  const refreshEvents = useCallback((filters: string[], search: string) => {
+  const refreshEvents = useCallback((filters: string[], search: string, sort: FeedSort) => {
     const requestId = ++latestRequest.current;
-    currentQuery.current = { filters, search };
+    currentQuery.current = { filters, search, sort };
     setIsLoadingMore(false);
     startTransition(async () => {
       try {
         const result = await getFeedEvents({
           tags: filters.length > 0 ? filters : undefined,
           search: search || undefined,
+          sort,
         });
         if (requestId !== latestRequest.current) return;
         setEvents(result.events);
         setTotal(result.total);
-        setNextOffset(result.events.length);
+        setNextOffset(result.nextOffset);
+        setRemaining(result.remaining);
         setAsOf(result.asOf);
         setLoadError(false);
       } catch {
@@ -130,12 +163,13 @@ export function ExploreClient({
    */
   const loadMore = useCallback(async () => {
     const requestId = latestRequest.current;
-    const { filters, search } = currentQuery.current;
+    const { filters, search, sort } = currentQuery.current;
     setIsLoadingMore(true);
     try {
       const result = await getFeedEvents({
         tags: filters.length > 0 ? filters : undefined,
         search: search || undefined,
+        sort,
         offset: nextOffset,
         asOf,
       });
@@ -145,7 +179,8 @@ export function ExploreClient({
         return [...prev, ...result.events.filter((e) => !seen.has(e.id))];
       });
       setTotal(result.total);
-      setNextOffset(nextOffset + result.events.length);
+      setNextOffset(result.nextOffset);
+      setRemaining(result.remaining);
       setAsOf(result.asOf);
     } catch {
       if (requestId !== latestRequest.current) return;
@@ -155,7 +190,99 @@ export function ExploreClient({
     }
   }, [nextOffset, asOf]);
 
-  const hasMore = nextOffset < total;
+  const hasMore = remaining > 0;
+
+  /*
+   * After hiding (or un-hiding) an org, re-read the counts for the ordering
+   * we're paging through — same `asOf` and offset — so "N upcoming events"
+   * and "Load more (N left)" stay true. The org's cards are already gone.
+   */
+  const refreshCounts = useCallback(async () => {
+    const requestId = latestRequest.current;
+    const { filters, search, sort } = currentQuery.current;
+    try {
+      const result = await getFeedEvents({
+        tags: filters.length > 0 ? filters : undefined,
+        search: search || undefined,
+        sort,
+        offset: nextOffset,
+        limit: 1,
+        asOf,
+      });
+      if (requestId !== latestRequest.current) return;
+      setTotal(result.total);
+      setRemaining(result.remaining + result.events.length);
+    } catch {
+      // Counts are cosmetic; the next page load corrects them.
+    }
+  }, [nextOffset, asOf]);
+
+  const visibleEvents = useMemo(
+    () =>
+      hiddenOrgIds.size === 0
+        ? events
+        : events.filter((e) => !e.orgId || !hiddenOrgIds.has(e.orgId)),
+    [events, hiddenOrgIds],
+  );
+
+  const setFollowingOrg = useCallback((orgId: string, following: boolean) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.orgId === orgId ? { ...e, isFollowingOrg: following } : e)),
+    );
+  }, []);
+
+  /* Optimistic across every card from the org, then reconciled. */
+  const handleToggleFollowOrg = useCallback(
+    async (orgId: string, orgName: string, wasFollowing: boolean) => {
+      setFollowingOrg(orgId, !wasFollowing);
+      try {
+        const { following } = await toggleFollowOrg(orgId);
+        setFollowingOrg(orgId, following);
+        toast(
+          following
+            ? `Following ${orgName}. Their events will rank higher.`
+            : `Unfollowed ${orgName}`,
+        );
+      } catch {
+        setFollowingOrg(orgId, wasFollowing);
+        toast.error("Couldn't update that follow. Please try again.");
+      }
+    },
+    [setFollowingOrg],
+  );
+
+  const handleHideOrg = useCallback(
+    (orgId: string, orgName: string) => {
+      const showAgain = () => {
+        setHiddenOrgIds((prev) => {
+          const next = new Set(prev);
+          next.delete(orgId);
+          return next;
+        });
+      };
+      void hideOrgWithUndo({
+        orgId,
+        orgName,
+        onHidden: () => {
+          setHiddenOrgIds((prev) => new Set(prev).add(orgId));
+          setFollowingOrg(orgId, false);
+        },
+        onSaved: () => void refreshCounts(),
+        onRestored: () => {
+          showAgain();
+          // If the list was re-fetched while hidden, the org's events aren't
+          // loaded any more — fetch again rather than leave them missing.
+          if (eventsRef.current.some((e) => e.orgId === orgId)) void refreshCounts();
+          else {
+            const { filters, search, sort } = currentQuery.current;
+            refreshEvents(filters, search, sort);
+          }
+        },
+        onFollowRestored: () => setFollowingOrg(orgId, true),
+      });
+    },
+    [refreshCounts, refreshEvents, setFollowingOrg],
+  );
 
   // A queued search outliving the component would fetch for a dead screen.
   useEffect(() => cancelPendingSearch, [cancelPendingSearch]);
@@ -174,10 +301,49 @@ export function ExploreClient({
        * already carries the current query, so nothing is lost by dropping it.
        */
       cancelPendingSearch();
-      refreshEvents(next, searchQuery.trim());
+      refreshEvents(next, searchQuery.trim(), sort);
+    },
+    [activeFilters, searchQuery, sort, refreshEvents, cancelPendingSearch],
+  );
+
+  /*
+   * Sort: kept in the URL (`?sort=`, omitted for the default) so it survives
+   * reloads and can be shared, and remembered per browser for visits that
+   * arrive without one. Storage can be unavailable, so every access is guarded.
+   */
+  const applySort = useCallback(
+    (next: FeedSort, remember: boolean) => {
+      setSort(next);
+      if (remember) {
+        try {
+          window.localStorage.setItem(SORT_STORAGE_KEY, next);
+        } catch {
+          // ignore — the choice just won't persist
+        }
+      }
+      const url = new URL(window.location.href);
+      if (next === DEFAULT_FEED_SORT) url.searchParams.delete("sort");
+      else url.searchParams.set("sort", next);
+      window.history.replaceState(window.history.state, "", url);
+      cancelPendingSearch();
+      refreshEvents(activeFilters, searchQuery.trim(), next);
     },
     [activeFilters, searchQuery, refreshEvents, cancelPendingSearch],
   );
+
+  // A visit without `?sort=` picks up the sort this browser last used.
+  const restoredSort = useRef(false);
+  useEffect(() => {
+    if (restoredSort.current || sortFromUrl) return;
+    restoredSort.current = true;
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(SORT_STORAGE_KEY);
+    } catch {
+      return;
+    }
+    if (isFeedSort(stored) && stored !== initialSort) applySort(stored, false);
+  }, [sortFromUrl, initialSort, applySort]);
 
   /*
    * Debounced as you type, matching Orgs. Explore used to require Enter, so
@@ -188,10 +354,10 @@ export function ExploreClient({
       setSearchQuery(value);
       if (searchTimeout.current) clearTimeout(searchTimeout.current);
       searchTimeout.current = setTimeout(() => {
-        refreshEvents(activeFilters, value.trim());
+        refreshEvents(activeFilters, value.trim(), sort);
       }, 300);
     },
-    [activeFilters, refreshEvents],
+    [activeFilters, sort, refreshEvents],
   );
 
   /*
@@ -267,7 +433,7 @@ export function ExploreClient({
    */
   return (
     <PageShell>
-      <Greeting name={userName} />
+      <Greeting name={greetingName} />
 
       <div className="mb-4 flex flex-col gap-3">
         <SearchInput
@@ -292,7 +458,10 @@ export function ExploreClient({
                     : `${total} ${total === 1 ? "event matches" : "events match"}`
                 : `${total} upcoming ${total === 1 ? "event" : "events"}`}
             </p>
-            <EventViewToggle view={view} onChange={setView} />
+            <div className="flex items-center gap-2">
+              <FeedSortMenu sort={sort} onChange={(next) => applySort(next, true)} />
+              <EventViewToggle view={view} onChange={setView} />
+            </div>
           </div>
 
           {loadError ? (
@@ -301,12 +470,12 @@ export function ExploreClient({
               description="Something went wrong fetching the feed."
               onRetry={() => {
                 cancelPendingSearch();
-                refreshEvents(activeFilters, searchQuery.trim());
+                refreshEvents(activeFilters, searchQuery.trim(), sort);
               }}
             />
-          ) : isPending && events.length === 0 ? (
+          ) : isPending && visibleEvents.length === 0 ? (
             <EventCardSkeletonList />
-          ) : events.length === 0 ? (
+          ) : visibleEvents.length === 0 ? (
             <EmptyState
               title="No events found"
               description={
@@ -317,7 +486,7 @@ export function ExploreClient({
             />
           ) : (
             <EventCollection
-              items={events}
+              items={visibleEvents}
               view={view}
               className={isPending ? "opacity-60 transition-opacity" : undefined}
               renderItem={(event, index, density) => (
@@ -345,6 +514,22 @@ export function ExploreClient({
                     navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
                     toast.success("Link copied to clipboard");
                   }}
+                  isFollowingOrg={event.isFollowingOrg}
+                  onToggleFollowOrg={
+                    event.orgId && event.orgName
+                      ? () =>
+                          handleToggleFollowOrg(
+                            event.orgId as string,
+                            event.orgName as string,
+                            Boolean(event.isFollowingOrg),
+                          )
+                      : undefined
+                  }
+                  onHideOrg={
+                    event.orgId && event.orgName
+                      ? () => handleHideOrg(event.orgId as string, event.orgName as string)
+                      : undefined
+                  }
                   isHidden={hiddenIds.has(event.id)}
                   onHide={() => {
                     setHiddenIds((prev) => new Set(prev).add(event.id));
@@ -361,7 +546,7 @@ export function ExploreClient({
             />
           )}
 
-          {hasMore && !loadError && events.length > 0 && (
+          {hasMore && !loadError && visibleEvents.length > 0 && (
             <div className="mt-5 flex justify-center">
               <Button
                 variant="outline"
@@ -370,7 +555,7 @@ export function ExploreClient({
                 onClick={loadMore}
                 disabled={isLoadingMore || isPending}
               >
-                {isLoadingMore ? "Loading…" : `Load more (${total - nextOffset} left)`}
+                {isLoadingMore ? "Loading…" : `Load more (${remaining} left)`}
               </Button>
             </div>
           )}

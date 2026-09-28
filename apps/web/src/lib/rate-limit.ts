@@ -26,6 +26,8 @@ export const RATE_LIMITS = {
   createEvent: { limit: 20, windowMs: HOUR },
   createOrg: { limit: 5, windowMs: HOUR },
   readEmail: { limit: 120, windowMs: MINUTE },
+  /** Follow / unfollow / hide / unhide an org. */
+  orgPreference: { limit: 60, windowMs: MINUTE },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

@@ -4,6 +4,7 @@ import { db, eq, userInterests, userRegions, users } from "@the-forum/database";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "~/auth";
+import { greetingName } from "~/lib/greeting-name";
 import { uploadedImageUrlSchema } from "~/lib/s3";
 import { campusRegionSchema, eventTagSchema, parseInput, uniqueEnumArray } from "~/lib/validation";
 
@@ -137,6 +138,16 @@ async function getCurrentUser() {
   if (!createdUser) throw new Error("User not found");
 
   return createdUser;
+}
+
+/**
+ * The name Home greets the viewer by (see ~/lib/greeting-name), read from the
+ * database: the session's name is captured at sign-in, so it still holds the
+ * NetID after onboarding sets a real display name.
+ */
+export async function getGreetingName(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return greetingName(user.displayName, user.netId);
 }
 
 export async function getUserProfile(): Promise<UserProfile> {

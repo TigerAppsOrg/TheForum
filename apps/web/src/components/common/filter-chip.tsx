@@ -73,7 +73,12 @@ export function FilterChipGroup({
   return (
     <fieldset
       data-slot="filter-chip-group"
-      className={cn("scrollbar-cerulean flex items-center gap-2 overflow-x-auto pb-1", className)}
+      // `min-w-0`: a fieldset defaults to `min-width: min-content`, which made
+      // the row grow to fit every chip (clipped by the page) instead of scrolling.
+      className={cn(
+        "scrollbar-cerulean flex min-w-0 items-center gap-2 overflow-x-auto pb-1",
+        className,
+      )}
       {...props}
     >
       <legend className="sr-only">{label}</legend>

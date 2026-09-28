@@ -6,8 +6,11 @@ import {
   ChevronLeft,
   Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   Globe,
   Heart,
+  MoreHorizontal,
   Shield,
   Users,
   X,
@@ -17,7 +20,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type UserSearchResult, searchUsers } from "~/actions/friends";
-import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
+import {
+  type OrgDetail,
+  addOfficer,
+  blockOrg,
+  removeOfficer,
+  toggleFollowOrg,
+  unblockOrg,
+} from "~/actions/orgs";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { RichText } from "~/components/common/rich-text";
 import { SearchInput } from "~/components/common/search-input";
@@ -26,6 +36,12 @@ import { EventCard } from "~/components/events/event-card";
 import { PageShell } from "~/components/layout/page-shell";
 import { OrgEmails } from "~/components/orgs/org-emails";
 import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import type { OrgEmails as OrgEmailsData } from "~/lib/inbox-engine";
 
 const SOCIAL_LABELS: Record<string, string> = {
@@ -86,15 +102,19 @@ export function OrgProfileClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isFollowing, setIsFollowing] = useState(org.isFollowing);
+  const [isHidden, setIsHidden] = useState(org.isHidden);
   const [followerCount, setFollowerCount] = useState(org.followerCount);
   const [team, setTeam] = useState(org.team);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const official = org.source === "myprincetonu";
 
+  /* Following also unhides (the two are mutually exclusive). */
   const handleToggleFollow = () => {
     const next = !isFollowing;
+    const wasHidden = isHidden;
     setIsFollowing(next);
+    if (next) setIsHidden(false);
     setFollowerCount((c) => c + (next ? 1 : -1));
     startTransition(async () => {
       try {
@@ -102,8 +122,37 @@ export function OrgProfileClient({
         setIsFollowing(result.following);
       } catch {
         setIsFollowing(!next);
+        setIsHidden(wasHidden);
         setFollowerCount((c) => c + (next ? -1 : 1));
         toast.error("Couldn't update follow. Try again.");
+      }
+    });
+  };
+
+  /* Hiding also unfollows; showing again doesn't re-follow. */
+  const handleSetHidden = (hide: boolean) => {
+    const wasFollowing = isFollowing;
+    setIsHidden(hide);
+    if (hide && wasFollowing) {
+      setIsFollowing(false);
+      setFollowerCount((c) => c - 1);
+    }
+    startTransition(async () => {
+      try {
+        if (hide) await blockOrg(org.id);
+        else await unblockOrg(org.id);
+        toast(
+          hide
+            ? `${org.name}'s events are hidden from your feed`
+            : `${org.name}'s events will show in your feed again`,
+        );
+      } catch {
+        setIsHidden(!hide);
+        if (hide && wasFollowing) {
+          setIsFollowing(true);
+          setFollowerCount((c) => c + 1);
+        }
+        toast.error("Couldn't update that. Please try again.");
       }
     });
   };
@@ -287,17 +336,62 @@ export function OrgProfileClient({
             )}
           </div>
         </div>
-        <Button
-          variant={isFollowing ? "soft" : "cerulean"}
-          aria-pressed={isFollowing}
-          disabled={isPending}
-          onClick={handleToggleFollow}
-          className="shrink-0 rounded-full"
-        >
-          <Heart fill={isFollowing ? "currentColor" : "none"} />
-          {isFollowing ? "Following" : "Follow"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant={isFollowing ? "soft" : "cerulean"}
+            aria-pressed={isFollowing}
+            disabled={isPending}
+            onClick={handleToggleFollow}
+            className="rounded-full"
+          >
+            <Heart fill={isFollowing ? "currentColor" : "none"} />
+            {isFollowing ? "Following" : "Follow"}
+          </Button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label={`More options for ${org.name}`}
+              >
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 font-dm-sans">
+              {isHidden ? (
+                <DropdownMenuItem disabled={isPending} onSelect={() => handleSetHidden(false)}>
+                  <Eye aria-hidden />
+                  Show in my feed
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled={isPending} onSelect={() => handleSetHidden(true)}>
+                  <EyeOff aria-hidden />
+                  Hide from my feed
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
+
+      {isHidden && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-1.5 rounded-full border border-forum-border bg-white px-4 py-2 font-dm-sans text-[13px] text-forum-dark-gray">
+          <EyeOff size={14} aria-hidden className="text-forum-light-gray" />
+          You&apos;ve hidden this organization&apos;s events
+          <span aria-hidden className="text-forum-light-gray">
+            ·
+          </span>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => handleSetHidden(false)}
+            className="font-medium text-forum-cerulean hover:underline disabled:opacity-50"
+          >
+            Undo
+          </button>
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-6">

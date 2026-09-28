@@ -229,16 +229,28 @@ export async function syncEvents(client = engineClient()) {
           status: events.status,
           isPublic: events.isPublic,
           updatedAt: events.updatedAt,
+          announcementCount: events.announcementCount,
+          announcedAt: events.announcedAt,
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
       const publish = shouldPublish(e, seriesRank);
       const isPublished = existing?.status === "published" && existing.isPublic;
+      const announcementCount = e.announcements.emails;
+      const announcedAt = e.announcements.firstAnnouncedAt
+        ? new Date(e.announcements.firstAnnouncedAt)
+        : null;
+      // InboxEngine bumps updatedAt when announcements are folded in; comparing
+      // the stored signals too backfills rows written before these columns existed.
+      const announcementsCurrent =
+        existing?.announcementCount === announcementCount &&
+        (existing.announcedAt?.getTime() ?? null) === (announcedAt?.getTime() ?? null);
       // Unchanged upstream and already in the desired state: nothing to write.
       if (
         existing &&
         publish === isPublished &&
-        existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime()
+        existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime() &&
+        (!publish || announcementsCurrent)
       ) {
         stats.skipped++;
         continue;
@@ -278,6 +290,8 @@ export async function syncEvents(client = engineClient()) {
         status: "published" as const,
         source: e.source.kind,
         sourceMessageId: key,
+        announcementCount,
+        announcedAt,
         updatedAt: new Date(),
       };
       let eventId = existing?.id;
