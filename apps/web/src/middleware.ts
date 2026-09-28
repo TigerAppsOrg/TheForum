@@ -16,7 +16,14 @@ export default auth((req) => {
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
 
   // Public routes — always accessible
-  const publicRoutes = ["/", "/api/auth", "/opengraph-image", "/twitter-image"];
+  const publicRoutes = [
+    "/",
+    "/api/auth",
+    "/privacy",
+    "/terms",
+    "/opengraph-image",
+    "/twitter-image",
+  ];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
