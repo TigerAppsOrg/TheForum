@@ -7,7 +7,6 @@ import {
   Clock,
   Edit3,
   Eye,
-  EyeOff,
   MapPin,
   Maximize2,
   Plus,
@@ -20,7 +19,7 @@ import { toast } from "sonner";
 import { logInteraction } from "~/actions/interactions";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
-import { EventOrgMenu, menuTriggerRevealClass } from "~/components/orgs/org-feed-menu";
+import { EventActionsMenu } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
@@ -92,6 +91,7 @@ export interface EventCardProps {
   onSaveToggle?: () => void | Promise<void>;
   onRsvpToggle?: () => void | Promise<void>;
   onShare?: () => void;
+  /** "Not interested in this event", in the card's "⋯" menu. */
   onHide?: () => void;
   /** When true the card collapses to a stub that can be restored. */
   isHidden?: boolean;
@@ -236,20 +236,48 @@ export function EventCard({
     logInteraction({ itemId: id, interactionType: "click", metadata: { source, position } });
   };
 
-  const orgMenu = (className: string, iconClassName?: string) =>
-    orgId && orgName && onToggleFollowOrg && onHideOrg ? (
-      <EventOrgMenu
-        orgName={orgName}
-        isFollowing={isFollowingOrg}
-        onToggleFollow={onToggleFollowOrg}
-        onHide={onHideOrg}
-        className={className}
-        iconClassName={iconClassName}
-      />
-    ) : null;
+  /*
+   * "Not interested": the per-event hide. The card collapses to a stub with
+   * Unhide, and the toast offers the same Undo.
+   */
+  const handleNotInterested = onHide
+    ? () => {
+        logInteraction({ itemId: id, interactionType: "hide", metadata: { source, position } });
+        onHide();
+        toast(`Hid ${title}`, {
+          description: "We'll show you fewer events like this.",
+          action: onUnhide ? { label: "Undo", onClick: onUnhide } : undefined,
+        });
+      }
+    : undefined;
 
-  const hasOrgMenu = Boolean(orgId && orgName && onToggleFollowOrg && onHideOrg);
-  const hasUtilityRow = Boolean(onSaveToggle || onShare || onHide || hasOrgMenu);
+  const orgActions =
+    orgId && orgName && onToggleFollowOrg && onHideOrg
+      ? {
+          name: orgName,
+          isFollowing: isFollowingOrg,
+          onToggleFollow: onToggleFollowOrg,
+          onHide: onHideOrg,
+        }
+      : null;
+
+  /*
+   * The single "⋯" menu: "Not interested", then Follow / Hide the host org.
+   * Present on every feed card (org-less events get "Not interested" alone),
+   * so the top row reads the same on every card.
+   */
+  const actionsMenu = (className: string, iconClassName?: string) => (
+    <EventActionsMenu
+      eventTitle={title}
+      onNotInterested={handleNotInterested}
+      org={orgActions}
+      className={className}
+      iconClassName={iconClassName}
+    />
+  );
+
+  const hasActionsMenu = Boolean(handleNotInterested || orgActions);
+  const hasUtilityRow = Boolean(onSaveToggle || onShare || hasActionsMenu);
 
   /*
    * Hidden events collapse to a stub rather than disappearing. Removing the
@@ -374,27 +402,6 @@ export function EventCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {onHide && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                utilityButton,
-                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-              )}
-              aria-label={`Hide ${title}`}
-              onClick={() => {
-                logInteraction({
-                  itemId: id,
-                  interactionType: "hide",
-                  metadata: { source, position },
-                });
-                onHide();
-              }}
-            >
-              <EyeOff />
-            </Button>
-          )}
           {onShare && (
             <Button
               variant="ghost"
@@ -416,7 +423,7 @@ export function EventCard({
               <Share2 />
             </Button>
           )}
-          {orgMenu(cn(utilityButton, menuTriggerRevealClass))}
+          {actionsMenu(utilityButton)}
           {editHref && (
             <Button
               asChild
@@ -786,34 +793,9 @@ export function EventCard({
                 <Share2 className="text-forum-coral" />
               </Button>
             )}
-            {/* Hide: revealed on hover/focus on desktop so the resting card shows the
-               Figma's two icons; always visible on touch. */}
-            {onHide && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={cn(
-                  UTILITY_HOVER,
-                  "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-                )}
-                aria-label={`Hide ${title}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  logInteraction({
-                    itemId: id,
-                    interactionType: "hide",
-                    metadata: { source, position },
-                  });
-                  onHide();
-                  toast(`Hid ${title}`, { description: "Use Unhide to bring it back." });
-                }}
-              >
-                <EyeOff className="text-forum-coral" />
-              </Button>
-            )}
           </div>
           <div className="flex items-center gap-0.5">
-            {orgMenu(UTILITY_HOVER, "text-forum-coral")}
+            {actionsMenu(UTILITY_HOVER, "text-forum-coral")}
             <Button
               asChild
               variant="ghost"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Heart, HeartOff, MoreHorizontal } from "lucide-react";
+import { Eye, EyeOff, Heart, HeartOff, MoreHorizontal, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
 import { blockOrg, unblockOrg } from "~/actions/orgs";
 import { Button } from "~/components/ui/button";
@@ -8,45 +8,51 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { cn } from "~/lib/utils";
 
 /**
- * The "⋯" menu on event cards and the event page: follow/unfollow the host
- * org (hoists it in the feed) or hide its events (removes them from
- * discovery). Render it only for events that have an org.
+ * The one "⋯" menu for an event, on feed cards and the event page:
+ *  1. "Not interested in this event" — the per-event hide (cards only);
+ *  2. Follow / Unfollow <Org> — hoists the org in the feed;
+ *  3. Hide events from <Org> — removes the org from discovery.
+ * Org items appear only when the event has an org, so an org-less card's menu
+ * holds just "Not interested". Renders nothing when there is nothing to offer.
  */
-export function EventOrgMenu({
-  orgName,
-  isFollowing,
-  isHidden = false,
-  onToggleFollow,
-  onHide,
-  onUnhide,
+export function EventActionsMenu({
+  eventTitle,
+  onNotInterested,
+  org,
   variant = "ghost",
   className,
   iconClassName,
 }: {
-  orgName: string;
-  isFollowing: boolean;
-  /** Already hidden (the event page only — hidden orgs never reach a feed card). */
-  isHidden?: boolean;
-  onToggleFollow: () => void;
-  onHide: () => void;
-  onUnhide?: () => void;
+  eventTitle: string;
+  /** Per-event hide; omitted where events can't be hidden (the event page). */
+  onNotInterested?: () => void;
+  org?: {
+    name: string;
+    isFollowing: boolean;
+    /** Already hidden (the event page only — hidden orgs never reach a feed card). */
+    isHidden?: boolean;
+    onToggleFollow: () => void;
+    onHide: () => void;
+    onUnhide?: () => void;
+  } | null;
   /** `outline` beside the event page's other outline buttons; `ghost` on cards. */
   variant?: "ghost" | "outline";
   className?: string;
   iconClassName?: string;
 }) {
+  if (!onNotInterested && !org) return null;
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant={variant}
           size="icon-sm"
-          aria-label={`More options for events from ${orgName}`}
+          aria-label={`More options for ${eventTitle}`}
           className={className}
         >
           <MoreHorizontal className={iconClassName} />
@@ -57,22 +63,33 @@ export function EventOrgMenu({
         collisionPadding={8}
         className="w-max min-w-56 max-w-[min(22rem,calc(100vw-2rem))] font-dm-sans"
       >
-        <DropdownMenuItem onSelect={onToggleFollow}>
-          {isFollowing ? <HeartOff aria-hidden /> : <Heart aria-hidden />}
-          <span className="truncate">
-            {isFollowing ? "Unfollow" : "Follow"} {orgName}
-          </span>
-        </DropdownMenuItem>
-        {isHidden && onUnhide ? (
-          <DropdownMenuItem onSelect={onUnhide}>
-            <Eye aria-hidden />
-            <span className="truncate">Show events from {orgName}</span>
+        {onNotInterested && (
+          <DropdownMenuItem onSelect={onNotInterested}>
+            <ThumbsDown aria-hidden />
+            Not interested in this event
           </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem onSelect={onHide}>
-            <EyeOff aria-hidden />
-            <span className="truncate">Hide events from {orgName}</span>
-          </DropdownMenuItem>
+        )}
+        {onNotInterested && org && <DropdownMenuSeparator />}
+        {org && (
+          <>
+            <DropdownMenuItem onSelect={org.onToggleFollow}>
+              {org.isFollowing ? <HeartOff aria-hidden /> : <Heart aria-hidden />}
+              <span className="truncate">
+                {org.isFollowing ? "Unfollow" : "Follow"} {org.name}
+              </span>
+            </DropdownMenuItem>
+            {org.isHidden && org.onUnhide ? (
+              <DropdownMenuItem onSelect={org.onUnhide}>
+                <Eye aria-hidden />
+                <span className="truncate">Show events from {org.name}</span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={org.onHide}>
+                <EyeOff aria-hidden />
+                <span className="truncate">Hide events from {org.name}</span>
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -126,9 +143,3 @@ export async function hideOrgWithUndo({
     },
   });
 }
-
-/** Class for the menu trigger inside hover-revealed utility rows: stays visible while open. */
-export const menuTriggerRevealClass = cn(
-  "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
-  "data-[state=open]:opacity-100",
-);

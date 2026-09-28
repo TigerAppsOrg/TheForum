@@ -32,7 +32,7 @@ import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { MiniEventList } from "~/components/events/mini-event-list";
 import { PageShell, SectionHeading } from "~/components/layout/page-shell";
-import { EventOrgMenu, hideOrgWithUndo } from "~/components/orgs/org-feed-menu";
+import { EventActionsMenu, hideOrgWithUndo } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import {
@@ -306,13 +306,16 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
               <Share2 /> Share
             </Button>
             {event.orgId && event.orgName && (
-              <EventOrgMenu
-                orgName={event.orgName}
-                isFollowing={isFollowingOrg}
-                isHidden={isOrgHidden}
-                onToggleFollow={handleToggleFollowOrg}
-                onHide={handleHideOrg}
-                onUnhide={handleUnhideOrg}
+              <EventActionsMenu
+                eventTitle={event.title}
+                org={{
+                  name: event.orgName,
+                  isFollowing: isFollowingOrg,
+                  isHidden: isOrgHidden,
+                  onToggleFollow: handleToggleFollowOrg,
+                  onHide: handleHideOrg,
+                  onUnhide: handleUnhideOrg,
+                }}
                 variant="outline"
               />
             )}
