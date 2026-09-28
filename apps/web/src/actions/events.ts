@@ -54,10 +54,14 @@ export interface FeedEvent {
   description: string | null;
   orgId: string | null;
   orgName: string | null;
+  /** Organization logo (MyPrincetonU groups often have one), else null. */
+  orgLogoUrl?: string | null;
   datetime: string;
   /** ISO timestamp, for building calendar links client-side. */
   rawDatetime?: string;
   location: string;
+  /** Room or free-text place within the venue, e.g. "Room 207". */
+  locationDetail?: string | null;
   tags: string[];
   flyerUrl: string | null;
   rsvpCount: number;
@@ -315,6 +319,7 @@ export interface EventDetail {
   locationName: string;
   orgId: string | null;
   orgName: string | null;
+  orgLogoUrl: string | null;
   creatorId: string;
   creatorName: string;
   flyerUrl: string | null;
@@ -357,6 +362,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
       creatorId: events.creatorId,
       creatorName: users.displayName,
       flyerUrl: events.flyerUrl,
@@ -393,6 +399,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     locationName: event.locationName ?? "TBD",
     orgId: event.orgId,
     orgName: event.orgName,
+    orgLogoUrl: event.orgLogoUrl ?? null,
     creatorId: event.creatorId,
     creatorName: event.creatorName,
     flyerUrl: event.flyerUrl,
@@ -465,6 +472,8 @@ export async function getSimilarEvents(
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
     })
     .from(events)
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
@@ -488,9 +497,11 @@ export async function getSimilarEvents(
       description: event.description,
       orgId: event.orgId,
       orgName: event.orgName,
+      orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
       location: event.locationName ?? "TBD",
+      locationDetail: event.locationDetail ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,
@@ -760,6 +771,8 @@ export async function getMyEvents(): Promise<{
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
     })
     .from(events)
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
@@ -778,6 +791,8 @@ export async function getMyEvents(): Promise<{
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
     })
     .from(rsvps)
     .innerJoin(events, eq(rsvps.eventId, events.id))
@@ -798,6 +813,8 @@ export async function getMyEvents(): Promise<{
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
     })
     .from(savedEvents)
     .innerJoin(events, eq(savedEvents.eventId, events.id))
@@ -825,9 +842,11 @@ export async function getMyEvents(): Promise<{
       description: e.description,
       orgId: e.orgId,
       orgName: e.orgName,
+      orgLogoUrl: e.orgLogoUrl ?? null,
       datetime: formatEventDateTime(e.datetime),
       rawDatetime: e.datetime.toISOString(),
       location: e.locationName ?? "TBD",
+      locationDetail: e.locationDetail ?? null,
       tags: extra.tags.get(e.id) ?? [],
       flyerUrl: e.flyerUrl,
       rsvpCount: attendees.length,
@@ -874,6 +893,8 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
     })
     .from(savedEvents)
     .innerJoin(events, eq(savedEvents.eventId, events.id))
@@ -905,9 +926,11 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
       description: event.description,
       orgId: event.orgId,
       orgName: event.orgName,
+      orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
       location: event.locationName ?? "TBD",
+      locationDetail: event.locationDetail ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,
@@ -944,6 +967,8 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
       locationName: campusLocations.name,
       orgId: events.orgId,
       orgName: organizations.name,
+      orgLogoUrl: organizations.logoUrl,
+      locationDetail: events.locationDetail,
       friendCount: sql<number>`count(distinct ${rsvps.userId})::int`.as("friend_count"),
     })
     .from(rsvps)
@@ -984,9 +1009,11 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
       description: event.description,
       orgId: event.orgId,
       orgName: event.orgName,
+      orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
       location: event.locationName ?? "TBD",
+      locationDetail: event.locationDetail ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,

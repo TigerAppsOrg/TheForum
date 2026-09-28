@@ -7,12 +7,12 @@ import { Button } from "~/components/ui/button";
 
 const QUICK_FILTERS = [
   { id: "free food", label: "free food" },
-  { id: "tech", label: "tech talk" },
+  { id: "tech", label: "tech" },
   { id: "career", label: "career" },
-  { id: "social event", label: "social" },
+  { id: "social event", label: "social event" },
   { id: "music", label: "music" },
-  { id: "visual arts", label: "art" },
-  { id: "athletics", label: "sports" },
+  { id: "visual arts", label: "visual arts" },
+  { id: "athletics", label: "athletics" },
 ] as const;
 
 const ALL_FILTERS = [
@@ -20,7 +20,7 @@ const ALL_FILTERS = [
   { id: "academics", label: "academics" },
   { id: "culture", label: "culture" },
   { id: "performing arts", label: "performing arts" },
-  { id: "speaker event", label: "speaker" },
+  { id: "speaker event", label: "speaker event" },
   { id: "research", label: "research" },
   { id: "entrepreneurship", label: "entrepreneurship" },
   { id: "stem", label: "stem" },
@@ -29,7 +29,7 @@ const ALL_FILTERS = [
   { id: "outdoors", label: "outdoors" },
   { id: "sustainability", label: "sustainability" },
   { id: "gaming", label: "gaming" },
-  { id: "community service", label: "service" },
+  { id: "community service", label: "community service" },
   { id: "religion", label: "religion" },
   { id: "politics", label: "politics" },
 ] as const;

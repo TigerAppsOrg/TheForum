@@ -177,7 +177,7 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
 
   const isSearchActive = searchQuery.trim().length > 0;
   const LIST =
-    "divide-y divide-forum-border overflow-hidden rounded-lg border border-forum-border bg-white";
+    "divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white";
   const ROW = "flex items-center gap-3 px-3 py-2 sm:px-4";
 
   const person = (p: {

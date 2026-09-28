@@ -25,6 +25,7 @@ import {
   toggleRsvp,
   toggleSave,
 } from "~/actions/events";
+import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { MiniEventList } from "~/components/events/mini-event-list";
@@ -42,6 +43,7 @@ import {
 } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
 import { formatLongDate, formatTime } from "~/lib/date-format";
+import { eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
 
 interface EventDetailClientProps {
@@ -123,6 +125,7 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
     });
   };
 
+  const photoUrl = eventPhotoUrl(event.flyerUrl);
   const when = `${formatTime(event.datetime)}${
     event.endDatetime ? ` – ${formatTime(event.endDatetime)}` : ""
   } ET`;
@@ -134,12 +137,12 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
         Back
       </Button>
 
-      <div className="grid gap-6 sm:grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid gap-6 rounded-[24px] border border-forum-border bg-white p-5 shadow-sm sm:grid-cols-[180px_minmax(0,1fr)] sm:p-6 md:grid-cols-[220px_minmax(0,1fr)]">
         {/* Flyer — a supporting image, not the page */}
-        <div className="aspect-[4/5] w-full max-w-[220px] overflow-hidden rounded-lg border border-forum-border">
-          {event.flyerUrl ? (
+        <div className="aspect-[4/5] w-full max-w-[220px] overflow-hidden rounded-2xl border border-forum-border">
+          {photoUrl ? (
             <img
-              src={event.flyerUrl}
+              src={photoUrl}
               alt={`Flyer for ${event.title}`}
               className="size-full object-cover"
             />
@@ -153,8 +156,9 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
             {event.title}
           </h1>
           {event.orgName && (
-            <p className="mt-1 text-[13px] text-forum-dark-gray">
-              Hosted by{" "}
+            <p className="mt-2 flex items-center gap-2 text-[13px] text-forum-dark-gray">
+              <OrgAvatar name={event.orgName} logoUrl={event.orgLogoUrl} size={28} />
+              Hosted by
               {event.orgId ? (
                 <Link
                   href={`/orgs/${event.orgId}`}

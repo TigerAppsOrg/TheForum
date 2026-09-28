@@ -30,7 +30,7 @@ export function MobileNav() {
       )}
     >
       <ul className="flex items-stretch">
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+        {NAV_ITEMS.map(({ href, icon: Icon, label, shortLabel }) => {
           const isActive = isNavItemActive(pathname, href);
           return (
             <li key={href} className="flex-1">
@@ -45,7 +45,9 @@ export function MobileNav() {
                 )}
               >
                 <Icon size={20} strokeWidth={1.8} aria-hidden />
-                <span className="w-full truncate text-center leading-tight">{label}</span>
+                <span className="w-full truncate text-center leading-tight">
+                  {shortLabel ?? label}
+                </span>
               </Link>
             </li>
           );

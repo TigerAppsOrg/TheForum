@@ -10,7 +10,7 @@ export function EventList({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="event-list"
       className={cn(
-        "divide-y divide-forum-border overflow-hidden rounded-lg border border-forum-border bg-white",
+        "divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white",
         className,
       )}
       {...props}
