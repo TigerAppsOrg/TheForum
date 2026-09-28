@@ -1,16 +1,21 @@
 import { getFeedEvents, getFriendsEvents, getSavedEvents } from "~/actions/events";
 import { auth } from "~/auth";
+import { DEFAULT_FEED_SORT } from "~/lib/feed-ranking";
+import { feedSortSchema } from "~/lib/validation";
 import { ExploreClient } from "./explore-client";
 
 export default async function ExplorePage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>;
+  searchParams: Promise<{ search?: string; sort?: string | string[] }>;
 }) {
-  const { search } = await searchParams;
+  const { search, sort: sortParam } = await searchParams;
+  // An unknown or repeated `?sort=` falls back to the default rather than erroring.
+  const parsedSort = feedSortSchema.safeParse(sortParam);
+  const sort = parsedSort.success ? parsedSort.data : DEFAULT_FEED_SORT;
 
   const [feedResult, savedEvents, friendsEvents, session] = await Promise.all([
-    getFeedEvents(search ? { search } : undefined),
+    getFeedEvents({ search: search || undefined, sort }),
     getSavedEvents(),
     getFriendsEvents(),
     auth(),
@@ -20,7 +25,11 @@ export default async function ExplorePage({
     <ExploreClient
       initialEvents={feedResult.events}
       initialTotal={feedResult.total}
+      initialNextOffset={feedResult.nextOffset}
+      initialRemaining={feedResult.remaining}
       initialAsOf={feedResult.asOf}
+      initialSort={sort}
+      sortFromUrl={parsedSort.success}
       savedEvents={savedEvents}
       friendsEvents={friendsEvents}
       initialSearch={search ?? ""}
