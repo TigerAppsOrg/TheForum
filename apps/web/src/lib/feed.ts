@@ -262,8 +262,13 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
         .from(rsvps)
         .where(inArray(rsvps.eventId, candidateIds))
         .groupBy(rsvps.eventId),
+      // Distinct viewers, not raw view rows, so one user re-opening (or
+      // scripting) an event can't inflate its popularity.
       db
-        .select({ eventId: interactions.itemId, count: sql<number>`count(*)::int` })
+        .select({
+          eventId: interactions.itemId,
+          count: sql<number>`count(distinct ${interactions.userId})::int`,
+        })
         .from(interactions)
         .where(
           and(

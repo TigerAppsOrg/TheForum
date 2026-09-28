@@ -5,6 +5,7 @@ import { useCallback, useRef, useState, useTransition } from "react";
 import {
   type FriendProfile,
   type FriendRequest,
+  type UserSearchResult,
   acceptFriendRequest,
   declineFriendRequest,
   removeFriend,
@@ -65,7 +66,7 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
   const [friends, setFriends] = useState(initialFriends);
   const [pending, setPending] = useState(initialPending);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [sentIds, setSentIds] = useState<Set<string>>(
     new Set(initialPending.outgoing.map((r) => r.id)),

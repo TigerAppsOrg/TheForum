@@ -74,7 +74,9 @@ popularity_score = min(1.0, log(view_count + 1) / log(POPULARITY_VIEW_CAP + 1))
 
 Grows logarithmically with view count (logged via `interactions`, see
 `apps/web/src/actions/interactions.ts`), capping at 1.0 around `POPULARITY_VIEW_CAP` (50)
-views. It's a live per-request count, not a batch job, so it stays cheap.
+views. `view_count` is the number of *distinct users* who viewed the event, so one account
+re-opening (or scripting) an event can't inflate it; `logInteraction` is also rate-limited. It's
+a live per-request count, not a batch job, so it stays cheap.
 
 ### Random nudge — seeded per user, per day
 
