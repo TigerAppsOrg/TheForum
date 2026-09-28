@@ -16,9 +16,11 @@ import {
   rsvps,
   users,
 } from "@the-forum/database";
+import { z } from "zod";
 import { auth } from "~/auth";
 import { eventDiscoverableBy } from "~/lib/event-visibility";
 import { loadFriendIds } from "~/lib/social-graph";
+import { dateInputSchema, parseInput } from "~/lib/validation";
 
 export interface MapEvent {
   id: string;
@@ -36,6 +38,11 @@ export interface MapEvent {
   friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[];
 }
 
+const mapEventsSchema = z.object({
+  from: dateInputSchema.optional(),
+  days: z.number().int().min(1).max(31).default(7),
+});
+
 /** Fetch events for a date range (defaults to next 7 days). */
 export async function getMapEvents(opts?: {
   from?: string;
@@ -45,14 +52,15 @@ export async function getMapEvents(opts?: {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const input = parseInput(mapEventsSchema, opts ?? {});
 
   const friendIds = await loadFriendIds(userId);
 
-  const startDate = opts?.from ? new Date(opts.from) : new Date();
+  const startDate = input.from ?? new Date();
   startDate.setHours(0, 0, 0, 0);
 
   const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + (opts?.days ?? 7));
+  endDate.setDate(endDate.getDate() + input.days);
   endDate.setHours(23, 59, 59, 999);
 
   const results = await db

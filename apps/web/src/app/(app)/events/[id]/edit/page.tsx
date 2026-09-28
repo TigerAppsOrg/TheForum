@@ -11,7 +11,8 @@ export default async function EditEventPage({
   const [event, locations] = await Promise.all([getEvent(id), getCampusLocations()]);
 
   if (!event) notFound();
-  if (!event.isOwner) redirect(`/events/${id}`);
+  // Creator, or an owner/officer of the event's org.
+  if (!event.canEdit) redirect(`/events/${id}`);
 
   return <EditEventForm event={event} locations={locations} />;
 }

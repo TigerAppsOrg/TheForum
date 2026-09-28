@@ -25,10 +25,28 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
-import { canViewEvent, eventDiscoverableBy, eventVisibleTo } from "~/lib/event-visibility";
+import {
+  canEditEvent,
+  canViewEvent,
+  eventDiscoverableBy,
+  eventEditableBy,
+  eventVisibleTo,
+} from "~/lib/event-visibility";
 import { type FeedPage, loadRankedFeed } from "~/lib/feed";
+import { enforceRateLimit } from "~/lib/rate-limit";
+import { isOurImageUrl, uploadedImageUrlSchema } from "~/lib/s3";
 import { loadFriendIds } from "~/lib/social-graph";
-import { eventTagSchema, idSchema, orgCategorySchema, parseInput } from "~/lib/validation";
+import {
+  dateInputSchema,
+  eventStatusSchema,
+  eventTagSchema,
+  httpsUrlSchema,
+  idSchema,
+  locationIdSchema,
+  orgCategorySchema,
+  parseInput,
+  uniqueEnumArray,
+} from "~/lib/validation";
 
 export interface FeedEvent {
   id: string;
@@ -210,23 +228,26 @@ export async function toggleRsvp(eventId: string): Promise<{
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const id = parseInput(idSchema, eventId);
 
   // Missing, draft or private events the viewer can't see: no-op, exactly as
   // if the event didn't exist (so this can't be used to probe for them).
-  if (!(await canViewEvent(eventId, userId))) {
+  if (!(await canViewEvent(id, userId))) {
     return { rsvped: false, count: 0, attendees: [] };
   }
 
   const [existing] = await db
-    .select()
+    .select({ eventId: rsvps.eventId })
     .from(rsvps)
-    .where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, eventId)))
+    .where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, id)))
     .limit(1);
 
+  // Both branches are idempotent, so a double-click (two concurrent toggles
+  // that both read "not RSVP'd") converges instead of throwing on the PK.
   if (existing) {
-    await db.delete(rsvps).where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, eventId)));
+    await db.delete(rsvps).where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, id)));
   } else {
-    await db.insert(rsvps).values({ userId, eventId });
+    await db.insert(rsvps).values({ userId, eventId: id }).onConflictDoNothing();
   }
 
   // Re-read the roster rather than counting: the count and the avatar stack are
@@ -239,12 +260,12 @@ export async function toggleRsvp(eventId: string): Promise<{
     })
     .from(rsvps)
     .innerJoin(users, eq(rsvps.userId, users.id))
-    .where(eq(rsvps.eventId, eventId));
+    .where(eq(rsvps.eventId, id));
 
   revalidatePath("/explore");
 
   return {
-    rsvped: !existing,
+    rsvped: attendees.some((a) => a.id === userId),
     count: attendees.length,
     attendees,
   };
@@ -255,24 +276,26 @@ export async function toggleSave(eventId: string): Promise<{ saved: boolean }> {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const id = parseInput(idSchema, eventId);
 
   // Missing or not visible to this viewer: no-op.
-  if (!(await canViewEvent(eventId, userId))) {
+  if (!(await canViewEvent(id, userId))) {
     return { saved: false };
   }
 
   const [existing] = await db
-    .select()
+    .select({ eventId: savedEvents.eventId })
     .from(savedEvents)
-    .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, eventId)))
+    .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, id)))
     .limit(1);
 
+  // Idempotent either way — see toggleRsvp.
   if (existing) {
     await db
       .delete(savedEvents)
-      .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, eventId)));
+      .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, id)));
   } else {
-    await db.insert(savedEvents).values({ userId, eventId });
+    await db.insert(savedEvents).values({ userId, eventId: id }).onConflictDoNothing();
   }
 
   revalidatePath("/explore");
@@ -303,7 +326,10 @@ export interface EventDetail {
   friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[];
   isRsvped: boolean;
   isSaved: boolean;
+  /** The viewer created this event (may delete it). */
   isOwner: boolean;
+  /** The viewer may edit it: creator, or owner/officer of its org. */
+  canEdit: boolean;
 }
 
 export async function getEvent(eventId: string): Promise<EventDetail | null> {
@@ -342,7 +368,10 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
 
   if (!event) return null;
 
-  const friendIds = await loadFriendIds(userId);
+  const [friendIds, canEdit] = await Promise.all([
+    loadFriendIds(userId),
+    event.creatorId === userId ? Promise.resolve(true) : canEditEvent(eventId, userId),
+  ]);
   const extra = await loadEventEnrichment([eventId], userId, friendIds);
   const attendees = extra.attendees.get(eventId) ?? [];
 
@@ -368,8 +397,15 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     isRsvped: extra.rsvpedByMe.has(eventId),
     isSaved: extra.savedByMe.has(eventId),
     isOwner: event.creatorId === userId,
+    canEdit,
   };
 }
+
+const similarEventsSchema = z.object({
+  eventId: idSchema,
+  tags: z.array(eventTagSchema).max(eventTagSchema.options.length),
+  orgId: idSchema.nullable(),
+});
 
 export async function getSimilarEvents(
   eventId: string,
@@ -380,22 +416,27 @@ export async function getSimilarEvents(
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const input = parseInput(similarEventsSchema, { eventId, tags, orgId });
 
-  const conditions = [gt(events.datetime, new Date()), eventDiscoverableBy(userId)];
+  const conditions = [
+    gt(events.datetime, new Date()),
+    eventDiscoverableBy(userId),
+    ne(events.id, input.eventId),
+  ];
 
   // Events with matching tags or same org, excluding current event
   const tagFilter =
-    tags.length > 0
+    input.tags.length > 0
       ? inArray(
           events.id,
           db
             .select({ eventId: eventTags.eventId })
             .from(eventTags)
-            .where(inArray(eventTags.tag, tags as (typeof eventTags.$inferSelect.tag)[])),
+            .where(inArray(eventTags.tag, input.tags)),
         )
       : undefined;
 
-  const orgFilter = orgId ? eq(events.orgId, orgId) : undefined;
+  const orgFilter = input.orgId ? eq(events.orgId, input.orgId) : undefined;
 
   const matchFilter = tagFilter && orgFilter ? or(tagFilter, orgFilter) : (tagFilter ?? orgFilter);
 
@@ -417,7 +458,7 @@ export async function getSimilarEvents(
     .from(events)
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
-    .where(and(...conditions, sql`${events.id} != ${eventId}`))
+    .where(and(...conditions))
     .orderBy(events.datetime)
     .limit(4);
 
@@ -450,7 +491,40 @@ export async function getSimilarEvents(
   });
 }
 
-type EventTagValue = typeof eventTags.$inferSelect.tag;
+/** Fields shared by create and update. */
+const eventFieldsSchema = z.object({
+  title: z.string().trim().min(1, { message: "Title is required" }).max(200),
+  description: z.string().trim().max(20_000),
+  datetime: dateInputSchema,
+  endDatetime: dateInputSchema.nullish(),
+  locationId: locationIdSchema,
+  tags: uniqueEnumArray(eventTagSchema).default([]),
+  externalLink: httpsUrlSchema,
+  isPublic: z.boolean().default(true),
+});
+
+type EventFields = z.output<typeof eventFieldsSchema>;
+
+function endNotBeforeStart(data: Pick<EventFields, "datetime" | "endDatetime">) {
+  return !data.endDatetime || data.endDatetime.getTime() >= data.datetime.getTime();
+}
+const END_BEFORE_START = {
+  message: "End time must be after the start time",
+  path: ["endDatetime"],
+};
+
+const createEventSchema = eventFieldsSchema
+  .extend({
+    orgId: idSchema.nullish(),
+    flyerUrl: uploadedImageUrlSchema("event-flyers"),
+    coverPreset: z
+      .string()
+      .max(50)
+      .regex(/^[a-z0-9-]+$/)
+      .nullish(),
+    status: eventStatusSchema.default("published"),
+  })
+  .refine(endNotBeforeStart, END_BEFORE_START);
 
 export async function createEvent(data: {
   title: string;
@@ -470,14 +544,16 @@ export async function createEvent(data: {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const creatorId = session.user.id;
+  const input = parseInput(createEventSchema, data);
+  enforceRateLimit("createEvent", creatorId);
 
-  if (data.orgId) {
+  if (input.orgId) {
     const [membership] = await db
       .select({ orgId: orgMembers.orgId })
       .from(orgMembers)
       .where(
         and(
-          eq(orgMembers.orgId, data.orgId),
+          eq(orgMembers.orgId, input.orgId),
           eq(orgMembers.userId, creatorId),
           inArray(orgMembers.role, ["owner", "officer"]),
         ),
@@ -489,50 +565,51 @@ export async function createEvent(data: {
     }
   }
 
-  const [event] = await db
-    .insert(events)
-    .values({
-      title: data.title,
-      description: data.description,
-      datetime: new Date(data.datetime),
-      endDatetime: data.endDatetime ? new Date(data.endDatetime) : null,
-      locationId: data.locationId,
-      orgId: data.orgId ?? null,
-      creatorId,
-      flyerUrl: data.flyerUrl ?? null,
-      coverPreset: data.coverPreset ?? null,
-      externalLink: data.externalLink ?? null,
-      isPublic: data.isPublic ?? true,
-      status: data.status ?? "published",
-    })
-    .returning({ id: events.id });
+  // Event + tags commit together, so a failure can't leave an untagged event.
+  const eventId = await db.transaction(async (tx) => {
+    const [event] = await tx
+      .insert(events)
+      .values({
+        title: input.title,
+        description: input.description,
+        datetime: input.datetime,
+        endDatetime: input.endDatetime ?? null,
+        locationId: input.locationId,
+        orgId: input.orgId ?? null,
+        creatorId,
+        flyerUrl: input.flyerUrl,
+        coverPreset: input.coverPreset ?? null,
+        externalLink: input.externalLink,
+        isPublic: input.isPublic,
+        status: input.status,
+      })
+      .returning({ id: events.id });
 
-  if (!event) throw new Error("Failed to create event");
+    if (!event) throw new Error("Failed to create event");
 
-  // Insert tags
-  if (data.tags.length > 0) {
-    await db.insert(eventTags).values(
-      data.tags.map((tag) => ({
-        eventId: event.id,
-        tag: tag as EventTagValue,
-      })),
-    );
-  }
+    if (input.tags.length > 0) {
+      await tx
+        .insert(eventTags)
+        .values(input.tags.map((tag) => ({ eventId: event.id, tag })))
+        .onConflictDoNothing();
+    }
+    return event.id;
+  });
 
   // Notify org followers about new event (exclude creator) — only for events
   // followers can actually open: published AND public.
-  if (data.orgId && (data.status ?? "published") === "published" && (data.isPublic ?? true)) {
+  if (input.orgId && input.status === "published" && input.isPublic) {
     const followers = await db
       .select({ userId: orgFollowers.userId })
       .from(orgFollowers)
-      .where(and(eq(orgFollowers.orgId, data.orgId), ne(orgFollowers.userId, creatorId)));
+      .where(and(eq(orgFollowers.orgId, input.orgId), ne(orgFollowers.userId, creatorId)));
 
     if (followers.length > 0) {
       await db.insert(notifications).values(
         followers.map((f) => ({
           userId: f.userId,
           type: "org_new_event" as const,
-          payload: { eventId: event.id, eventTitle: data.title, orgId: data.orgId },
+          payload: { eventId, eventTitle: input.title, orgId: input.orgId },
         })),
       );
     }
@@ -541,8 +618,22 @@ export async function createEvent(data: {
   revalidatePath("/explore");
   revalidatePath("/events");
 
-  return { id: event.id };
+  return { id: eventId };
 }
+
+const updateEventSchema = eventFieldsSchema
+  .extend({
+    // Checked against the event's current flyer below: an unchanged flyer is
+    // always accepted (it may predate uploads, e.g. listserv-ingested events);
+    // a new one must be one of our uploads.
+    flyerUrl: z
+      .string()
+      .trim()
+      .max(2048)
+      .nullish()
+      .transform((v) => (v ? v : null)),
+  })
+  .refine(endNotBeforeStart, END_BEFORE_START);
 
 export async function updateEvent(
   eventId: string,
@@ -561,44 +652,56 @@ export async function updateEvent(
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
-  // Verify ownership
+  const userId = session.user.id;
+  const id = parseInput(idSchema, eventId);
+  const input = parseInput(updateEventSchema, data);
+
+  // Creator, or owner/officer of the event's org.
   const [event] = await db
-    .select({ creatorId: events.creatorId })
+    .select({ flyerUrl: events.flyerUrl })
     .from(events)
-    .where(eq(events.id, eventId))
+    .where(and(eq(events.id, id), eventEditableBy(userId)))
     .limit(1);
 
-  if (!event || event.creatorId !== session.user.id) {
+  if (!event) {
     throw new Error("Not authorized to edit this event");
   }
 
-  await db
-    .update(events)
-    .set({
-      title: data.title,
-      description: data.description,
-      datetime: new Date(data.datetime),
-      endDatetime: data.endDatetime ? new Date(data.endDatetime) : null,
-      locationId: data.locationId,
-      flyerUrl: data.flyerUrl ?? null,
-      externalLink: data.externalLink ?? null,
-      isPublic: data.isPublic ?? true,
-      updatedAt: new Date(),
-    })
-    .where(eq(events.id, eventId));
-
-  // Replace tags
-  await db.delete(eventTags).where(eq(eventTags.eventId, eventId));
-  if (data.tags.length > 0) {
-    await db.insert(eventTags).values(
-      data.tags.map((tag) => ({
-        eventId,
-        tag: tag as EventTagValue,
-      })),
-    );
+  if (
+    input.flyerUrl !== null &&
+    input.flyerUrl !== event.flyerUrl &&
+    !isOurImageUrl(input.flyerUrl, "event-flyers")
+  ) {
+    throw new Error("Invalid input — flyerUrl: Image must be uploaded through The Forum");
   }
 
-  revalidatePath(`/events/${eventId}`);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(events)
+      .set({
+        title: input.title,
+        description: input.description,
+        datetime: input.datetime,
+        endDatetime: input.endDatetime ?? null,
+        locationId: input.locationId,
+        flyerUrl: input.flyerUrl,
+        externalLink: input.externalLink,
+        isPublic: input.isPublic,
+        updatedAt: new Date(),
+      })
+      .where(eq(events.id, id));
+
+    // Replace tags
+    await tx.delete(eventTags).where(eq(eventTags.eventId, id));
+    if (input.tags.length > 0) {
+      await tx
+        .insert(eventTags)
+        .values(input.tags.map((tag) => ({ eventId: id, tag })))
+        .onConflictDoNothing();
+    }
+  });
+
+  revalidatePath(`/events/${id}`);
   revalidatePath("/explore");
   revalidatePath("/events");
 }
@@ -607,17 +710,19 @@ export async function deleteEvent(eventId: string): Promise<void> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
+  const id = parseInput(idSchema, eventId);
+
   const [event] = await db
     .select({ creatorId: events.creatorId })
     .from(events)
-    .where(eq(events.id, eventId))
+    .where(eq(events.id, id))
     .limit(1);
 
   if (!event || event.creatorId !== session.user.id) {
     throw new Error("Not authorized to delete this event");
   }
 
-  await db.delete(events).where(eq(events.id, eventId));
+  await db.delete(events).where(eq(events.id, id));
 
   revalidatePath("/explore");
   revalidatePath("/events");

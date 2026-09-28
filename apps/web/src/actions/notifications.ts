@@ -17,6 +17,7 @@ import {
 } from "@the-forum/database";
 import { auth } from "~/auth";
 import { eventVisibleTo } from "~/lib/event-visibility";
+import { idSchema, parseInput } from "~/lib/validation";
 
 export interface NotificationItem {
   id: string;
@@ -135,10 +136,12 @@ export async function markNotificationRead(notificationId: string): Promise<void
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
+  const id = parseInput(idSchema, notificationId);
+
   await db
     .update(notifications)
     .set({ read: true })
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, session.user.id)));
+    .where(and(eq(notifications.id, id), eq(notifications.userId, session.user.id)));
 }
 
 export async function markAllNotificationsRead(): Promise<void> {

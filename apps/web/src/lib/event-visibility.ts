@@ -56,6 +56,16 @@ export function eventEditableBy(viewerId: string) {
   return editable;
 }
 
+/** True if `eventId` exists and `viewerId` may edit it. */
+export async function canEditEvent(eventId: string, viewerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(and(eq(events.id, eventId), eventEditableBy(viewerId)))
+    .limit(1);
+  return !!row;
+}
+
 /** True if `eventId` exists and is visible to `viewerId`. */
 export async function canViewEvent(eventId: string, viewerId: string): Promise<boolean> {
   const [row] = await db
