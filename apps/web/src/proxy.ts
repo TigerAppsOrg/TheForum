@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "~/auth";
 
-export const runtime = "nodejs";
+// Next 16 "proxy" (formerly middleware). Always runs on the Node.js runtime,
+// so no `runtime` segment config is allowed here.
 
 export default auth((req) => {
   const { nextUrl } = req;
