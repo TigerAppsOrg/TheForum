@@ -29,23 +29,65 @@
       "dependsOn": ["^check-types"]
     },
     "db:generate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:push": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:studio": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:seed": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:sync-engine": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     }
   }
 }

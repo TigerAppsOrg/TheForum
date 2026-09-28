@@ -168,6 +168,28 @@ the new submodule pointer.
 
 ---
 
+## Deployment
+
+| Branch | URL | Service (on `the-forum-web` EC2) | Database |
+|---|---|---|---|
+| `staging` | https://forumdev.tigerapps.org | `theforum-staging` on :3100 | `theforum_staging` (RDS) |
+| `main` | https://forum.tigerapps.org | `theforum-production` on :3200 | `theforum` (RDS) |
+
+Every push to `staging` or `main` runs CI, then `.github/workflows/deploy.yml`:
+
+1. Builds a Next.js standalone server with the public map tokens (repo variables) and the
+   environment's `NEXT_PUBLIC_SITE_URL`, and bundles `tools/migrate.js` and `tools/sync.js` with Bun
+   (`deploy/build-release.sh`).
+2. Uploads the checksummed tarball to S3 through GitHub OIDC (`TheForumGitHubDeployRole`).
+3. Runs the `TheForumDeploy` SSM document on the instance, which executes `deploy/run-release.sh`:
+   fetch the SecureString `/theforum/<env>/environment`, run migrations, switch the `current`
+   symlink, restart systemd, health-check with automatic rollback, install the nginx site, and
+   enable the five-minute InboxEngine sync timer.
+
+nginx serves each host on :80 behind Cloudflare (TLS at the edge); `theforumdev.tigerapps.org`
+redirects to `forumdev`. InboxEngine runs on the same host (`inbox-engine.service`, :8300).
+To change runtime configuration, update the SSM parameter and redeploy (or re-run the workflow).
+
 ## Branching workflow
 
 `main` is protected — you cannot push to it directly, and pull requests into `main`

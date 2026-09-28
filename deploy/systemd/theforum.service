@@ -1,0 +1,26 @@
+[Unit]
+Description=The Forum (@ENV@) Next.js server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=theforum
+Group=theforum
+WorkingDirectory=/opt/theforum/@ENV@/current/web/apps/web
+EnvironmentFile=/opt/theforum/@ENV@/shared/environment
+Environment=PORT=@PORT@
+Environment=HOSTNAME=127.0.0.1
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=@NODE@ server.js
+Restart=always
+RestartSec=5
+MemoryMax=600M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=-/opt/theforum/@ENV@/current/web/apps/web/.next/cache
+
+[Install]
+WantedBy=multi-user.target
