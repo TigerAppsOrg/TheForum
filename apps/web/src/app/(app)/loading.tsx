@@ -6,8 +6,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 export default function AppLoading() {
   return (
     <PageShell>
-      <Skeleton className="mb-3 h-10 w-64 sm:h-12" />
-      <Skeleton className="mb-8 h-4 w-48" />
+      <Skeleton className="mb-2 h-6 w-40" />
+      <Skeleton className="mb-4 h-10 w-full" />
       <EventCardSkeletonList count={4} />
     </PageShell>
   );
