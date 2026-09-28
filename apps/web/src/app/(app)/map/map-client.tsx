@@ -48,7 +48,7 @@ const EventDetailModal = dynamic(
 );
 
 /* ═══ Filter types ═══ */
-export type FilterKey = "friends" | "now" | "attending";
+export type FilterKey = "friends" | "now";
 
 /* ═══ Component ═══ */
 interface MapClientProps {
@@ -92,6 +92,9 @@ export function MapClient({ initialEvents }: MapClientProps) {
     }
     if (activeFilters.has("now")) {
       result = result.filter((e) => getTimeGroup(e.rawDatetime) === "now");
+    }
+    if (activeFilters.has("friends")) {
+      result = result.filter((e) => e.friendsAttending.length > 0);
     }
     return result;
   }, [events, selectedDate, searchQuery, activeFilters]);
