@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type FeedEvent, deleteEvent, toggleRsvp, toggleSave } from "~/actions/events";
+import { CalendarView } from "~/components/calendar/calendar-view";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
 import { EventCollection, EventViewToggle } from "~/components/events/event-collection";
@@ -119,56 +120,70 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabId)}>
       <div className="flex items-end justify-between gap-3 border-b border-forum-border">
-        <TabsList variant="line" className="h-auto justify-start gap-4">
-          {TABS.map(({ id, label }) => (
-            <TabsTrigger
-              key={id}
-              value={id}
-              // Type scales down on phones so three tabs fit without clipping.
-              className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
-            >
-              {label}
-              <span className="ml-1 font-normal text-forum-light-gray">{eventMap[id].length}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <EventViewToggle view={view} onChange={setView} className="mb-1.5" />
+        {view === "calendar" ? (
+          <p className="py-2 font-dm-sans text-[13px] text-forum-dark-gray">
+            Going, Saved and the organizations you follow
+          </p>
+        ) : (
+          <TabsList variant="line" className="h-auto justify-start gap-4">
+            {TABS.map(({ id, label }) => (
+              <TabsTrigger
+                key={id}
+                value={id}
+                // Type scales down on phones so three tabs fit without clipping.
+                className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
+              >
+                {label}
+                <span className="ml-1 font-normal text-forum-light-gray">
+                  {eventMap[id].length}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        )}
+        <EventViewToggle view={view} onChange={setView} withCalendar className="mb-1.5" />
       </div>
 
-      {TABS.map(({ id, emptyTitle, emptyBody }) => (
-        <TabsContent key={id} value={id} className="mt-3">
-          {eventMap[id].length > 0 ? (
-            <EventCollection
-              items={eventMap[id]}
-              view={view}
-              renderItem={(event, index, density) => (
-                <EventCard
-                  key={event.id}
-                  {...event}
-                  density={density}
-                  className={density === "default" ? "h-full" : undefined}
-                  {...(id === "created"
-                    ? {
-                        editHref: `/events/${event.id}/edit`,
-                        onDelete: () => setPendingDelete(event),
-                      }
-                    : {})}
-                  onSaveToggle={() => handleSaveToggle(event.id)}
-                  onRsvpToggle={() => handleRsvpToggle(event.id)}
-                  onShare={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
-                    toast.success("Link copied to clipboard");
-                  }}
-                  source="feed"
-                  position={index}
-                />
-              )}
-            />
-          ) : (
-            <EmptyState title={emptyTitle} description={emptyBody} />
-          )}
-        </TabsContent>
-      ))}
+      {view === "calendar" ? (
+        <div className="mt-4">
+          <CalendarView />
+        </div>
+      ) : (
+        TABS.map(({ id, emptyTitle, emptyBody }) => (
+          <TabsContent key={id} value={id} className="mt-3">
+            {eventMap[id].length > 0 ? (
+              <EventCollection
+                items={eventMap[id]}
+                view={view}
+                renderItem={(event, index, density) => (
+                  <EventCard
+                    key={event.id}
+                    {...event}
+                    density={density}
+                    className={density === "default" ? "h-full" : undefined}
+                    {...(id === "created"
+                      ? {
+                          editHref: `/events/${event.id}/edit`,
+                          onDelete: () => setPendingDelete(event),
+                        }
+                      : {})}
+                    onSaveToggle={() => handleSaveToggle(event.id)}
+                    onRsvpToggle={() => handleRsvpToggle(event.id)}
+                    onShare={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
+                      toast.success("Link copied to clipboard");
+                    }}
+                    source="feed"
+                    position={index}
+                  />
+                )}
+              />
+            ) : (
+              <EmptyState title={emptyTitle} description={emptyBody} />
+            )}
+          </TabsContent>
+        ))
+      )}
 
       <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <DialogContent>
