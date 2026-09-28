@@ -1,6 +1,5 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -15,9 +14,9 @@ import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, ErrorState, EventCardSkeletonList } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
 import { EventFilters } from "~/components/events/event-filters";
-import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
-import { Button } from "~/components/ui/button";
-import { buildGCalUrl } from "~/lib/calendar";
+import { EventList } from "~/components/events/event-list";
+import { MiniEventList } from "~/components/events/mini-event-list";
+import { PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { formatLongDate, formatRelativeDay } from "~/lib/date-format";
 
 interface ExploreClientProps {
@@ -72,7 +71,6 @@ export function ExploreClient({
    * and without this the slower-but-older response lands last and wins.
    */
   const latestRequest = useRef(0);
-  const firstName = useMemo(() => userName.split(" ")[0] || "there", [userName]);
 
   /** Drop a queued debounced search — it carries whatever filters were active when it was armed. */
   const cancelPendingSearch = useCallback(() => {
@@ -199,64 +197,46 @@ export function ExploreClient({
   }, []);
 
   const upcomingList = useMemo(
-    () => (savedEvents.length > 0 ? savedEvents : events).slice(0, 3),
+    () => (savedEvents.length > 0 ? savedEvents : events).slice(0, 5),
     [savedEvents, events],
   );
 
+  const describeWhen = (event: FeedEvent) =>
+    event.rawDatetime
+      ? `${formatRelativeDay(new Date(event.rawDatetime)).replace(/^on /, "")} · ${event.location}`
+      : `${event.datetime} · ${event.location}`;
+
   /*
-   * Single column that scrolls with the page on phones; the two-column layout
-   * with its own internal scroll only kicks in at xl, where the right rail
-   * appears. Nesting a scroll container inside the page scroller on a phone
-   * made the feed feel stuck.
-   *
-   * The shell runs full width rather than `wide` (max-w-7xl) so the row's right
-   * edge is the content area's right edge. That is what keeps the highlights
-   * rail still while the nav rail expands: only the shell's *left* edge moves,
-   * so the greeting, search field and cards slide right and the feed narrows,
-   * while the rail — pinned to the right by `ml-auto` — does not budge. With a
-   * capped shell the whole row re-centred and the rail travelled with it.
+   * Search-first and dense: search + topic chips, then one list of event rows.
+   * The side panels sit beside the list from `lg` and below it on smaller
+   * screens, so friends' plans and saved events are reachable on phones too.
    */
   return (
-    <PageShell width="full" className="flex flex-col gap-8 xl:h-full xl:flex-row">
-      {/* CENTER — Feed. Capped so cards stay card-sized on very wide displays. */}
-      <div className="flex min-w-0 max-w-[1000px] flex-1 flex-col gap-5 xl:overflow-y-auto">
-        <PageHeading
-          description={
-            <>
-              <span
-                aria-hidden
-                className="mr-2 inline-block size-[10px] rounded-full bg-forum-coral align-middle"
-              />
-              <span className="font-serif text-[16px] italic text-black">
-                Today is {getTodayString()}
-              </span>
-            </>
-          }
-        >
-          <span className="font-normal">Hello </span>
-          <span className="font-bold italic">{firstName},</span>
-        </PageHeading>
-
+    <PageShell>
+      <h1 className="sr-only">Explore events</h1>
+      <div className="mb-3 flex flex-col gap-2.5">
         <SearchInput
           label="Search events"
-          placeholder="Search for events"
+          placeholder="Search events, places, organizations…"
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
+          className="h-10"
         />
-
         <EventFilters activeFilters={activeFilters} onFilterToggle={handleFilterToggle} />
+      </div>
 
-        {/* Result count, so a filtered feed says how filtered it is */}
-        {(searchQuery.trim() || activeFilters.length > 0) && !loadError && (
-          <p className="font-dm-sans text-[12px] text-forum-light-gray">
-            {isPending
-              ? "Searching…"
-              : `${total} ${total === 1 ? "event matches" : "events match"}`}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <section aria-label="Events" className="min-w-0">
+          <p className="mb-2 font-dm-sans text-[12px] text-forum-light-gray">
+            {searchQuery.trim() || activeFilters.length > 0
+              ? loadError
+                ? "Search failed"
+                : isPending
+                  ? "Searching…"
+                  : `${total} ${total === 1 ? "event matches" : "events match"}`
+              : `Upcoming · ${getTodayString()}`}
           </p>
-        )}
 
-        {/* Feed */}
-        <div className="flex flex-col gap-5">
           {loadError ? (
             <ErrorState
               title="Couldn't load events"
@@ -278,28 +258,12 @@ export function ExploreClient({
               }
             />
           ) : (
-            /*
-             * Two columns from `sm` up. Cards stretch to the row height so a
-             * short description doesn't leave its neighbour's RSVP row floating
-             * at a different height.
-             */
-            <div className="grid gap-5 sm:grid-cols-2">
+            <EventList className={isPending ? "opacity-60 transition-opacity" : undefined}>
               {events.map((event, index) => (
                 <EventCard
                   key={event.id}
                   {...event}
-                  className="h-full"
-                  calendarUrl={
-                    event.rawDatetime
-                      ? buildGCalUrl({
-                          title: event.title,
-                          description: event.description,
-                          datetime: new Date(event.rawDatetime),
-                          endDatetime: null,
-                          locationName: event.location,
-                        })
-                      : undefined
-                  }
+                  density="row"
                   source="feed"
                   position={index}
                   onSaveToggle={() => handleSaveToggle(event.id)}
@@ -321,126 +285,49 @@ export function ExploreClient({
                   }}
                 />
               ))}
-            </div>
+            </EventList>
           )}
-        </div>
-      </div>
+        </section>
 
-      {/* RIGHT PANEL */}
-      {/*
-        Nudged down so "Find My Friends" starts level with the "Today is…" line
-        rather than the greeting above it: the h1 is 52px at this breakpoint
-        plus the 8px gap to its description.
-      */}
-      <aside
-        aria-label="Highlights"
-        className="hidden w-[320px] shrink-0 flex-col gap-8 overflow-y-auto xl:ml-auto xl:flex xl:pt-[60px]"
-      >
-        {/* Find My Friends */}
-        <section>
-          <SectionHeading>Find My Friends</SectionHeading>
-          {friendsEvents.length === 0 ? (
-            <p className="font-dm-sans text-[13px] text-forum-light-gray">
-              None of your friends have RSVP'd to an event yet.
-            </p>
-          ) : (
-            /* Hairline dividers instead of gaps — keeps a longer list calm. */
-            <ul className="divide-y divide-forum-medium-gray">
-              {friendsEvents.slice(0, 4).map((event) => {
+        <aside aria-label="Highlights" className="flex flex-col gap-6 lg:pt-6">
+          <section>
+            <SectionHeading>Friends going</SectionHeading>
+            <MiniEventList
+              empty="None of your friends have RSVP'd to an event yet."
+              items={friendsEvents.slice(0, 5).map((event) => {
                 const friend = event.friendsAttending[0];
-                return (
-                  <li key={event.id} className="flex items-center gap-3 py-3 first:pt-1">
-                    {friend?.avatarUrl ? (
-                      <img
-                        src={friend.avatarUrl}
-                        alt=""
-                        className="size-10 shrink-0 rounded-full object-cover ring-2 ring-forum-medium-gray"
-                      />
-                    ) : (
-                      <span
-                        aria-hidden
-                        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-forum-cerulean font-dm-sans text-[14px] font-bold text-white ring-2 ring-forum-medium-gray"
-                      >
-                        {friend?.displayName[0]?.toUpperCase() ?? "?"}
-                      </span>
-                    )}
-
-                    <div className="min-w-0 flex-1">
-                      <p className="font-dm-sans text-[13px] leading-snug text-black line-clamp-2">
-                        <span className="font-bold text-forum-cerulean">
-                          {friend?.displayName.split(" ")[0] ?? "A friend"}
-                        </span>{" "}
-                        is going to{" "}
-                        <span className="font-bold text-forum-cerulean">{event.title}</span>.
-                      </p>
-                      <p className="mt-1 truncate font-dm-sans text-[11px] text-forum-light-gray">
-                        {event.location} @ {event.datetime}
-                      </p>
-                    </div>
-
-                    <Button
-                      asChild
-                      variant="coral"
-                      size="xs"
-                      className="shrink-0 rounded-full px-3 text-[10px] font-bold tracking-wide"
-                    >
-                      <Link href={`/events/${event.id}`}>VIEW EVENT</Link>
-                    </Button>
-                  </li>
-                );
+                const others = event.friendsAttending.length - 1;
+                return {
+                  id: event.id,
+                  title: event.title,
+                  eyebrow: `${friend?.displayName.split(" ")[0] ?? "A friend"}${
+                    others > 0 ? ` + ${others}` : ""
+                  } going`,
+                  meta: describeWhen(event),
+                };
               })}
-            </ul>
-          )}
-
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="mt-4 w-full rounded-full text-[10px] font-bold tracking-wide text-forum-dark-gray"
-          >
-            <Link href="/friends">
-              VIEW ALL FRIENDS
-              <ExternalLink />
+            />
+            <Link
+              href="/friends"
+              className="mt-2 inline-block font-dm-sans text-[12px] font-medium text-forum-cerulean hover:underline"
+            >
+              Friends →
             </Link>
-          </Button>
-        </section>
+          </section>
 
-        {/* Upcoming Events */}
-        <section>
-          <SectionHeading>Upcoming Events</SectionHeading>
-          {upcomingList.length === 0 ? (
-            <p className="font-dm-sans text-[13px] text-forum-light-gray">
-              No upcoming events yet.
-            </p>
-          ) : (
-            <ul className="divide-y divide-forum-medium-gray">
-              {upcomingList.map((event) => (
-                <li key={event.id} className="flex items-center gap-3 py-3 first:pt-1">
-                  <div className="size-12 shrink-0 overflow-hidden rounded-lg bg-forum-turquoise/40">
-                    {event.flyerUrl && (
-                      <img src={event.flyerUrl} alt="" className="size-full object-cover" />
-                    )}
-                  </div>
-
-                  <p className="min-w-0 flex-1 font-dm-sans text-[13px] leading-snug text-black line-clamp-2">
-                    <span className="font-bold">{event.title}</span> is happening{" "}
-                    {event.rawDatetime ? formatRelativeDay(new Date(event.rawDatetime)) : "soon"}!
-                  </p>
-
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="xs"
-                    className="shrink-0 rounded-full px-3 text-[10px] font-bold tracking-wide text-forum-dark-gray"
-                  >
-                    <Link href={`/events/${event.id}`}>DETAILS</Link>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </aside>
+          <section>
+            <SectionHeading>{savedEvents.length > 0 ? "Saved" : "Coming up"}</SectionHeading>
+            <MiniEventList
+              empty="No upcoming events yet."
+              items={upcomingList.map((event) => ({
+                id: event.id,
+                title: event.title,
+                meta: describeWhen(event),
+              }))}
+            />
+          </section>
+        </aside>
+      </div>
     </PageShell>
   );
 }
