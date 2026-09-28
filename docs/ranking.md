@@ -1,6 +1,6 @@
 # Explore feed ranking
 
-This describes how `getFeedEvents()` (`apps/web/src/actions/events.ts`) orders the Explore
+This describes how `getFeedEvents()` (`apps/web/src/actions/events.ts`, implemented in `apps/web/src/lib/feed.ts`) orders the Explore
 feed. It's a plain SQL + in-memory weighted score — no ML, no external service.
 
 ## The formula, in plain English
@@ -58,7 +58,7 @@ compelling; it doesn't climb further past that.
 
 - **1.0** if you follow or belong to the event's org.
 - **0.5** if you don't, but you've RSVP'd to that org's events before
-  (`ORG_PAST_INTERACTION_AFFINITY` in `events.ts`) — a weaker signal of interest.
+  (`ORG_PAST_INTERACTION_AFFINITY` in `lib/feed-ranking.ts`) — a weaker signal of interest.
 - **0** otherwise, or if the event has no org.
 
 ### Recency boost
@@ -88,77 +88,99 @@ always gets the same nudge, so refreshing Explore never reshuffles it. The nudge
 once a day, so events that would otherwise tie get some variety over time. Ties still break
 by soonest event first.
 
-## Candidate pool: why scoring needs more than one page
+## Where the code lives
 
-The DB query pulls every upcoming, published event matching the feed's filters — not just the
-requested page (`limit`/`offset`) — scores all of them, sorts by score, and only then slices
-out the requested page. If scoring only ever ran against the 20 events the caller asked for,
-personalization would have nothing to work with — the soonest 20 would always be exactly
-what's returned, just reshuffled. Scoring the full candidate set lets a highly relevant event
-further down the calendar outrank a less relevant one that merely happens sooner, no matter
-how many other events are scheduled in between.
+| File | What |
+|---|---|
+| `apps/web/src/actions/events.ts` → `getFeedEvents()` | Server action: auth + zod validation of params, then delegates |
+| `apps/web/src/lib/feed.ts` → `loadRankedFeed()` | Candidate generation, batched enrichment, pagination |
+| `apps/web/src/lib/feed-ranking.ts` | Pure scoring + ordering (`scoreEvent`, `finalizeFeedOrder`) and every tunable constant |
 
-`total` is simply the size of that candidate set, so it always agrees with what `limit`/`offset`
-can actually reach — there's no separate count that could promise more than pagination can
-deliver. Enrichment (tags, rsvp/view counts, friend attendance, user state) is batched via
-`inArray(...)` across the whole candidate set rather than queried per event, so a wider pool
-doesn't multiply query count — it stays at a fixed handful of queries regardless of how many
-candidates are scored.
+## Pipeline
 
-### Bounded by calendar distance, not row count
+1. **Candidate generation** — which events get ranked at all (below).
+2. **Batched enrichment** — tags, RSVP counts, view counts, friends attending, and the viewer's
+   own RSVP/save state for *every* candidate, one `inArray(...)` query per signal (six queries
+   total, independent of pool size). No per-event queries.
+3. **Score + sort** — score desc, then soonest first, then event id. A total order, so the sort is
+   fully deterministic.
+4. **Finalize one order over the whole list** — org-diversity cap and soon-event quota
+   (below) are applied to the complete ranked list, *before* pagination.
+5. **Paginate** — the requested page is `finalOrder.slice(offset, offset + limit)`.
+6. **Attendee rosters** — the full "N attending" list is loaded for the returned page only.
 
-When no explicit `dateRange` filter is applied, candidates are bounded to the next
-`CANDIDATE_HORIZON_DAYS` (14) days, rounded up to the end of that day. This replaced an earlier
-version that capped the candidate pool at a fixed row count (the soonest 100 events) — that
-approach meant a highly relevant event could be excluded from ranking entirely just because 100
-*other* events happened to be scheduled sooner, regardless of how strong its interest/friend/org
-signal was. A calendar-distance bound doesn't have that failure mode: every event within the
-next two weeks is always a candidate, no matter how many other events fall before it. An
-explicit `dateRange` param (`today`/`week`/`month`) overrides the default horizon with its own
-narrower or wider window.
+`total` is the length of the finalized list, so it always agrees with what `offset`/`limit` can
+reach.
 
-Events further out than the horizon never enter ranking by default — this is an intentional
-product choice (Explore surfaces what's happening soon, not the whole semester's calendar), not
-a scale workaround. `CANDIDATE_POOL_SAFETY_VALVE` (5000) is a separate, purely defensive row
-limit on top of the horizon, in case an unusually dense window ever produced a pathological
-result size — it isn't expected to bind at realistic campus-event scale.
+## Candidate pool
+
+Scoring has to see more than one page — if only the 20 soonest events were scored, a highly
+relevant event further out could never outrank a weak one that merely happens sooner.
+
+**Stage 1 — calendar horizon.** Every published, visible, upcoming event matching the filters
+within the next `CANDIDATE_HORIZON_DAYS` (45) days, rounded up to end of day, soonest first, up
+to `CANDIDATE_POOL_CAP` (1000) rows. An explicit `dateRange` filter (`today`/`week`/`month`)
+replaces the default horizon. At the expected scale (hundreds of events per semester) the cap
+never binds and stage 1 *is* the whole pool. Scoring 1000 candidates in memory is a few
+milliseconds; the batched enrichment queries stay well below Postgres' bind-parameter limit.
+
+**Stage 2 — personalised expansion (only if stage 1 saturates).** If stage 1 returns exactly
+`CANDIDATE_POOL_CAP` rows, a second query over the same filters and horizon fetches up to
+`PERSONAL_CANDIDATE_CAP` (500) events *at or after* the stage-1 cutoff that carry a personal
+signal: hosted by an org the viewer follows/belongs to, RSVP'd by a friend, or tagged with one
+of the viewer's interests. These are merged (de-duplicated) into the pool. So a dense calendar
+can crowd out generic far-future events, but not the ones this particular viewer is likely to
+care about — unlike the old "100 soonest" hard wall. A warning is logged when this path runs,
+as the signal to revisit the constants.
+
+Events beyond the horizon never enter ranking by default — a product choice (Explore is about
+the next several weeks), not a scale workaround.
 
 ## Org diversity cap
 
-After sorting by score, results are capped at `ORG_DIVERSITY_CAP` (3) events per org — once
-an org hits 3, its remaining events are pushed later (not dropped), so one heavily-posting
-org can't dominate the top of the feed. Events without an org are never capped.
+At most `ORG_DIVERSITY_CAP` (3) events from one org in any `ORG_DIVERSITY_WINDOW` (20)
+consecutive feed positions — i.e. no page is dominated by one heavy-posting org. Events without
+an org are never capped. Over-cap events are *deferred*, not dropped: they re-enter as soon as
+the window slides past the org's earlier events. (The original PR #38 version deferred every
+over-cap event to the very end of the feed; the sliding window keeps a followed org's 4th event
+reachable a page later instead of behind hundreds of others.)
+
+The only time the cap is exceeded is at the tail, when *every* remaining event is from an org
+already at the cap in the current window — there is nothing else left to show, so the
+highest-scoring remaining event is placed.
 
 ## Guaranteeing imminent events aren't buried
 
-Friend RSVPs (weight 4.0) can outweigh time proximity (weight 2.0), so an event with strong
-social signal three weeks out could in principle outscore one happening tomorrow with no
-friends attending yet. To keep "what's happening soon" reliably visible, the first
-`SOON_INJECTION_WINDOW` (20) positions of the ranked, diversified feed always include at least
-`SOON_QUOTA` (3) events within `SOON_WINDOW_DAYS` (1) day, even if their score wouldn't
-naturally place them there.
+Friend RSVPs (weight 4.0) can outweigh time proximity (weight 2.0), so an event with strong social
+signal three weeks out could outscore one happening tomorrow. To keep "what's happening soon"
+visible, the first `SOON_INJECTION_WINDOW` (20) positions include at least `SOON_QUOTA` (3)
+events starting within `SOON_WINDOW_DAYS` (1) day, spread evenly (by positions 5, 10 and 15).
+Soon events that already rank there naturally count toward the quota; only a shortfall causes
+the highest-scoring *missing* soon event to be pulled forward.
 
-This window is a fixed size, independent of the `limit`/`offset` a given request happens to
-use — the whole feed is reordered into one final, stable sequence first, and *then* sliced into
-pages. That means two requests for the same feed with different page sizes see the same
-underlying order, and no event can appear on two different pages or be silently dropped by the
-guarantee.
+**The quota never breaks the org cap.** A soon event is only pulled forward if its org is under
+the cap in the current window; if no such soon event exists, the quota is left unmet. "Max 3
+per org per page" wins over "3 soon events near the top".
 
-This is a **merge**, not a score override: if the front of the feed already has enough soon
-events, nothing changes. Otherwise the highest-scoring soon events missing from that window are
-interleaved into it at evenly-spaced positions, removed from their original later position —
-everything else keeps its normal score order. It only backfills what score order left out, the
-way feeds inject a freshness quota without letting it take over the whole ranking.
+The window is fixed, independent of `limit`/`offset`, so page size never changes the order.
 
-The injection never breaks the org diversity cap above: a soon event whose org already has
-`ORG_DIVERSITY_CAP` events in the front window is skipped, even if that means fewer than
-`SOON_QUOTA` soon events end up there. "Max 3 per org near the top" holds regardless of the
-soon-event guarantee — the two rules compose rather than one silently overriding the other.
+## Pagination and `asOf`
 
-All the tunable constants above (`SOON_WINDOW_DAYS`, `SOON_QUOTA`, `SOON_INJECTION_WINDOW`,
-`ORG_DIVERSITY_CAP`, `CANDIDATE_HORIZON_DAYS`, `CANDIDATE_POOL_SAFETY_VALVE`,
-`POPULARITY_VIEW_CAP`, `POPULARITY_WEIGHT`, `RANDOM_WEIGHT`, `ORG_PAST_INTERACTION_AFFINITY`)
-live at the top of `events.ts`.
+Both rules above are part of one greedy pass (`finalizeFeedOrder`) over the full ranked list,
+producing a permutation of it (nothing added or dropped). Pages are plain slices of that array,
+so within one ranking no event can appear on two pages or be skipped.
+
+Scores depend on "now" (time proximity, recency, which events count as soon, the daily nudge
+seed, and which events have already started). To keep page 2 a slice of the *same* ranking as
+page 1, every response includes `asOf` — the instant it was ranked for — and the client sends it
+back with the next `offset`. The server reuses it as "now" if it is at most 30 minutes old
+(otherwise it ranks fresh). Data that changes between requests (a new RSVP, a new event) can
+still shift the order slightly; the client de-duplicates by id when appending as a safety net.
+
+All tunable constants (`CANDIDATE_HORIZON_DAYS`, `CANDIDATE_POOL_CAP`, `PERSONAL_CANDIDATE_CAP`,
+`WEIGHTS`, `TIME_HALF_LIFE_DAYS`, `ORG_PAST_INTERACTION_AFFINITY`, `POPULARITY_VIEW_CAP`,
+`ORG_DIVERSITY_CAP`, `ORG_DIVERSITY_WINDOW`, `SOON_WINDOW_DAYS`, `SOON_QUOTA`,
+`SOON_INJECTION_WINDOW`) live at the top of `apps/web/src/lib/feed-ranking.ts`.
 
 ## Edge cases
 
