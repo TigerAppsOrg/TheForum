@@ -16,9 +16,12 @@ if (url) process.env.DATABASE_URL = url;
 const TEST_NET_ID = "_feedcontrols_test";
 let userId = "";
 
-mock.module("~/auth", () => ({
-  auth: async () => ({ user: { id: userId } }),
-}));
+// Server actions (the map) read the session from ~/auth; stand in the test user.
+if (url) {
+  mock.module("~/auth", () => ({
+    auth: async () => ({ user: { id: userId } }),
+  }));
+}
 
 describe.skipIf(!url)("feed controls (database)", () => {
   let dbm: typeof import("@the-forum/database");

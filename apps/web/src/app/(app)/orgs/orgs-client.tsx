@@ -2,7 +2,7 @@
 
 import { Check, Eye, EyeOff, Plus, Users } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   type HiddenOrg,
@@ -59,6 +59,12 @@ export function OrgsClient({
     showHidden && initialHidden.length > 0 ? HIDDEN : "all",
   );
   const viewingHidden = activeCategory === HIDDEN;
+  const hiddenChipRef = useRef<HTMLButtonElement>(null);
+
+  // Arriving on /orgs?view=hidden: bring the chip into view in the scrolling row (phones).
+  useEffect(() => {
+    if (showHidden) hiddenChipRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [showHidden]);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   const refreshOrgs = useCallback((search?: string, category?: string) => {
@@ -162,7 +168,11 @@ export function OrgsClient({
         ))}
         {/* Only once something is hidden — or while viewing the list, so unhiding the last one doesn't yank it away. */}
         {(hidden.length > 0 || viewingHidden) && (
-          <FilterChip active={viewingHidden} onClick={() => handleCategoryChange(HIDDEN)}>
+          <FilterChip
+            ref={hiddenChipRef}
+            active={viewingHidden}
+            onClick={() => handleCategoryChange(HIDDEN)}
+          >
             <EyeOff aria-hidden />
             Hidden
             <span className="text-forum-light-gray">{hidden.length}</span>
