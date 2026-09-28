@@ -6,6 +6,8 @@ export interface NavItem {
   label: string;
   /** Second key of the "g then …" keyboard shortcut. */
   shortcut: string;
+  /** Tab-bar label on phones, where width is tight. */
+  shortLabel?: string;
 }
 
 /**
@@ -17,7 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/events", icon: CalendarDays, label: "My Events", shortcut: "e" },
   { href: "/map", icon: MapPin, label: "Map", shortcut: "m" },
   { href: "/friends", icon: Users, label: "Friends", shortcut: "f" },
-  { href: "/orgs", icon: Building2, label: "Organizations", shortcut: "o" },
+  { href: "/orgs", icon: Building2, label: "Organizations", shortcut: "o", shortLabel: "Orgs" },
 ];
 
 /**

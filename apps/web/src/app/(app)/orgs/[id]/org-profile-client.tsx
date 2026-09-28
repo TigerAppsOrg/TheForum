@@ -180,7 +180,7 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
               </span>
             ))}
           </p>
-          {org.tagline && (
+          {org.tagline && !/^add a tagline here\.?$/i.test(org.tagline.trim()) && (
             <p className="font-dm-sans text-sm italic text-forum-dark-gray">{org.tagline}</p>
           )}
           <div className="mt-1 flex flex-wrap gap-2">
