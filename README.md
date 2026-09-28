@@ -6,7 +6,7 @@ This is a [Turborepo](https://turbo.build) monorepo managed with [Bun](https://b
 
 | Package | What it is |
 |---|---|
-| `apps/web` | **The main app** — Next.js 15 (App Router), React 19, Tailwind v4, shadcn/ui |
+| `apps/web` | **The main app** — Next.js 16 (App Router), React 19, Tailwind v4, shadcn/ui |
 | `apps/database` | Shared Drizzle ORM schema + migrations (PostgreSQL) |
 | `apps/admin-web` | Admin dashboard — Vite + React |
 | `backends/fastapi` | FastAPI backend (Python 3.12, managed with `uv`) |
@@ -59,16 +59,22 @@ Then fill in `apps/web/.env.local`. Env vars are validated at startup by
 one is missing, and that file is the source of truth for what's required.
 
 > **Can't obtain a value yourself? Ask Ibraheem.** He is the contact for all
-> credentials that aren't self-serve (Entra ID, Mapbox tokens, AWS, etc.).
+> credentials that aren't self-serve (Mapbox tokens, AWS, etc.).
 
 | Variable | Where to get it |
 |---|---|
 | `DATABASE_URL` | Default in the example file works as-is with the Docker database (port **5434**) |
 | `AUTH_SECRET` | Generate your own: `openssl rand -base64 32` |
-| `AUTH_AZURE_AD_CLIENT_ID` / `AUTH_AZURE_AD_CLIENT_SECRET` | **Ask Ibraheem** — these are the Microsoft Entra ID app credentials for Princeton CAS login |
-| `AUTH_AZURE_AD_TENANT_ID` | Princeton's tenant ID — already filled in the example file |
+| `AUTH_URL` | Optional locally. **Required in production:** the app's canonical public URL (e.g. `https://forum.example.edu`) — pins Auth.js callbacks and the CAS service URL to that origin |
+| `AUTH_TRUST_HOST` | Optional. Set to `true` only when running behind a reverse proxy without `AUTH_URL` (not needed on Vercel, which Auth.js trusts automatically) |
+| `CAS_BASE_URL` | Optional — defaults to `https://fed.princeton.edu/cas/` |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_TOKEN` / `NEXT_PUBLIC_CAMPUS_MAP_STYLE` | **Ask Ibraheem** — Mapbox tokens + the Princeton campus map style URL |
 | `AWS_S3_BUCKET` / `AWS_REGION` | Optional (image uploads) — ask Ibraheem if you're working on that feature |
+
+Login uses **Princeton CAS** — there are no OAuth client credentials to obtain.
+Clicking "Log in" goes to `/api/auth/cas/login`, which redirects to
+`fed.princeton.edu/cas`; CAS sends you back to `/api/auth/cas/callback`, where the
+ticket is validated server-side and your user row is created from your NetID.
 
 ### 3. Start the database
 
@@ -123,7 +129,8 @@ bun run build        # build all packages
 bun run db:up        # start Postgres        db:down     stop it (data persists)
 bun run db:push      # push schema (dev)     db:generate generate SQL migrations
 bun run db:migrate   # apply migrations      db:studio   visual DB browser
-bun run db:seed      # seed demo data (safe to re-run any time)
+bun run db:seed      # seed demo data (safe to re-run; refuses non-local DBs unless ALLOW_REMOTE_SEED=1)
+(cd apps/web && bun test)   # unit tests
 ```
 
 Pre-commit hooks (Husky + lint-staged) automatically run Biome on staged files —
