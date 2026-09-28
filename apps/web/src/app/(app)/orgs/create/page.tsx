@@ -3,8 +3,8 @@
 import { ImagePlus, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { createOrg } from "~/actions/orgs";
-import { getPresignedUploadUrl } from "~/actions/upload";
 import { Field, fieldControlProps } from "~/components/common/field";
 import { FilterChip } from "~/components/common/filter-chip";
 import { Panel } from "~/components/common/panel";
@@ -13,6 +13,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
+import { uploadImage } from "~/lib/upload-image";
 import { cn } from "~/lib/utils";
 
 const ORG_CATEGORIES = [
@@ -45,30 +46,20 @@ export default function CreateOrgPage() {
     async (file: File) => {
       if (isUploading) return;
       setIsUploading(true);
+      const localPreview = URL.createObjectURL(file);
+      setLogoPreview(localPreview);
       try {
-        const reader = new FileReader();
-        reader.onload = (e) => setLogoPreview(e.target?.result as string);
-        reader.readAsDataURL(file);
-
-        const { uploadUrl, publicUrl } = await getPresignedUploadUrl({
-          filename: file.name,
-          contentType: file.type,
-          size: file.size,
-          folder: "org-logos",
-        });
-
-        await fetch(uploadUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": file.type },
-        });
-
+        const publicUrl = await uploadImage(file, "org-logos");
         setLogoUrl(publicUrl);
+        setLogoPreview(publicUrl);
       } catch (err) {
-        console.error("Upload failed:", err);
         setLogoPreview(null);
+        setLogoUrl(null);
+        toast.error(err instanceof Error ? err.message : "Couldn't upload that logo.");
       } finally {
+        URL.revokeObjectURL(localPreview);
         setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
     [isUploading],
@@ -99,6 +90,12 @@ export default function CreateOrgPage() {
           setErrors({
             name: "Only org leaders can create organizations. Update this in Settings.",
           });
+        } else {
+          // Production builds redact server error messages, so don't rely on them.
+          toast.error("Couldn't create the organization.", {
+            description:
+              "Only org leaders can create one — turn on “I lead or manage a student organization” in Settings, then try again.",
+          });
         }
       }
     });
@@ -115,7 +112,11 @@ export default function CreateOrgPage() {
         <div className="flex items-center gap-6">
           {logoPreview ? (
             <div className="relative">
-              <img src={logoPreview} alt="" className="size-20 rounded-xl object-cover" />
+              <img
+                src={logoPreview}
+                alt="Organization logo preview"
+                className="size-20 rounded-xl object-cover"
+              />
               <Button
                 variant="solid"
                 size="icon-xs"

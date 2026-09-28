@@ -12,7 +12,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
  * checked — `fetch` resolves on 4xx/5xx, so without `res.ok` a rejected upload
  * used to be saved as if it had worked, leaving a broken image URL behind.
  */
-export async function uploadImage(file: File, folder: "avatars" | "event-flyers") {
+export async function uploadImage(file: File, folder: "avatars" | "event-flyers" | "org-logos") {
   if (!ALLOWED_TYPES.includes(file.type)) {
     throw new Error("Please choose a JPEG, PNG, or WebP image.");
   }
