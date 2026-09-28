@@ -165,6 +165,9 @@ export function EventCard({
 
   const displayedFriendNames = friendsAttending.slice(0, 2).map((friend) => friend.displayName);
   const remainingFriends = friendsAttending.length - displayedFriendNames.length;
+  // Friends shown here have RSVP'd — nothing is read from anyone's calendar.
+  const othersLabel = `+ ${remainingFriends} ${remainingFriends === 1 ? "other" : "others"}`;
+  const goingVerb = friendsAttending.length === 1 ? "is going!" : "are going!";
 
   // Track view — IntersectionObserver fires after 1s of visibility
   useEffect(() => {
@@ -381,9 +384,9 @@ export function EventCard({
                     {displayedFriendNames.join(", ")}
                   </span>
                   {remainingFriends > 0 && (
-                    <span className="font-bold text-forum-coral"> + {remainingFriends} other</span>
+                    <span className="font-bold text-forum-coral"> {othersLabel}</span>
                   )}{" "}
-                  added this event to their calendar!
+                  {goingVerb}
                 </p>
               </div>
             )}
@@ -648,9 +651,9 @@ export function EventCard({
             <p className="font-dm-sans text-[12px] leading-tight text-forum-dark-gray">
               <span className="font-bold text-forum-coral">
                 {displayedFriendNames.join(", ")}
-                {remainingFriends > 0 && ` + ${remainingFriends} other`}
+                {remainingFriends > 0 && ` ${othersLabel}`}
               </span>{" "}
-              added this event to their calendar!
+              {goingVerb}
             </p>
           </div>
         ))}
