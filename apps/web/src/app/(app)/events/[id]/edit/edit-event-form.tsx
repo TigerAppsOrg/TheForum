@@ -29,13 +29,6 @@ import { isInterestValue } from "~/lib/profile-options";
 import { IMAGE_ACCEPT, uploadImage } from "~/lib/upload-image";
 import { cn } from "~/lib/utils";
 
-const TIMELINE_SECTIONS = [
-  { id: "cover", label: "Cover & Title", color: "bg-forum-cerulean" },
-  { id: "details", label: "Details & Description", color: "bg-forum-coral" },
-  { id: "when-where", label: "When & Where", color: "bg-forum-coral" },
-  { id: "tags-links", label: "Tags & Links", color: "bg-forum-coral" },
-];
-
 interface EditEventFormProps {
   event: EventDetail;
   locations: CampusLocation[];
@@ -48,7 +41,6 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeSection, setActiveSection] = useState("cover");
 
   const [title, setTitle] = useState(event.title);
   const [description, setDescription] = useState(event.description);
@@ -147,7 +139,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
   const previewWhen = describeEventWhen(when);
 
   return (
-    <PageShell width="wide">
+    <PageShell width="narrow">
       {/* Top buttons */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -164,49 +156,17 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 md:flex-row md:gap-[40px]">
-        {/* Timeline sidebar */}
-        <nav aria-label="Form sections" className="w-full shrink-0 md:w-[160px]">
-          <div className="flex gap-3 overflow-x-auto pb-1 md:sticky md:top-5 md:flex-col md:gap-3 md:overflow-visible">
-            {TIMELINE_SECTIONS.map(({ id, label, color }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setActiveSection(id);
-                  document.getElementById(`edit-${id}`)?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="flex shrink-0 items-center gap-[10px] text-left"
-              >
-                <div
-                  className={cn(
-                    "w-[14px] h-[14px] rounded-full transition-colors flex-shrink-0",
-                    activeSection === id ? color : "bg-forum-medium-gray",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "text-[13px] font-dm-sans transition-colors whitespace-nowrap",
-                    activeSection === id ? "text-forum-cerulean font-bold" : "text-forum-dark-gray",
-                  )}
-                >
-                  {label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </nav>
-
+      <div>
         {/* Form body */}
         <div className="flex-1 min-w-0">
           {/* Cover Image */}
-          <div id="edit-cover" className="mb-[30px]">
+          <div id="edit-cover" className="mb-5">
             {flyerPreview ? (
-              <div className="relative rounded-[10px] overflow-hidden border border-forum-medium-gray mb-[20px]">
+              <div className="relative rounded-[10px] overflow-hidden border border-forum-medium-gray mb-4">
                 <img
                   src={flyerPreview}
                   alt={`Cover for ${title || "your event"}`}
-                  className="w-full h-[220px] sm:h-[280px] object-cover"
+                  className="w-full h-[160px] sm:h-[200px] object-cover"
                 />
                 <button
                   type="button"
@@ -233,7 +193,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="w-full h-[220px] sm:h-[280px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-[20px]"
+                className="w-full h-[160px] sm:h-[200px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
               >
                 <span className="flex items-center gap-[6px] text-[13px] font-bold font-dm-sans text-forum-cerulean">
                   <Pencil size={13} aria-hidden /> Add Cover Image
@@ -257,11 +217,11 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Event Title */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <label htmlFor="event-title" className={FORM_LABEL}>
               Event Title *
             </label>
-            <div className="flex items-center border-b-2 border-forum-medium-gray pb-[8px]">
+            <div className="flex items-center border-b border-forum-border pb-1.5">
               <input
                 id="event-title"
                 type="text"
@@ -274,7 +234,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
                 }}
                 placeholder="Super Interesting Event Title"
                 className={cn(
-                  "flex-1 min-w-0 text-[26px] sm:text-[32px] font-serif font-bold text-black placeholder:text-forum-placeholder/40 outline-none",
+                  "flex-1 min-w-0 text-[22px] font-serif font-semibold text-black placeholder:text-forum-placeholder/40 outline-none",
                   errors.title && "placeholder:text-forum-coral/60",
                 )}
               />
@@ -284,7 +244,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Event Description */}
-          <div id="edit-details" className="mb-[30px]">
+          <div id="edit-details" className="mb-5">
             <label htmlFor="event-description" className={FORM_LABEL}>
               Event Description *
             </label>
@@ -307,7 +267,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Date / Start / End */}
-          <div id="edit-when-where" className="mb-[30px]">
+          <div id="edit-when-where" className="mb-5">
             <EventWhenFields
               value={when}
               onChange={(next) => {
@@ -324,7 +284,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Location */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <LocationPicker
               locations={locations}
               value={locationId}
@@ -337,7 +297,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Visibility */}
-          <div className="flex items-center justify-between gap-4 mb-[30px]">
+          <div className="flex items-center justify-between gap-4 mb-5">
             <div className="flex items-center gap-[10px]">
               {isPublic ? (
                 <Globe size={16} aria-hidden className="text-forum-cerulean" />
@@ -357,12 +317,12 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           </div>
 
           {/* Tags */}
-          <div id="edit-tags-links" className="mb-[30px]">
+          <div id="edit-tags-links" className="mb-5">
             <TagPicker value={tags} onChange={setTags} />
           </div>
 
           {/* External Link */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <label htmlFor="event-link" className={FORM_LABEL}>
               External Link
             </label>

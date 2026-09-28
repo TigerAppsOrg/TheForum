@@ -28,13 +28,6 @@ import { Textarea } from "~/components/ui/textarea";
 import { IMAGE_ACCEPT, uploadImage } from "~/lib/upload-image";
 import { cn } from "~/lib/utils";
 
-const TIMELINE_SECTIONS = [
-  { id: "cover", label: "Cover & Title", color: "bg-forum-cerulean" },
-  { id: "details", label: "Details & Description", color: "bg-forum-coral" },
-  { id: "when-where", label: "When & Where", color: "bg-forum-coral" },
-  { id: "tags-links", label: "Tags & Links", color: "bg-forum-coral" },
-];
-
 interface CreateEventFormProps {
   locations: CampusLocation[];
   userOrgs: { id: string; name: string }[];
@@ -49,7 +42,6 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeSection, setActiveSection] = useState("cover");
 
   // Form state
   const [title, setTitle] = useState("");
@@ -150,7 +142,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   const previewWhen = describeEventWhen(when);
 
   return (
-    <PageShell width="wide">
+    <PageShell width="narrow">
       {/* Top buttons */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -167,49 +159,17 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 md:flex-row md:gap-[40px]">
-        {/* Timeline sidebar */}
-        <nav aria-label="Form sections" className="w-full shrink-0 md:w-[160px]">
-          <div className="flex gap-3 overflow-x-auto pb-1 md:sticky md:top-5 md:flex-col md:gap-3 md:overflow-visible">
-            {TIMELINE_SECTIONS.map(({ id, label, color }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setActiveSection(id);
-                  document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="flex shrink-0 items-center gap-[10px] text-left"
-              >
-                <div
-                  className={cn(
-                    "w-[14px] h-[14px] rounded-full transition-colors flex-shrink-0",
-                    activeSection === id ? color : "bg-forum-medium-gray",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "text-[13px] font-dm-sans transition-colors whitespace-nowrap",
-                    activeSection === id ? "text-forum-cerulean font-bold" : "text-forum-dark-gray",
-                  )}
-                >
-                  {label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </nav>
-
+      <div>
         {/* Form body — single continuous flow */}
         <div className="flex-1 min-w-0">
           {/* ── Cover Image ── */}
-          <div id="section-cover" className="mb-[30px]">
+          <div id="section-cover" className="mb-5">
             {flyerPreview ? (
-              <div className="relative rounded-[10px] overflow-hidden border border-forum-medium-gray mb-[20px]">
+              <div className="relative rounded-[10px] overflow-hidden border border-forum-medium-gray mb-4">
                 <img
                   src={flyerPreview}
                   alt={`Cover for ${title || "your event"}`}
-                  className="w-full h-[220px] sm:h-[280px] object-cover"
+                  className="w-full h-[160px] sm:h-[200px] object-cover"
                 />
                 <button
                   type="button"
@@ -236,7 +196,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="w-full h-[220px] sm:h-[280px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-[20px]"
+                className="w-full h-[160px] sm:h-[200px] rounded-[10px] bg-forum-turquoise/15 border-2 border-dashed border-forum-turquoise/40 flex flex-col items-end justify-end gap-1 p-[20px] cursor-pointer hover:bg-forum-turquoise/20 transition-colors mb-4"
               >
                 <span className="flex items-center gap-[6px] text-[13px] font-bold font-dm-sans text-forum-cerulean">
                   <Pencil size={13} aria-hidden />
@@ -262,17 +222,17 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
 
           {/* Cover presets — shown when no flyer is uploaded */}
           {!flyerPreview && (
-            <div className="mb-[20px]">
+            <div className="mb-4">
               <CoverPresetsPicker selected={coverPreset} onSelect={(id) => setCoverPreset(id)} />
             </div>
           )}
 
           {/* ── Event Title ── */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <label htmlFor="event-title" className={FORM_LABEL}>
               Event Title *
             </label>
-            <div className="flex items-center border-b-2 border-forum-medium-gray pb-[8px]">
+            <div className="flex items-center border-b border-forum-border pb-1.5">
               <input
                 id="event-title"
                 type="text"
@@ -285,7 +245,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
                 }}
                 placeholder="Super Interesting Event Title"
                 className={cn(
-                  "flex-1 min-w-0 text-[26px] sm:text-[32px] font-serif font-bold text-black placeholder:text-forum-placeholder/40 outline-none",
+                  "flex-1 min-w-0 text-[22px] font-serif font-semibold text-black placeholder:text-forum-placeholder/40 outline-none",
                   errors.title && "placeholder:text-forum-coral/60",
                 )}
               />
@@ -296,7 +256,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
 
           {/* ── Affiliate Organizations ── */}
           {userOrgs.length > 0 && (
-            <div className="mb-[30px]">
+            <div className="mb-5">
               <span className="text-[12px] font-bold text-forum-dark-gray block mb-[8px]">
                 Affiliate Organization
               </span>
@@ -351,7 +311,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           )}
 
           {/* ── Event Description ── */}
-          <div id="section-details" className="mb-[30px]">
+          <div id="section-details" className="mb-5">
             <label htmlFor="event-description" className={FORM_LABEL}>
               Event Description *
             </label>
@@ -374,7 +334,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           </div>
 
           {/* ── Date / Start / End ── */}
-          <div id="section-when-where" className="mb-[30px]">
+          <div id="section-when-where" className="mb-5">
             <EventWhenFields
               value={when}
               onChange={(next) => {
@@ -392,7 +352,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           </div>
 
           {/* ── Location ── */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <LocationPicker
               locations={locations}
               value={locationId}
@@ -405,12 +365,12 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           </div>
 
           {/* ── Tags ── */}
-          <div id="section-tags-links" className="mb-[30px]">
+          <div id="section-tags-links" className="mb-5">
             <TagPicker value={tags} onChange={setTags} />
           </div>
 
           {/* ── External Link ── */}
-          <div className="mb-[30px]">
+          <div className="mb-5">
             <label htmlFor="event-link" className={FORM_LABEL}>
               External Link
             </label>
