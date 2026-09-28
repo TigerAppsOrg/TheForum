@@ -1,24 +1,28 @@
 "use client";
 
-import { LayoutGrid, List } from "lucide-react";
+import { CalendarDays, LayoutGrid, List } from "lucide-react";
 import type * as React from "react";
 import { EventList } from "~/components/events/event-list";
 import type { EventView } from "~/lib/use-event-view";
 import { cn } from "~/lib/utils";
 
-/** Segmented Cards / List switch. */
+/** Segmented Cards / List (/ Calendar) switch. */
 export function EventViewToggle({
   view,
   onChange,
+  withCalendar = false,
   className,
 }: {
   view: EventView;
   onChange: (view: EventView) => void;
+  /** Adds the Calendar option (My Events). */
+  withCalendar?: boolean;
   className?: string;
 }) {
   const options = [
     { id: "cards" as const, label: "Cards", icon: LayoutGrid },
     { id: "rows" as const, label: "List", icon: List },
+    ...(withCalendar ? [{ id: "calendar" as const, label: "Calendar", icon: CalendarDays }] : []),
   ];
   return (
     <fieldset

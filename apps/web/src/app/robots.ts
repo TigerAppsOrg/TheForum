@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
         "/settings",
         "/profile",
         "/onboarding",
+        "/cal/",
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,

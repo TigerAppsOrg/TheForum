@@ -114,6 +114,8 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   isOrgLeader: boolean("is_org_leader").default(false).notNull(),
   onboarded: boolean("onboarded").default(false).notNull(),
+  /** Secret for the user's iCalendar feed URLs (/cal/<token>/…). Created on first use; rotatable. */
+  calendarToken: varchar("calendar_token", { length: 64 }).unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

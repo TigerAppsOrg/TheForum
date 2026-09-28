@@ -20,6 +20,9 @@ export const env = createEnv({
     CAS_BASE_URL: z.string().url().default("https://fed.princeton.edu/cas/"),
     AWS_S3_BUCKET: z.string().min(1).optional(),
     AWS_REGION: z.string().min(1).optional(),
+    /** InboxEngine API (org emails). Optional: without it, org pages simply show no emails. */
+    INBOX_ENGINE_URL: z.string().url().optional(),
+    INBOX_ENGINE_TOKEN: z.string().min(1).optional(),
   },
 
   /**
@@ -50,6 +53,8 @@ export const env = createEnv({
     CAS_BASE_URL: process.env.CAS_BASE_URL,
     AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
     AWS_REGION: process.env.AWS_REGION,
+    INBOX_ENGINE_URL: process.env.INBOX_ENGINE_URL,
+    INBOX_ENGINE_TOKEN: process.env.INBOX_ENGINE_TOKEN,
   },
 
   /**

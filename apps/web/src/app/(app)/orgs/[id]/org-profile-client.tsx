@@ -19,11 +19,14 @@ import { toast } from "sonner";
 import { type UserSearchResult, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
 import { OrgAvatar } from "~/components/common/org-avatar";
+import { RichText } from "~/components/common/rich-text";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
 import { PageShell } from "~/components/layout/page-shell";
+import { OrgEmails } from "~/components/orgs/org-emails";
 import { Button } from "~/components/ui/button";
+import type { OrgEmails as OrgEmailsData } from "~/lib/inbox-engine";
 
 const SOCIAL_LABELS: Record<string, string> = {
   instagram: "Instagram",
@@ -70,7 +73,16 @@ function SideSection({ title, children }: { title: string; children: React.React
   );
 }
 
-export function OrgProfileClient({ org }: { org: OrgDetail }) {
+export function OrgProfileClient({
+  org,
+  emails,
+  emailsBrowseUrl,
+}: {
+  org: OrgDetail;
+  /** Recent listserv emails from InboxEngine (MyPrincetonU groups only). */
+  emails: OrgEmailsData | null;
+  emailsBrowseUrl: string | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isFollowing, setIsFollowing] = useState(org.isFollowing);
@@ -145,6 +157,67 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
       toast.message(org.contactEmail);
     }
   };
+
+  const hasEmails = Boolean(emails && emails.messages.length > 0 && emailsBrowseUrl);
+  // No upcoming events? Then the org's emails are the most useful thing here.
+  const emailsFirst = hasEmails && org.upcomingEvents.length === 0;
+  const emailsSection =
+    hasEmails && emails && emailsBrowseUrl ? (
+      <OrgEmails
+        total={emails.total}
+        messages={emails.messages}
+        browseUrl={emailsBrowseUrl}
+        prominent={emailsFirst}
+      />
+    ) : null;
+  const eventsSection = (
+    <section className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 font-dm-sans text-sm font-semibold text-black">
+        Upcoming events
+        <span className="font-normal text-forum-light-gray">{org.upcomingEvents.length}</span>
+      </h2>
+      {org.upcomingEvents.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {org.upcomingEvents.map((event, index) => (
+            <EventCard
+              key={event.id}
+              id={event.id}
+              // Drafts and private events only reach this list for owners/officers.
+              title={
+                event.status === "draft"
+                  ? `${event.title} (Draft)`
+                  : event.isPublic
+                    ? event.title
+                    : `${event.title} (Private)`
+              }
+              datetime={event.datetime}
+              location={event.locationName}
+              tags={event.tags}
+              orgName={org.name}
+              orgId={org.id}
+              density="compact"
+              source="similar"
+              position={index}
+            />
+          ))}
+        </div>
+      ) : hasEmails ? (
+        <p className="font-dm-sans text-[13px] text-forum-light-gray">
+          No upcoming events right now — their recent emails are above.
+        </p>
+      ) : (
+        <EmptyState
+          icon={CalendarDays}
+          title="No upcoming events"
+          description={
+            official
+              ? "Events this group posts on MyPrincetonU or sends to campus listservs appear here automatically."
+              : undefined
+          }
+        />
+      )}
+    </section>
+  );
 
   const socials = Object.entries(org.socials).filter(([k, v]) => SOCIAL_LABELS[k] && v);
 
@@ -231,54 +304,21 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
           {org.description && (
             <section className="flex flex-col gap-2 rounded-[24px] border border-forum-border bg-white p-5">
               <h2 className="font-dm-sans text-sm font-semibold text-black">About</h2>
-              <p className="max-w-prose whitespace-pre-line font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
-                {org.description}
-              </p>
+              <RichText text={org.description} className="max-w-prose text-sm" />
             </section>
           )}
 
-          <section className="flex flex-col gap-3">
-            <h2 className="flex items-center gap-2 font-dm-sans text-sm font-semibold text-black">
-              Upcoming events
-              <span className="font-normal text-forum-light-gray">{org.upcomingEvents.length}</span>
-            </h2>
-            {org.upcomingEvents.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {org.upcomingEvents.map((event, index) => (
-                  <EventCard
-                    key={event.id}
-                    id={event.id}
-                    // Drafts and private events only reach this list for owners/officers.
-                    title={
-                      event.status === "draft"
-                        ? `${event.title} (Draft)`
-                        : event.isPublic
-                          ? event.title
-                          : `${event.title} (Private)`
-                    }
-                    datetime={event.datetime}
-                    location={event.locationName}
-                    tags={event.tags}
-                    orgName={org.name}
-                    orgId={org.id}
-                    density="compact"
-                    source="similar"
-                    position={index}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={CalendarDays}
-                title="No upcoming events"
-                description={
-                  official
-                    ? "Events this group posts on MyPrincetonU or sends to campus listservs appear here automatically."
-                    : undefined
-                }
-              />
-            )}
-          </section>
+          {emailsFirst ? (
+            <>
+              {emailsSection}
+              {eventsSection}
+            </>
+          ) : (
+            <>
+              {eventsSection}
+              {emailsSection}
+            </>
+          )}
         </div>
 
         <aside className="flex h-fit flex-col gap-4 rounded-[24px] border border-forum-border bg-white p-5">

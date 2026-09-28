@@ -1,3 +1,5 @@
+import { plainPreview } from "~/lib/rich-text";
+
 /**
  * Helpers for presenting imported event content on cards.
  */
@@ -22,11 +24,5 @@ export function eventPhotoUrl(flyerUrl: string | null | undefined): string | nul
  * included, is on the event page) and whitespace is collapsed.
  */
 export function descriptionPreview(description: string | null | undefined): string {
-  if (!description) return "";
-  return description
-    .replace(/\[(https?:\/\/[^\]\s]+)\]/g, " ")
-    .replace(/<?https?:\/\/[^\s>)\]]+>?/g, " ")
-    .replace(/\(\s*\)/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return plainPreview(description);
 }

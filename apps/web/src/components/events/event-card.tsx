@@ -188,6 +188,7 @@ export function EventCard({
           datetime: new Date(rawDatetime),
           endDatetime: null,
           locationName: hasLocation ? location : null,
+          locationDetail,
         })
       : undefined);
   const preview = descriptionPreview(description);

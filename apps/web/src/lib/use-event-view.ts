@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type EventView = "cards" | "rows";
+/** "calendar" is only offered on My Events. */
+export type EventView = "cards" | "rows" | "calendar";
 
 /**
  * Cards (the Figma look) or compact rows (the TigerInbox look), remembered per
@@ -17,7 +18,7 @@ export function useEventView(page: string, defaultView: EventView) {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(storageKey);
-      if (stored === "cards" || stored === "rows") setViewState(stored);
+      if (stored === "cards" || stored === "rows" || stored === "calendar") setViewState(stored);
     } catch {
       // ignore — fall back to the default
     }
