@@ -16,6 +16,7 @@ import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, LoadingState } from "~/components/common/states";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { classYearShort } from "~/lib/profile-options";
 
 function Avatar({
   name,
@@ -197,7 +198,7 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
                       </p>
                       <p className="font-dm-sans text-[12px] text-forum-light-gray">
                         @{user.netId}
-                        {user.classYear && ` · '${user.classYear.slice(-2)}`}
+                        {classYearShort(user.classYear) && ` · ${classYearShort(user.classYear)}`}
                       </p>
                     </div>
                     {isFriend ? (
@@ -249,7 +250,8 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
                       </p>
                       <p className="font-dm-sans text-[12px] text-forum-light-gray">
                         @{friend.netId}
-                        {friend.classYear && ` · '${friend.classYear.slice(-2)}`}
+                        {classYearShort(friend.classYear) &&
+                          ` · ${classYearShort(friend.classYear)}`}
                       </p>
                     </div>
                     {/*
