@@ -23,6 +23,7 @@ import {
 } from "@the-forum/database";
 import type { FeedEvent } from "~/actions/events";
 import { formatEventDateTime } from "~/lib/date-format";
+import { eventDiscoverableBy } from "~/lib/event-visibility";
 import {
   CANDIDATE_HORIZON_DAYS,
   CANDIDATE_POOL_CAP,
@@ -135,7 +136,8 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
   const conditions = [
     gt(events.datetime, nowDate),
     lt(events.datetime, dateRangeEnd(now, query.dateRange)),
-    eq(events.status, "published"),
+    // Published AND visible to this viewer — see ~/lib/event-visibility.ts.
+    eventDiscoverableBy(userId),
   ];
 
   if (query.search) {

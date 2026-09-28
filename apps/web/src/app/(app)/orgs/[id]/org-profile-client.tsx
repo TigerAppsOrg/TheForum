@@ -162,7 +162,15 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
                 <EventCard
                   key={event.id}
                   id={event.id}
-                  title={event.title}
+                  // Drafts and private events only reach this list for the org's
+                  // owners/officers — label them so they aren't mistaken for live ones.
+                  title={
+                    event.status === "draft"
+                      ? `${event.title} (Draft)`
+                      : event.isPublic
+                        ? event.title
+                        : `${event.title} (Private)`
+                  }
                   datetime={event.datetime}
                   location={event.locationName}
                   tags={event.tags}

@@ -8,7 +8,6 @@ import {
   desc,
   eq,
   eventTags,
-  friendships,
   gt,
   inArray,
   ne,
@@ -26,9 +25,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
+import { canViewEvent, eventDiscoverableBy, eventVisibleTo } from "~/lib/event-visibility";
 import { type FeedPage, loadRankedFeed } from "~/lib/feed";
 import { loadFriendIds } from "~/lib/social-graph";
-import { eventTagSchema, orgCategorySchema, parseInput } from "~/lib/validation";
+import { eventTagSchema, idSchema, orgCategorySchema, parseInput } from "~/lib/validation";
 
 export interface FeedEvent {
   id: string;
@@ -211,10 +211,9 @@ export async function toggleRsvp(eventId: string): Promise<{
 
   const userId = session.user.id;
 
-  // If the event doesn't exist in the DB (e.g. a demo/local-only event), no-op
-  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
-  if (!eventRow) {
-    // Return zero count and no-op rsvp change to avoid FK constraint errors
+  // Missing, draft or private events the viewer can't see: no-op, exactly as
+  // if the event didn't exist (so this can't be used to probe for them).
+  if (!(await canViewEvent(eventId, userId))) {
     return { rsvped: false, count: 0, attendees: [] };
   }
 
@@ -257,9 +256,8 @@ export async function toggleSave(eventId: string): Promise<{ saved: boolean }> {
 
   const userId = session.user.id;
 
-  // If the event doesn't exist in the DB (e.g. demo/local-only event), no-op
-  const [eventRow] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
-  if (!eventRow) {
+  // Missing or not visible to this viewer: no-op.
+  if (!(await canViewEvent(eventId, userId))) {
     return { saved: false };
   }
 
@@ -314,6 +312,9 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
 
   const userId = session.user.id;
 
+  // Not a well-formed id → not found (rather than a Postgres cast error).
+  if (!idSchema.safeParse(eventId).success) return null;
+
   const [event] = await db
     .select({
       id: events.id,
@@ -335,58 +336,16 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
     .innerJoin(users, eq(events.creatorId, users.id))
-    .where(eq(events.id, eventId))
+    // Drafts and private events 404 for anyone who isn't allowed to see them.
+    .where(and(eq(events.id, eventId), eventVisibleTo(userId)))
     .limit(1);
 
   if (!event) return null;
 
-  // Get tags
-  const tags = await db
-    .select({ tag: eventTags.tag })
-    .from(eventTags)
-    .where(eq(eventTags.eventId, eventId));
+  const friendIds = await loadFriendIds(userId);
+  const extra = await loadEventEnrichment([eventId], userId, friendIds);
+  const attendees = extra.attendees.get(eventId) ?? [];
 
-  // Get RSVP count + attendees
-  const attendees = await db
-    .select({
-      id: users.id,
-      displayName: users.displayName,
-      avatarUrl: users.avatarUrl,
-    })
-    .from(rsvps)
-    .innerJoin(users, eq(rsvps.userId, users.id))
-    .where(eq(rsvps.eventId, eventId));
-
-  // Get friend IDs
-  const friendRows = await db
-    .select({ friendId: friendships.friendId })
-    .from(friendships)
-    .where(and(eq(friendships.userId, userId), eq(friendships.status, "accepted")));
-  const reverseFriendRows = await db
-    .select({ friendId: friendships.userId })
-    .from(friendships)
-    .where(and(eq(friendships.friendId, userId), eq(friendships.status, "accepted")));
-  const friendIdSet = new Set([
-    ...friendRows.map((f) => f.friendId),
-    ...reverseFriendRows.map((f) => f.friendId),
-  ]);
-
-  const friendsAttending = attendees.filter((a) => friendIdSet.has(a.id));
-
-  // Check user RSVP + save
-  const [userRsvp] = await db
-    .select()
-    .from(rsvps)
-    .where(and(eq(rsvps.userId, userId), eq(rsvps.eventId, eventId)))
-    .limit(1);
-
-  const [userSave] = await db
-    .select()
-    .from(savedEvents)
-    .where(and(eq(savedEvents.userId, userId), eq(savedEvents.eventId, eventId)))
-    .limit(1);
-
-  // Similar events (same tags or same org)
   return {
     id: event.id,
     title: event.title,
@@ -402,12 +361,12 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     flyerUrl: event.flyerUrl,
     externalLink: event.externalLink,
     isPublic: event.isPublic,
-    tags: tags.map((t) => t.tag),
+    tags: extra.tags.get(eventId) ?? [],
     rsvpCount: attendees.length,
     attendees,
-    friendsAttending,
-    isRsvped: !!userRsvp,
-    isSaved: !!userSave,
+    friendsAttending: extra.friends.get(eventId) ?? [],
+    isRsvped: extra.rsvpedByMe.has(eventId),
+    isSaved: extra.savedByMe.has(eventId),
     isOwner: event.creatorId === userId,
   };
 }
@@ -422,7 +381,7 @@ export async function getSimilarEvents(
 
   const userId = session.user.id;
 
-  const conditions = [gt(events.datetime, new Date())];
+  const conditions = [gt(events.datetime, new Date()), eventDiscoverableBy(userId)];
 
   // Events with matching tags or same org, excluding current event
   const tagFilter =
@@ -560,8 +519,9 @@ export async function createEvent(data: {
     );
   }
 
-  // Notify org followers about new event (exclude creator) — only for published events
-  if (data.orgId && (data.status ?? "published") === "published") {
+  // Notify org followers about new event (exclude creator) — only for events
+  // followers can actually open: published AND public.
+  if (data.orgId && (data.status ?? "published") === "published" && (data.isPublic ?? true)) {
     const followers = await db
       .select({ userId: orgFollowers.userId })
       .from(orgFollowers)
@@ -707,7 +667,8 @@ export async function getMyEvents(): Promise<{
     .innerJoin(events, eq(rsvps.eventId, events.id))
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
-    .where(eq(rsvps.userId, userId))
+    // An RSVP'd event that has since been unpublished or made private drops out.
+    .where(and(eq(rsvps.userId, userId), eventVisibleTo(userId)))
     .orderBy(events.datetime);
 
   // Events the user saved
@@ -726,7 +687,7 @@ export async function getMyEvents(): Promise<{
     .innerJoin(events, eq(savedEvents.eventId, events.id))
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
-    .where(eq(savedEvents.userId, userId))
+    .where(and(eq(savedEvents.userId, userId), eventVisibleTo(userId)))
     .orderBy(events.datetime);
 
   /*
@@ -807,7 +768,9 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
      * the datetime bound a saved event from last week surfaced there — with
      * `formatRelativeDay` cheerfully announcing it was happening "yesterday".
      */
-    .where(and(eq(savedEvents.userId, userId), gt(events.datetime, new Date())))
+    .where(
+      and(eq(savedEvents.userId, userId), gt(events.datetime, new Date()), eventVisibleTo(userId)),
+    )
     .orderBy(events.datetime)
     .limit(5);
 
@@ -851,20 +814,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
 
   const userId = session.user.id;
 
-  // Get friend IDs (bidirectional)
-  const friendRows = await db
-    .select({ friendId: friendships.friendId })
-    .from(friendships)
-    .where(and(eq(friendships.userId, userId), eq(friendships.status, "accepted")));
-  const reverseFriendRows = await db
-    .select({ friendId: friendships.userId })
-    .from(friendships)
-    .where(and(eq(friendships.friendId, userId), eq(friendships.status, "accepted")));
-  const friendIds = [
-    ...friendRows.map((f) => f.friendId),
-    ...reverseFriendRows.map((f) => f.friendId),
-  ];
-
+  const friendIds = await loadFriendIds(userId);
   if (friendIds.length === 0) return [];
 
   // Find upcoming events where friends have RSVP'd, with friend count
@@ -884,7 +834,14 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
     .innerJoin(events, eq(rsvps.eventId, events.id))
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
-    .where(and(inArray(rsvps.userId, friendIds), gt(events.datetime, new Date())))
+    // A friend's RSVP to a draft/private event must not leak it to the viewer.
+    .where(
+      and(
+        inArray(rsvps.userId, friendIds),
+        gt(events.datetime, new Date()),
+        eventDiscoverableBy(userId),
+      ),
+    )
     .groupBy(
       events.id,
       events.title,

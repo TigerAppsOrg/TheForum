@@ -1,7 +1,22 @@
 "use server";
 
-import { events, and, db, desc, eq, gte, lt, notifications, rsvps, sql } from "@the-forum/database";
+import {
+  events,
+  and,
+  db,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  lt,
+  notifications,
+  or,
+  rsvps,
+  sql,
+} from "@the-forum/database";
 import { auth } from "~/auth";
+import { eventVisibleTo } from "~/lib/event-visibility";
 
 export interface NotificationItem {
   id: string;
@@ -9,6 +24,29 @@ export interface NotificationItem {
   payload: Record<string, unknown>;
   read: boolean;
   createdAt: string;
+}
+
+/**
+ * WHERE fragment: the notification either references no event, or references
+ * an event the viewer can still see. An org_new_event notification for an
+ * event that was later unpublished, made private or deleted is hidden rather
+ * than leaking its title.
+ */
+function referencedEventStillVisible(userId: string) {
+  return or(
+    sql`${notifications.payload}->>'eventId' IS NULL`,
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(events)
+        .where(
+          and(
+            sql`${events.id}::text = ${notifications.payload}->>'eventId'`,
+            eventVisibleTo(userId),
+          ),
+        ),
+    ),
+  );
 }
 
 export async function getNotifications(): Promise<{
@@ -20,7 +58,7 @@ export async function getNotifications(): Promise<{
 
   const userId = session.user.id;
 
-  // On-demand: generate event reminders for RSVP'd events in next 24h
+  // On-demand: generate event reminders for RSVP'd, still-visible events in the next 24h.
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -28,42 +66,58 @@ export async function getNotifications(): Promise<{
     .select({ eventId: events.id, title: events.title })
     .from(rsvps)
     .innerJoin(events, eq(rsvps.eventId, events.id))
-    .where(and(eq(rsvps.userId, userId), gte(events.datetime, now), lt(events.datetime, in24h)));
+    .where(
+      and(
+        eq(rsvps.userId, userId),
+        gte(events.datetime, now),
+        lt(events.datetime, in24h),
+        eventVisibleTo(userId),
+      ),
+    );
 
-  for (const r of upcomingRsvps) {
-    // Check if reminder already exists for this user+event pair
-    const [existing] = await db
-      .select({ id: notifications.id })
+  if (upcomingRsvps.length > 0) {
+    // One lookup for every existing reminder instead of one per event.
+    const existing = await db
+      .select({ eventId: sql<string>`${notifications.payload}->>'eventId'` })
       .from(notifications)
       .where(
         and(
           eq(notifications.userId, userId),
           eq(notifications.type, "event_reminder"),
-          sql`${notifications.payload}->>'eventId' = ${r.eventId}`,
+          inArray(
+            sql`${notifications.payload}->>'eventId'`,
+            upcomingRsvps.map((r) => r.eventId),
+          ),
         ),
-      )
-      .limit(1);
+      );
+    const alreadyReminded = new Set(existing.map((r) => r.eventId));
+    const missing = upcomingRsvps.filter((r) => !alreadyReminded.has(r.eventId));
 
-    if (!existing) {
-      await db.insert(notifications).values({
-        userId,
-        type: "event_reminder",
-        payload: { eventId: r.eventId, eventTitle: r.title },
-      });
+    if (missing.length > 0) {
+      await db.insert(notifications).values(
+        missing.map((r) => ({
+          userId,
+          type: "event_reminder" as const,
+          payload: { eventId: r.eventId, eventTitle: r.title },
+        })),
+      );
     }
   }
 
-  const items = await db
-    .select()
-    .from(notifications)
-    .where(eq(notifications.userId, userId))
-    .orderBy(desc(notifications.createdAt))
-    .limit(20);
+  const visibleToMe = and(eq(notifications.userId, userId), referencedEventStillVisible(userId));
 
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(notifications)
-    .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+  const [items, [countResult]] = await Promise.all([
+    db
+      .select()
+      .from(notifications)
+      .where(visibleToMe)
+      .orderBy(desc(notifications.createdAt))
+      .limit(20),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notifications)
+      .where(and(visibleToMe, eq(notifications.read, false))),
+  ]);
 
   return {
     items: items.map((n) => ({

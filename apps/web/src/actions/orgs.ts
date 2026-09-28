@@ -21,6 +21,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
+import { eventVisibleTo } from "~/lib/event-visibility";
 
 export interface OrgListItem {
   id: string;
@@ -55,6 +56,9 @@ export interface OrgDetail {
     locationName: string;
     flyerUrl: string | null;
     tags: string[];
+    /** Only owners/officers (and creators) ever receive drafts or private events here. */
+    status: "draft" | "published";
+    isPublic: boolean;
   }[];
 }
 
@@ -161,29 +165,52 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
       datetime: events.datetime,
       locationName: campusLocations.name,
       flyerUrl: events.flyerUrl,
+      status: events.status,
+      isPublic: events.isPublic,
     })
     .from(events)
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
-    .where(and(eq(events.orgId, orgId), sql`${events.datetime} > now()`))
+    .where(
+      and(
+        eq(events.orgId, orgId),
+        sql`${events.datetime} > now()`,
+        // Drafts/private events only for the org's owners/officers (and creators).
+        eventVisibleTo(userId),
+      ),
+    )
     .orderBy(events.datetime)
     .limit(10);
 
-  const upcomingEvents = await Promise.all(
-    upcomingEventsRaw.map(async (e) => {
-      const tags = await db
-        .select({ tag: eventTags.tag })
-        .from(eventTags)
-        .where(eq(eventTags.eventId, e.id));
-      return {
-        id: e.id,
-        title: e.title,
-        datetime: formatEventDateTime(e.datetime),
-        locationName: e.locationName ?? "TBD",
-        flyerUrl: e.flyerUrl,
-        tags: tags.map((t) => t.tag),
-      };
-    }),
-  );
+  // One query for every event's tags rather than one per event.
+  const tagRows =
+    upcomingEventsRaw.length === 0
+      ? []
+      : await db
+          .select({ eventId: eventTags.eventId, tag: eventTags.tag })
+          .from(eventTags)
+          .where(
+            inArray(
+              eventTags.eventId,
+              upcomingEventsRaw.map((e) => e.id),
+            ),
+          );
+  const tagsByEvent = new Map<string, string[]>();
+  for (const row of tagRows) {
+    const list = tagsByEvent.get(row.eventId);
+    if (list) list.push(row.tag);
+    else tagsByEvent.set(row.eventId, [row.tag]);
+  }
+
+  const upcomingEvents = upcomingEventsRaw.map((e) => ({
+    id: e.id,
+    title: e.title,
+    datetime: formatEventDateTime(e.datetime),
+    locationName: e.locationName ?? "TBD",
+    flyerUrl: e.flyerUrl,
+    tags: tagsByEvent.get(e.id) ?? [],
+    status: e.status,
+    isPublic: e.isPublic,
+  }));
 
   return {
     id: org.id,
@@ -376,6 +403,9 @@ export async function getRecommendedOrgs(): Promise<OrgListItem[]> {
     .where(
       and(
         inArray(eventTags.tag, interestTags),
+        // Only publicly listed events count as evidence of what an org hosts.
+        eq(events.status, "published"),
+        eq(events.isPublic, true),
         followedOrgIds.length > 0
           ? sql`${organizations.id} NOT IN (${sql.join(
               followedOrgIds.map((id) => sql`${id}`),
