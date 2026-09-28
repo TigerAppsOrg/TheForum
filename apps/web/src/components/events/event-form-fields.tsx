@@ -82,7 +82,8 @@ export function normalizeExternalLink(raw: string): string | null {
   const withScheme = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
     const url = new URL(withScheme);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    // The server only accepts https links without credentials (lib/validation.ts).
+    if (url.protocol !== "https:" || url.username || url.password) return null;
     if (!url.hostname.includes(".")) return null;
     return url.toString();
   } catch {

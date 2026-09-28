@@ -99,7 +99,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
     if (!description.trim()) nextErrors.description = "Description is required";
     if (!locationId) nextErrors.location = "Choose a location, or “Other / off-campus / TBA”";
     const link = normalizeExternalLink(externalLink);
-    if (link === null) nextErrors.link = "Enter a valid web address, e.g. https://example.com";
+    if (link === null) nextErrors.link = "Enter a valid https:// link, e.g. https://example.com";
     const resolved = resolveEventWhen(when);
     if (!resolved.ok) Object.assign(nextErrors, resolved.errors);
     else if (resolved.datetime.getTime() < Date.now()) {
