@@ -29,6 +29,8 @@ mv -f "$root/shared/environment.next" "$root/shared/environment"
 chown root:theforum "$root/shared/environment"; chmod 0640 "$root/shared/environment"
 umask 022
 chown -R root:root "$dir"
+chmod -R u=rwX,go=rX "$dir"
+chmod 755 "$root" "$root/releases"
 # Next's runtime cache is the only path the server writes.
 mkdir -p "$dir/web/apps/web/.next/cache" && chown -R theforum:theforum "$dir/web/apps/web/.next/cache"
 
