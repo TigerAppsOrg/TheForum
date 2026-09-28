@@ -180,6 +180,8 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
     locationName: campusLocations.name,
     orgId: events.orgId,
     orgName: organizations.name,
+    orgLogoUrl: organizations.logoUrl,
+    locationDetail: events.locationDetail,
     createdAt: events.createdAt,
   };
 
@@ -376,9 +378,11 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
       description: event.description,
       orgId: event.orgId,
       orgName: event.orgName,
+      orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
       location: event.locationName ?? "TBD",
+      locationDetail: event.locationDetail ?? null,
       tags,
       flyerUrl: event.flyerUrl,
       rsvpCount: rsvpCountByEvent.get(event.id) ?? 0,
