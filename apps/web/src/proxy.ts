@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "~/auth";
 
-export const runtime = "nodejs";
+// Next 16 "proxy" (formerly middleware). Always runs on the Node.js runtime,
+// so no `runtime` segment config is allowed here.
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -15,8 +16,9 @@ export default auth((req) => {
 
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
 
-  // Public routes — always accessible
-  const publicRoutes = ["/", "/api/auth"];
+  // Public routes — always accessible. `/api/auth` covers Auth.js and the CAS
+  // login/callback/logout routes; `/auth/error` is Auth.js' `pages.error`.
+  const publicRoutes = ["/", "/api/auth", "/auth/error"];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );

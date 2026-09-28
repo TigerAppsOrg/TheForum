@@ -3,7 +3,7 @@
 ## Project Overview
 
 Turborepo monorepo with:
-- `apps/web` — Next.js 15 (App Router, Turbopack, Tailwind v4, shadcn/ui)
+- `apps/web` — Next.js 16 (App Router, Turbopack, Tailwind v4, shadcn/ui), Auth.js v5 + Princeton CAS login
 - `apps/database` — Drizzle ORM + PostgreSQL
 - `backends/fastapi` — FastAPI (Python 3.12, uv)
 

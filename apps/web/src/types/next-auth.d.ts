@@ -11,6 +11,12 @@ declare module "next-auth" {
       image?: string | null;
     };
   }
+
+  /** Shape returned by the CAS provider's `authorize()`. */
+  interface User {
+    netId?: string;
+    onboarded?: boolean;
+  }
 }
 
 declare module "next-auth/jwt" {
