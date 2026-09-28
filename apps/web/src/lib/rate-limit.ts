@@ -25,6 +25,7 @@ export const RATE_LIMITS = {
   upload: { limit: 20, windowMs: 10 * MINUTE },
   createEvent: { limit: 20, windowMs: HOUR },
   createOrg: { limit: 5, windowMs: HOUR },
+  readEmail: { limit: 120, windowMs: MINUTE },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
