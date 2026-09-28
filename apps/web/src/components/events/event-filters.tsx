@@ -1,18 +1,18 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { FilterChip } from "~/components/common/filter-chip";
 import { Button } from "~/components/ui/button";
 
 const QUICK_FILTERS = [
   { id: "free food", label: "free food" },
-  { id: "tech", label: "tech talk" },
+  { id: "tech", label: "tech" },
   { id: "career", label: "career" },
-  { id: "social event", label: "social" },
+  { id: "social event", label: "social event" },
   { id: "music", label: "music" },
-  { id: "visual arts", label: "art" },
-  { id: "athletics", label: "sports" },
+  { id: "visual arts", label: "visual arts" },
+  { id: "athletics", label: "athletics" },
 ] as const;
 
 const ALL_FILTERS = [
@@ -20,7 +20,7 @@ const ALL_FILTERS = [
   { id: "academics", label: "academics" },
   { id: "culture", label: "culture" },
   { id: "performing arts", label: "performing arts" },
-  { id: "speaker event", label: "speaker" },
+  { id: "speaker event", label: "speaker event" },
   { id: "research", label: "research" },
   { id: "entrepreneurship", label: "entrepreneurship" },
   { id: "stem", label: "stem" },
@@ -29,7 +29,7 @@ const ALL_FILTERS = [
   { id: "outdoors", label: "outdoors" },
   { id: "sustainability", label: "sustainability" },
   { id: "gaming", label: "gaming" },
-  { id: "community service", label: "service" },
+  { id: "community service", label: "community service" },
   { id: "religion", label: "religion" },
   { id: "politics", label: "politics" },
 ] as const;
@@ -44,7 +44,7 @@ export function EventFilters({ activeFilters, onFilterToggle }: EventFiltersProp
   const filters = expanded ? ALL_FILTERS : QUICK_FILTERS;
 
   return (
-    <fieldset className="flex flex-wrap items-center gap-2">
+    <fieldset className="flex flex-wrap items-center gap-1.5">
       <legend className="sr-only">Filter events by tag</legend>
       {filters.map(({ id, label }) => (
         <FilterChip key={id} active={activeFilters.includes(id)} onClick={() => onFilterToggle(id)}>
@@ -53,12 +53,13 @@ export function EventFilters({ activeFilters, onFilterToggle }: EventFiltersProp
       ))}
       <Button
         variant="quiet"
-        size="sm"
+        size="xs"
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
+        className="h-7 text-[12px]"
       >
-        <Pencil />
-        {expanded ? "Less" : "Edit filters"}
+        {expanded ? "Fewer topics" : "More topics"}
+        <ChevronDown className={expanded ? "rotate-180" : undefined} />
       </Button>
     </fieldset>
   );

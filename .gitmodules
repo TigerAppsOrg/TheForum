@@ -1,0 +1,3 @@
+[submodule "packages/inbox-engine"]
+	path = packages/inbox-engine
+	url = https://github.com/TigerAppsOrg/InboxEngine.git

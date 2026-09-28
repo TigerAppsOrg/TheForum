@@ -1,3 +1,10 @@
+import {
+  addDaysToDateKey,
+  formatTime,
+  formatWeekdayTime,
+  toZonedDateKey,
+  zonedDayDiff,
+} from "~/lib/date-format";
 import type { RelativeLabel, TimeGroup } from "./map-types";
 
 /* ═══ Tag colors ═══ */
@@ -36,22 +43,21 @@ export function getEventColor(tags: string[]) {
 }
 
 /* ═══ Time helpers ═══ */
+/*
+ * Day comparisons use Princeton calendar days (America/New_York). The old
+ * `setHours(0, 0, 0, 0)` bucketing used the viewer's local zone, so the same
+ * event could read "Tomorrow" on one laptop and "Later Today" on another.
+ */
 export function getTimeGroup(rawDatetime: string): TimeGroup {
-  const eventTime = new Date(rawDatetime).getTime();
-  const now = Date.now();
-  const diffMs = eventTime - now;
+  const eventDate = new Date(rawDatetime);
+  const diffMs = eventDate.getTime() - Date.now();
   const diffH = diffMs / (1000 * 60 * 60);
 
   if (diffMs < 0 && diffMs > -2 * 60 * 60 * 1000) return "now";
   if (diffH <= 0) return "later-today";
   if (diffH <= 3) return "soon";
 
-  const eventDay = new Date(rawDatetime);
-  const today = new Date();
-  eventDay.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  const dayDiff = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
+  const dayDiff = zonedDayDiff(eventDate);
   if (dayDiff === 0) return "later-today";
   if (dayDiff === 1) return "tomorrow";
   return "this-week";
@@ -59,8 +65,7 @@ export function getTimeGroup(rawDatetime: string): TimeGroup {
 
 export function getRelativeLabel(rawDatetime: string): RelativeLabel {
   const eventTime = new Date(rawDatetime);
-  const now = new Date();
-  const diffMs = eventTime.getTime() - now.getTime();
+  const diffMs = eventTime.getTime() - Date.now();
   const diffMin = Math.round(diffMs / (1000 * 60));
   const diffH = Math.round(diffMs / (1000 * 60 * 60));
   const group = getTimeGroup(rawDatetime);
@@ -69,32 +74,10 @@ export function getRelativeLabel(rawDatetime: string): RelativeLabel {
   if (diffMin > 0 && diffMin < 60) return { label: `${diffMin}m`, urgency: "soon" };
   if (diffH > 0 && diffH <= 3) return { label: `${diffH}h`, urgency: "soon" };
 
-  const eventDay = new Date(rawDatetime);
-  const today = new Date();
-  eventDay.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  const dayDiff = Math.round((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (dayDiff === 0) {
-    return {
-      label: eventTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-      urgency: "later-today",
-    };
-  }
-  if (dayDiff === 1) {
-    return {
-      label: `Tmrw ${eventTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
-      urgency: "tomorrow",
-    };
-  }
-  return {
-    label: eventTime.toLocaleDateString("en-US", {
-      weekday: "short",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
-    urgency: "this-week",
-  };
+  const dayDiff = zonedDayDiff(eventTime);
+  if (dayDiff === 0) return { label: formatTime(eventTime), urgency: "later-today" };
+  if (dayDiff === 1) return { label: `Tmrw ${formatTime(eventTime)}`, urgency: "tomorrow" };
+  return { label: formatWeekdayTime(eventTime), urgency: "this-week" };
 }
 
 export const GROUP_LABELS: Record<TimeGroup, string> = {
@@ -116,8 +99,13 @@ export const URGENCY_STYLES: Record<TimeGroup, { badge: string; text: string }> 
 };
 
 /* ═══ Date helpers ═══ */
-export function toDateStr(d: Date): string {
-  return d.toISOString().split("T")[0] ?? "";
+/**
+ * Princeton calendar day ("YYYY-MM-DD") an event's ISO timestamp falls on.
+ * Slicing the ISO string gave the UTC date, which moved every event after
+ * 8pm Eastern onto the next day of the timeline.
+ */
+export function eventDateKey(rawDatetime: string): string {
+  return toZonedDateKey(new Date(rawDatetime));
 }
 
 export function getTimelineDays(days: number): {
@@ -128,28 +116,18 @@ export function getTimelineDays(days: number): {
   isToday: boolean;
   isPast: boolean;
 }[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const result: {
-    dateStr: string;
-    dayName: string;
-    dayNum: number;
-    monthShort: string;
-    isToday: boolean;
-    isPast: boolean;
-  }[] = [];
-  for (let i = 0; i < days; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    const dateStr = toDateStr(d);
-    result.push({
+  const todayKey = toZonedDateKey(new Date());
+  return Array.from({ length: days }, (_, i) => {
+    const dateStr = addDaysToDateKey(todayKey, i);
+    // Noon UTC on a date is that same calendar date — a safe anchor for labels.
+    const anchor = new Date(`${dateStr}T12:00:00Z`);
+    return {
       dateStr,
-      dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
-      dayNum: d.getDate(),
-      monthShort: d.toLocaleDateString("en-US", { month: "short" }),
+      dayName: anchor.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short" }),
+      dayNum: anchor.getUTCDate(),
+      monthShort: anchor.toLocaleDateString("en-US", { timeZone: "UTC", month: "short" }),
       isToday: i === 0,
       isPast: false,
-    });
-  }
-  return result;
+    };
+  });
 }

@@ -1,8 +1,0 @@
-{
-  "name": "@the-forum/mpu-scraper",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "scrape": "bun run src/index.ts"
-  }
-}

@@ -57,3 +57,8 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
+
+# ---- Secrets / local artifacts ----
+gmail_token.json
+**/cookies.json
+*.tsbuildinfo

@@ -1,7 +1,9 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
+  index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -152,9 +154,24 @@ export const organizations = pgTable("organizations", {
   description: text("description"),
   logoUrl: text("logo_url"),
   category: orgCategoryEnum("category").notNull(),
-  creatorId: uuid("creator_id")
-    .notNull()
-    .references(() => users.id),
+  /** Null for organizations imported from MyPrincetonU (no Forum user created them). */
+  creatorId: uuid("creator_id").references(() => users.id),
+  /** 'myprincetonu' (synced from InboxEngine) or 'manual' (created in The Forum). */
+  source: varchar("source", { length: 20 }).default("manual").notNull(),
+  /** Stable InboxEngine organization ID, e.g. "mpu:52941" for MyPrincetonU group 52941. */
+  externalId: varchar("external_id", { length: 64 }).unique(),
+  acronym: varchar("acronym", { length: 40 }),
+  tagline: text("tagline"),
+  groupType: varchar("group_type", { length: 120 }),
+  /** The organization's MyPrincetonU group page. */
+  groupUrl: text("group_url"),
+  website: text("website"),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  /** { instagram?, facebook?, linkedin?, twitter?, youtube? } → URLs */
+  socials: jsonb("socials").$type<Record<string, string>>().default({}).notNull(),
+  /** Member count reported by MyPrincetonU (not Forum users). */
+  memberCount: integer("member_count"),
+  syncedAt: timestamp("synced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -170,7 +187,11 @@ export const orgMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     role: orgRoleEnum("role").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.userId] }),
+    // "Orgs I belong to / manage" — the PK leads with org_id, so it can't serve this.
+    index("org_members_user_id_idx").on(t.userId),
+  ],
 );
 
 export const orgFollowers = pgTable(
@@ -184,34 +205,58 @@ export const orgFollowers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.userId] }),
+    // "Orgs I follow" (feed org affinity, follow state).
+    index("org_followers_user_id_idx").on(t.userId),
+  ],
 );
 
-export const events = pgTable("events", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  title: varchar("title", { length: 200 }).notNull(),
-  description: text("description").notNull(),
-  datetime: timestamp("datetime").notNull(),
-  endDatetime: timestamp("end_datetime"),
-  locationId: varchar("location_id", { length: 100 })
-    .notNull()
-    .references(() => campusLocations.id),
-  orgId: uuid("org_id").references(() => organizations.id, {
-    onDelete: "set null",
-  }),
-  creatorId: uuid("creator_id")
-    .notNull()
-    .references(() => users.id),
-  flyerUrl: text("flyer_url"),
-  coverPreset: varchar("cover_preset", { length: 50 }),
-  externalLink: text("external_link"),
-  isPublic: boolean("is_public").default(true).notNull(),
-  status: eventStatusEnum("status").default("published").notNull(),
-  source: varchar("source", { length: 20 }).default("manual").notNull(),
-  sourceMessageId: varchar("source_message_id", { length: 255 }).unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description").notNull(),
+    datetime: timestamp("datetime").notNull(),
+    endDatetime: timestamp("end_datetime"),
+    locationId: varchar("location_id", { length: 100 })
+      .notNull()
+      .references(() => campusLocations.id),
+    orgId: uuid("org_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => users.id),
+    flyerUrl: text("flyer_url"),
+    coverPreset: varchar("cover_preset", { length: 50 }),
+    externalLink: text("external_link"),
+    isPublic: boolean("is_public").default(true).notNull(),
+    status: eventStatusEnum("status").default("published").notNull(),
+    /** 'manual' | 'myprincetonu' (official) | 'listserv' (extracted from email) | legacy values. */
+    source: varchar("source", { length: 20 }).default("manual").notNull(),
+    /** For imported events: "ie:<InboxEngine event id>". */
+    sourceMessageId: varchar("source_message_id", { length: 255 }).unique(),
+    /** Where an imported event came from (MyPrincetonU page or the source email). */
+    sourceUrl: text("source_url"),
+    /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */
+    locationDetail: varchar("location_detail", { length: 200 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // Feed / map / search candidate scans: upcoming published events by time.
+    // Partial, so drafts never bloat it; discovery queries always filter on
+    // status = 'published', which lets the planner use it.
+    index("events_published_datetime_idx")
+      .on(t.datetime)
+      .where(sql`${t.status} = 'published'`),
+    index("events_org_id_idx").on(t.orgId),
+    index("events_creator_id_idx").on(t.creatorId),
+    index("events_location_id_idx").on(t.locationId),
+  ],
+);
 
 export const eventTags = pgTable(
   "event_tags",
@@ -221,7 +266,11 @@ export const eventTags = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     tag: eventTagEnum("tag").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.eventId, t.tag] })],
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.tag] }),
+    // Tag filters and interest matching look events up by tag.
+    index("event_tags_tag_idx").on(t.tag),
+  ],
 );
 
 export const eventTagEmbeddings = pgTable("event_tag_embeddings", {
@@ -240,7 +289,11 @@ export const rsvps = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.eventId] })],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.eventId] }),
+    // Attendee lists / RSVP counts per event (PK leads with user_id).
+    index("rsvps_event_id_idx").on(t.eventId),
+  ],
 );
 
 export const savedEvents = pgTable(
@@ -254,7 +307,11 @@ export const savedEvents = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.eventId] })],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.eventId] }),
+    // Per-event lookups and ON DELETE CASCADE from events.
+    index("saved_events_event_id_idx").on(t.eventId),
+  ],
 );
 
 export const friendships = pgTable(
@@ -269,19 +326,30 @@ export const friendships = pgTable(
     status: friendshipStatusEnum("status").default("pending").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.friendId] })],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.friendId] }),
+    // Reverse direction: incoming requests / friends where I'm the recipient.
+    index("friendships_friend_id_status_idx").on(t.friendId, t.status),
+  ],
 );
 
-export const notifications = pgTable("notifications", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  type: notificationTypeEnum("type").notNull(),
-  payload: jsonb("payload").notNull(),
-  read: boolean("read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: notificationTypeEnum("type").notNull(),
+    payload: jsonb("payload").notNull(),
+    read: boolean("read").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // The dropdown: a user's newest notifications first.
+    index("notifications_user_id_created_at_idx").on(t.userId, t.createdAt.desc()),
+  ],
+);
 
 export const pipelineLogStatusEnum = pgEnum("pipeline_log_status", [
   "success",
@@ -339,20 +407,38 @@ export const listservEmails = pgTable("listserv_emails", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── Integration state ────────────────────────────────────
+
+/** Cursors and bookkeeping for background syncs (e.g. InboxEngine event revisions). */
+export const syncState = pgTable("sync_state", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ── Recommendation / ML tables ────────────────────────────
 
-export const interactions = pgTable("interactions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  itemId: uuid("item_id").notNull(),
-  itemType: itemTypeEnum("item_type").default("event").notNull(),
-  interactionType: interactionTypeEnum("interaction_type").notNull(),
-  interactionValue: doublePrecision("interaction_value").notNull(),
-  metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const interactions = pgTable(
+  "interactions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").notNull(),
+    itemType: itemTypeEnum("item_type").default("event").notNull(),
+    interactionType: interactionTypeEnum("interaction_type").notNull(),
+    interactionValue: doublePrecision("interaction_value").notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // A user's interaction history (recommendations / preference vectors).
+    index("interactions_user_id_created_at_idx").on(t.userId, t.createdAt),
+    // Per-event view counts for feed popularity (append-only, grows fastest).
+    index("interactions_item_id_type_idx").on(t.itemId, t.interactionType),
+  ],
+);
 
 export const userPreferenceVectors = pgTable("user_preference_vectors", {
   userId: uuid("user_id")

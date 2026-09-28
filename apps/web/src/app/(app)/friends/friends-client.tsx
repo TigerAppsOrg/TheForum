@@ -2,27 +2,28 @@
 
 import { Check, Clock, Search, UserMinus, UserPlus, Users } from "lucide-react";
 import { useCallback, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   type FriendProfile,
   type FriendRequest,
+  type UserSearchResult,
   acceptFriendRequest,
   declineFriendRequest,
   removeFriend,
   searchUsers,
   sendFriendRequest,
 } from "~/actions/friends";
-import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, LoadingState } from "~/components/common/states";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { classYearShort } from "~/lib/profile-options";
+import { cn } from "~/lib/utils";
 
 function Avatar({
   name,
   avatarUrl,
-  // 44px reads fine on a phone row and still leaves room for the name and
-  // its actions; 56 crowded them.
-  size = 44,
+  size = 32,
 }: {
   name: string;
   avatarUrl?: string | null;
@@ -35,7 +36,7 @@ function Avatar({
       <img
         src={avatarUrl}
         alt=""
-        className="shrink-0 rounded-md border-2 border-forum-medium-gray object-cover"
+        className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size }}
       />
     );
@@ -44,7 +45,7 @@ function Avatar({
   return (
     <div
       aria-hidden
-      className="flex shrink-0 items-center justify-center rounded-md border-2 border-forum-medium-gray bg-forum-turquoise/30 font-bold text-black"
+      className="flex shrink-0 items-center justify-center rounded-full bg-forum-turquoise/40 font-bold text-black"
       style={{ width: size, height: size, fontSize: size * 0.35 }}
     >
       {initial}
@@ -65,12 +66,12 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
   const [friends, setFriends] = useState(initialFriends);
   const [pending, setPending] = useState(initialPending);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [sentIds, setSentIds] = useState<Set<string>>(
     new Set(initialPending.outgoing.map((r) => r.id)),
   );
-  const [activeTab, setActiveTab] = useState<"friends" | "find" | "requests">("friends");
+  const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   const friendIds = new Set(friends.map((f) => f.id));
@@ -85,20 +86,45 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
     }
     setIsSearching(true);
     searchTimeout.current = setTimeout(async () => {
-      const results = await searchUsers(query);
-      setSearchResults(results);
-      setIsSearching(false);
+      try {
+        setSearchResults(await searchUsers(query));
+      } catch {
+        setSearchResults([]);
+        toast.error("Search failed. Please try again.");
+      } finally {
+        setIsSearching(false);
+      }
     }, 300);
   }, []);
 
-  const handleSendRequest = (userId: string) => {
-    setSentIds((prev) => new Set([...prev, userId]));
+  /** Run a server action; on failure undo the optimistic change and say so. */
+  const run = (action: () => Promise<unknown>, undo: () => void, message: string) => {
     startTransition(async () => {
-      await sendFriendRequest(userId);
+      try {
+        await action();
+      } catch {
+        undo();
+        toast.error(message);
+      }
     });
   };
 
+  const handleSendRequest = (userId: string) => {
+    setSentIds((prev) => new Set([...prev, userId]));
+    run(
+      () => sendFriendRequest(userId),
+      () =>
+        setSentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(userId);
+          return next;
+        }),
+      "Couldn't send the request.",
+    );
+  };
+
   const handleAccept = (fromUserId: string) => {
+    const snapshot = { pending, friends };
     const accepted = pending.incoming.find((r) => r.id === fromUserId);
     setPending((prev) => ({ ...prev, incoming: prev.incoming.filter((r) => r.id !== fromUserId) }));
     if (accepted) {
@@ -114,217 +140,197 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
         },
       ]);
     }
-    startTransition(async () => {
-      await acceptFriendRequest(fromUserId);
-    });
+    run(
+      () => acceptFriendRequest(fromUserId),
+      () => {
+        setPending(snapshot.pending);
+        setFriends(snapshot.friends);
+      },
+      "Couldn't accept the request.",
+    );
   };
 
   const handleDecline = (fromUserId: string) => {
+    const snapshot = pending;
     setPending((prev) => ({ ...prev, incoming: prev.incoming.filter((r) => r.id !== fromUserId) }));
-    startTransition(async () => {
-      await declineFriendRequest(fromUserId);
-    });
+    run(
+      () => declineFriendRequest(fromUserId),
+      () => setPending(snapshot),
+      "Couldn't decline the request.",
+    );
   };
 
   const handleRemove = (friendId: string) => {
+    const snapshot = friends;
     setFriends((prev) => prev.filter((f) => f.id !== friendId));
-    startTransition(async () => {
-      await removeFriend(friendId);
-    });
+    run(
+      () => removeFriend(friendId),
+      () => setFriends(snapshot),
+      "Couldn't remove that friend.",
+    );
   };
 
   const tabs = [
-    { id: "friends" as const, label: "Your Friends", count: friends.length },
-    { id: "find" as const, label: "Find New Friends", count: 0 },
+    { id: "friends" as const, label: "Friends", count: friends.length },
     { id: "requests" as const, label: "Requests", count: pending.incoming.length },
   ];
 
   const isSearchActive = searchQuery.trim().length > 0;
+  const LIST =
+    "divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white";
+  const ROW = "flex items-center gap-3 px-3 py-2 sm:px-4";
+
+  const person = (p: {
+    displayName: string;
+    netId: string;
+    avatarUrl?: string | null;
+    classYear?: string | null;
+  }) => (
+    <>
+      <Avatar name={p.displayName} avatarUrl={p.avatarUrl} />
+      <div className="min-w-0 flex-1 font-dm-sans">
+        <p className="truncate text-[14px] font-semibold text-black">{p.displayName}</p>
+        <p className="truncate text-[12px] text-forum-light-gray">
+          @{p.netId}
+          {classYearShort(p.classYear) && ` · ${classYearShort(p.classYear)}`}
+        </p>
+      </div>
+    </>
+  );
 
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => setActiveTab(value as typeof activeTab)}
-      className="gap-6"
-    >
-      <TabsList variant="line" className="h-auto w-full border-b border-forum-medium-gray">
-        {tabs.map(({ id, label, count }) => (
-          <TabsTrigger
-            key={id}
-            value={id}
-            // Type scales down on phones so three tabs fit without clipping.
-            className="min-w-0 flex-1 px-1 py-3 font-dm-sans text-[13px] font-semibold after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black sm:px-2 sm:py-4 sm:text-[16px]"
-          >
-            {label}
-            {count > 0 && (
-              <span className="ml-2 rounded-full bg-forum-coral/10 px-2 py-0.5 text-[12px] font-bold text-forum-coral">
-                {count}
-              </span>
-            )}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-
+    <div className="flex flex-col gap-3">
+      {/* Search is always here — it's how you find people to add. */}
       <SearchInput
-        label="Search users by name or NetID"
-        placeholder="Search users by name or NetID"
+        label="Find people by name or NetID"
+        shortcut
+        placeholder="Find people by name or NetID"
         value={searchQuery}
         onChange={(e) => handleSearch(e.target.value)}
       />
 
-      {/*
-        Search results replace the active tab's content rather than sitting on
-        top of it, so only one list is ever on screen.
-      */}
       {isSearchActive ? (
-        <Panel size="none" className="overflow-hidden">
-          {isSearching ? (
-            <LoadingState label="Searching…" />
-          ) : searchResults.length > 0 ? (
-            <ul>
-              {searchResults.map((user) => {
-                const isFriend = friendIds.has(user.id);
-                const isPendingSent = sentIds.has(user.id);
-                return (
-                  <li
-                    key={user.id}
-                    className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-forum-turquoise/10"
-                  >
-                    <Avatar name={user.displayName} avatarUrl={user.avatarUrl} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-dm-sans text-[15px] font-bold text-black">
-                        {user.displayName}
-                      </p>
-                      <p className="font-dm-sans text-[12px] text-forum-light-gray">
-                        @{user.netId}
-                        {user.classYear && ` · '${user.classYear.slice(-2)}`}
-                      </p>
-                    </div>
-                    {isFriend ? (
-                      <span className="font-dm-sans text-[12px] font-bold text-forum-cerulean">
-                        Friends
-                      </span>
-                    ) : isPendingSent ? (
-                      <span className="flex items-center gap-1 font-dm-sans text-[12px] font-bold text-forum-light-gray">
-                        <Clock size={12} aria-hidden /> Sent
-                      </span>
-                    ) : (
-                      <Button
-                        variant="cerulean"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => handleSendRequest(user.id)}
-                      >
-                        <UserPlus />
-                        Add
-                      </Button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <EmptyState
-              icon={Search}
-              title="No users found"
-              description="Try a different name or NetID."
-            />
-          )}
-        </Panel>
+        isSearching ? (
+          <LoadingState label="Searching…" className="py-6" />
+        ) : searchResults.length > 0 ? (
+          <ul className={LIST}>
+            {searchResults.map((user) => {
+              const isFriend = friendIds.has(user.id);
+              const isPendingSent = sentIds.has(user.id);
+              return (
+                <li key={user.id} className={ROW}>
+                  {person(user)}
+                  {isFriend ? (
+                    <span className="font-dm-sans text-[12px] font-semibold text-forum-cerulean">
+                      Friends
+                    </span>
+                  ) : isPendingSent ? (
+                    <span className="flex items-center gap-1 font-dm-sans text-[12px] text-forum-light-gray">
+                      <Clock size={12} aria-hidden /> Requested
+                    </span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      className="h-7 rounded-full px-3 text-[12px]"
+                      onClick={() => handleSendRequest(user.id)}
+                    >
+                      <UserPlus />
+                      Add
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={Search}
+            title="No one found"
+            description="Try a different name or NetID."
+          />
+        )
       ) : (
-        <>
-          <TabsContent value="friends">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+          <TabsList
+            variant="line"
+            className="h-auto w-full justify-start gap-4 border-b border-forum-border"
+          >
+            {tabs.map(({ id, label, count }) => (
+              <TabsTrigger
+                key={id}
+                value={id}
+                className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
+              >
+                {label}
+                <span
+                  className={cn(
+                    "ml-1 font-normal",
+                    id === "requests" && count > 0
+                      ? "font-semibold text-forum-coral"
+                      : "text-forum-light-gray",
+                  )}
+                >
+                  {count}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="friends" className="mt-3">
             {friends.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <ul className={LIST}>
                 {friends.map((friend) => (
-                  <Panel
-                    key={friend.id}
-                    size="sm"
-                    className="flex items-center gap-4 transition-colors hover:border-forum-cerulean"
-                  >
-                    <Avatar name={friend.displayName} avatarUrl={friend.avatarUrl} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-dm-sans text-[15px] font-bold text-black">
-                        {friend.displayName}
-                      </p>
-                      <p className="font-dm-sans text-[12px] text-forum-light-gray">
-                        @{friend.netId}
-                        {friend.classYear && ` · '${friend.classYear.slice(-2)}`}
-                      </p>
-                    </div>
-                    {/*
-                      Always visible rather than hover-revealed: a control you
-                      cannot see is a control you cannot find, and hover doesn't
-                      exist on touch at all. It stays low-contrast until hover,
-                      where it turns coral to signal the destructive action.
-                    */}
+                  <li key={friend.id} className={ROW}>
+                    {person(friend)}
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Remove ${friend.displayName} from friends`}
                       onClick={() => handleRemove(friend.id)}
-                      className="text-forum-light-gray transition-colors hover:bg-forum-coral/10 hover:text-forum-coral"
+                      className="text-forum-light-gray hover:bg-forum-coral/10 hover:text-forum-coral"
                     >
                       <UserMinus />
                     </Button>
-                  </Panel>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <EmptyState
                 icon={Users}
                 title="No friends yet"
-                description="Search for classmates to start connecting."
+                description="Search above to find classmates by name or NetID."
               />
             )}
           </TabsContent>
 
-          <TabsContent value="find">
-            <EmptyState
-              icon={Search}
-              title="Find your classmates"
-              description="Use the search bar above to find people by name or NetID."
-            />
-          </TabsContent>
-
-          <TabsContent value="requests">
+          <TabsContent value="requests" className="mt-3">
             {pending.incoming.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {/* Rows wrap on phones so Accept/Decline don't squeeze the name */}
+              <ul className={LIST}>
                 {pending.incoming.map((req) => (
-                  <Panel
-                    key={req.id}
-                    size="sm"
-                    className="flex flex-wrap items-center gap-x-4 gap-y-3"
-                  >
-                    <Avatar name={req.displayName} avatarUrl={req.avatarUrl} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-dm-sans text-[15px] text-black">
-                        <span className="font-bold">{req.displayName}</span> ({req.netId}) sent you
-                        a friend request.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
+                  <li key={req.id} className={cn(ROW, "flex-wrap")}>
+                    {person(req)}
+                    <div className="flex items-center gap-1.5">
                       <Button
                         variant="cerulean"
-                        size="sm"
-                        disabled={isPending}
+                        size="xs"
+                        className="h-7 rounded-full px-3 text-[12px]"
                         onClick={() => handleAccept(req.id)}
                       >
                         Accept
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
-                        disabled={isPending}
+                        size="xs"
+                        className="h-7 rounded-full px-3 text-[12px]"
                         onClick={() => handleDecline(req.id)}
                       >
                         Decline
                       </Button>
                     </div>
-                  </Panel>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <EmptyState
                 icon={Check}
@@ -333,8 +339,8 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
               />
             )}
           </TabsContent>
-        </>
+        </Tabs>
       )}
-    </Tabs>
+    </div>
   );
 }

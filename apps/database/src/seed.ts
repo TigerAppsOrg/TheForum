@@ -31,6 +31,41 @@ type TagEmbeddingRecord = {
   embedding: number[];
 };
 
+/* ── safety guard ──
+ * The seed inserts users with plausible real Princeton NetIDs. Never let it
+ * touch a production or remote database by accident. The postgres client is
+ * lazy, so no connection has been opened yet when this runs.
+ */
+function assertSafeSeedTarget() {
+  if (process.env.ALLOW_REMOTE_SEED === "1") return;
+
+  const refuse = (reason: string): never => {
+    console.error(`\nRefusing to seed: ${reason}`);
+    console.error(
+      "The seed creates demo users with realistic NetIDs and must only run against a local dev database.",
+    );
+    console.error("If you really mean it, re-run with ALLOW_REMOTE_SEED=1.\n");
+    process.exit(1);
+  };
+
+  if (process.env.NODE_ENV === "production") {
+    refuse("NODE_ENV is 'production'.");
+  }
+
+  let host: string;
+  try {
+    host = new URL(process.env.DATABASE_URL ?? "").hostname;
+  } catch {
+    return refuse("DATABASE_URL is missing or not a valid URL.");
+  }
+  const localHosts = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+  if (!localHosts.has(host)) {
+    refuse(`DATABASE_URL host '${host}' is not localhost/127.0.0.1.`);
+  }
+}
+
+assertSafeSeedTarget();
+
 /* ── helpers ── */
 function days(n: number) {
   return n * 24 * 60 * 60 * 1000;

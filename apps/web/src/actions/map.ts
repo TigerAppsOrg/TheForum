@@ -7,15 +7,21 @@ import {
   db,
   eq,
   eventTags,
-  friendships,
   gte,
   inArray,
   lt,
+  ne,
+  or,
   organizations,
   rsvps,
   users,
 } from "@the-forum/database";
+import { z } from "zod";
 import { auth } from "~/auth";
+import { formatTime } from "~/lib/date-format";
+import { eventDiscoverableBy } from "~/lib/event-visibility";
+import { loadFriendIds } from "~/lib/social-graph";
+import { dateInputSchema, parseInput } from "~/lib/validation";
 
 export interface MapEvent {
   id: string;
@@ -33,6 +39,11 @@ export interface MapEvent {
   friendsAttending: { id: string; displayName: string; avatarUrl: string | null }[];
 }
 
+const mapEventsSchema = z.object({
+  from: dateInputSchema.optional(),
+  days: z.number().int().min(1).max(31).default(7),
+});
+
 /** Fetch events for a date range (defaults to next 7 days). */
 export async function getMapEvents(opts?: {
   from?: string;
@@ -42,25 +53,15 @@ export async function getMapEvents(opts?: {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const userId = session.user.id;
+  const input = parseInput(mapEventsSchema, opts ?? {});
 
-  // Accepted friendships are stored one-directional, so both columns are read.
-  const [outgoing, incoming] = await Promise.all([
-    db
-      .select({ friendId: friendships.friendId })
-      .from(friendships)
-      .where(and(eq(friendships.userId, userId), eq(friendships.status, "accepted"))),
-    db
-      .select({ friendId: friendships.userId })
-      .from(friendships)
-      .where(and(eq(friendships.friendId, userId), eq(friendships.status, "accepted"))),
-  ]);
-  const friendIds = [...outgoing, ...incoming].map((r) => r.friendId);
+  const friendIds = await loadFriendIds(userId);
 
-  const startDate = opts?.from ? new Date(opts.from) : new Date();
+  const startDate = input.from ?? new Date();
   startDate.setHours(0, 0, 0, 0);
 
   const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + (opts?.days ?? 7));
+  endDate.setDate(endDate.getDate() + input.days);
   endDate.setHours(23, 59, 59, 999);
 
   const results = await db
@@ -78,7 +79,17 @@ export async function getMapEvents(opts?: {
     .from(events)
     .innerJoin(campusLocations, eq(events.locationId, campusLocations.id))
     .leftJoin(organizations, eq(events.orgId, organizations.id))
-    .where(and(gte(events.datetime, startDate), lt(events.datetime, endDate)))
+    .where(
+      and(
+        gte(events.datetime, startDate),
+        lt(events.datetime, endDate),
+        // Published AND visible to this viewer — see ~/lib/event-visibility.ts.
+        eventDiscoverableBy(userId),
+        // The "other" placeholder location sits at (0, 0) — off the coast of
+        // Africa. Events there have no real coordinates, so keep them off the map.
+        or(ne(campusLocations.latitude, 0), ne(campusLocations.longitude, 0)),
+      ),
+    )
     .orderBy(events.datetime);
 
   /*
@@ -129,10 +140,7 @@ export async function getMapEvents(opts?: {
     locationId: r.locationId ?? "",
     locationName: r.locationName ?? "TBD",
     rawDatetime: r.datetime.toISOString(),
-    datetime: r.datetime.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatTime(r.datetime),
     tags: tagsByEvent.get(r.id) ?? [],
   }));
 }

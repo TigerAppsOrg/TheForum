@@ -7,6 +7,8 @@ import { type EventDetail, getEvent, toggleRsvp, toggleSave } from "~/actions/ev
 import { EventCard } from "~/components/events/event-card";
 import { Button } from "~/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "~/components/ui/dialog";
+import { buildGCalUrl } from "~/lib/calendar";
+import { formatEventDateTime } from "~/lib/date-format";
 
 interface EventDetailModalProps {
   eventId: string | null;
@@ -108,14 +110,13 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             title={event.title}
             orgId={event.orgId}
             orgName={event.orgName}
-            datetime={`${event.datetime.toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })} · ${event.datetime.toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            })}`}
+            /*
+             * The shared formatter, not a hand-rolled one. This built
+             * "Wed, Aug 26 · 7:54 AM" while the feed built "Wed, Aug 26 at
+             * 7:54 AM", so the same event read differently depending on where
+             * you opened it — the exact thing this modal exists to avoid.
+             */
+            datetime={formatEventDateTime(event.datetime)}
             location={event.locationName}
             description={event.description}
             tags={event.tags}
@@ -124,6 +125,15 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             friendsAttending={event.friendsAttending}
             isSaved={event.isSaved}
             isRsvped={event.isRsvped}
+            /* The "+ Calendar" action the feed card has — `buildGCalUrl` was
+               extracted here for this call site and then never wired up. */
+            calendarUrl={buildGCalUrl({
+              title: event.title,
+              description: event.description,
+              datetime: event.datetime,
+              endDatetime: event.endDatetime,
+              locationName: event.locationName,
+            })}
             onSaveToggle={handleSave}
             onRsvpToggle={handleRsvp}
             onShare={handleShare}

@@ -22,6 +22,20 @@
       "when": 1785720843992,
       "tag": "0002_update_enums",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790578328159,
+      "tag": "0003_add_query_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790579109504,
+      "tag": "0004_inbox_engine_orgs_events",
+      "breakpoints": true
     }
   ]
 }

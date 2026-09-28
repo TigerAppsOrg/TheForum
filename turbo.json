@@ -5,7 +5,18 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NEXT_PUBLIC_*"],
+      "passThroughEnv": [
+        "SKIP_ENV_VALIDATION",
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "AUTH_TRUST_HOST",
+        "CAS_BASE_URL",
+        "AWS_S3_BUCKET",
+        "AWS_REGION"
+      ]
     },
     "dev": {
       "cache": false,
@@ -18,20 +29,65 @@
       "dependsOn": ["^check-types"]
     },
     "db:generate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:push": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:studio": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     },
     "db:seed": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
+    },
+    "db:sync-engine": {
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN",
+        "ALLOW_REMOTE_SEED",
+        "NODE_ENV"
+      ]
     }
   }
 }

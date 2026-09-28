@@ -1,4 +1,5 @@
-import { signIn } from "~/auth";
+import { FeedPreview, TonightPreview } from "~/components/landing/product-preview";
+import { SiteFooter } from "~/components/layout/site-footer";
 
 export default function LandingPage() {
   return (
@@ -25,12 +26,8 @@ export default function LandingPage() {
               EVENT ORGANIZERS
             </a>
           </div>
-          <form
-            action={async () => {
-              "use server";
-              await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-            }}
-          >
+          <form action="/api/auth/cas/login" method="get">
+            <input type="hidden" name="callbackUrl" value="/explore" />
             <button type="submit" className="button-coral">
               LOG IN
             </button>
@@ -83,12 +80,8 @@ export default function LandingPage() {
               <span className="text-forum-coral font-bold">one beautifully curated feed, </span>
               personalized around you, your friends, and the things you actually love.
             </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/explore" />
               <button type="submit" className="button-white">
                 Get Started
               </button>
@@ -106,11 +99,11 @@ export default function LandingPage() {
         {" "}
         {/* Left column */}
         <div className="flex flex-1 flex-col gap-25 justify-between py-20 md:py-20">
-          {/* Mockup */}
+          {/* Product preview — the Explore feed */}
           <div className="relative flex items-center justify-center min-h-64">
             <div className="absolute w-80 h-80 rounded-full bg-forum-cerulean opacity-75 blur-lg" />
-            <div className="relative z-10 bg-white/20 rounded-2xl w-full max-w-sm h-64 flex items-center justify-center text-white/50 text-sm">
-              UI mockup goes here
+            <div className="relative z-10 w-full">
+              <FeedPreview />
             </div>
           </div>
 
@@ -152,12 +145,10 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          {/* Second mockup */}
+          {/* Product preview — filters + what's happening soon */}
           <div className="relative flex justify-end items-center">
             <div className="absolute w-90 h-90 rounded-10 bg-forum-cerulean opacity-75 blur-lg" />
-            <div className="relative z-10 bg-white/20 rounded-2xl w-full max-w-sm h-48 flex items-center justify-center text-white/50 text-sm">
-              Second mockup goes here
-            </div>
+            <TonightPreview />
           </div>
         </div>
       </section>
@@ -190,12 +181,8 @@ export default function LandingPage() {
                 reach students whose interests actually align with what you&apos;re building.
               </span>
             </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/events/create" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/events/create" />
               <button
                 type="submit"
                 className="px-8 py-4 border-2 border-forum-coral text-forum-black text-small font-bold tracking-[0.22em] uppercase hover:bg-forum-coral hover:text-white transition-colors duration-500 rounded-md"
@@ -219,12 +206,8 @@ export default function LandingPage() {
               for <span className="italic font-bold">you.</span>
             </h2>
             <div className="w-0.5 h-30 bg-black" />
-            <form
-              action={async () => {
-                "use server";
-                await signIn("microsoft-entra-id", { redirectTo: "/explore" });
-              }}
-            >
+            <form action="/api/auth/cas/login" method="get">
+              <input type="hidden" name="callbackUrl" value="/explore" />
               <button type="submit" className="button-white">
                 Join Today
               </button>
@@ -246,11 +229,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="bg-white px-6 sm:px-15 py-5 border-t border-forum-medium-gray">
-        <p className="text-[11px] text-forum-light-gray">
-          Built for Princeton students — The Forum by TigerApps
-        </p>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
