@@ -18,6 +18,7 @@ import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type UserSearchResult, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
+import { OrgAvatar } from "~/components/common/org-avatar";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
@@ -31,38 +32,6 @@ const SOCIAL_LABELS: Record<string, string> = {
   twitter: "X",
   youtube: "YouTube",
 };
-
-function initials(name: string) {
-  return (
-    name
-      .replace(/[^\p{L}\p{N} ]/gu, "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase())
-      .join("") || "?"
-  );
-}
-
-function OrgLogo({ name, logoUrl }: { name: string; logoUrl: string | null }) {
-  if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt={`${name} logo`}
-        className="size-16 shrink-0 rounded-xl border border-forum-medium-gray bg-white object-contain p-1"
-      />
-    );
-  }
-  return (
-    <div
-      aria-hidden
-      className="flex size-16 shrink-0 items-center justify-center rounded-xl border border-forum-medium-gray bg-forum-cerulean/10 font-dm-sans text-lg font-semibold text-forum-cerulean"
-    >
-      {initials(name)}
-    </div>
-  );
-}
 
 function PersonAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   return avatarUrl ? (
@@ -83,7 +52,7 @@ function LinkChip({ href, children }: { href: string; children: React.ReactNode 
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-md border border-forum-medium-gray px-2.5 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
+      className="inline-flex items-center gap-1.5 rounded-full border border-forum-border bg-white px-3 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
     >
       {children}
     </a>
@@ -186,11 +155,11 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
         Back
       </Button>
 
-      <header className="flex flex-col gap-4 border-b border-forum-medium-gray pb-5 sm:flex-row sm:items-start">
-        <OrgLogo name={org.name} logoUrl={org.logoUrl} />
+      <header className="flex flex-col gap-4 rounded-[24px] border border-forum-border bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:p-6">
+        <OrgAvatar name={org.name} logoUrl={org.logoUrl} size={72} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h1 className="font-dm-sans text-2xl font-semibold leading-tight text-black text-balance">
+            <h1 className="font-serif text-[26px] font-semibold leading-tight text-black text-balance sm:text-[30px]">
               {org.name}
             </h1>
             {official && (
@@ -236,7 +205,7 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
               <button
                 type="button"
                 onClick={copyEmail}
-                className="inline-flex items-center gap-1.5 rounded-md border border-forum-medium-gray px-2.5 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
+                className="inline-flex items-center gap-1.5 rounded-full border border-forum-border bg-white px-3 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
                 title="Copy email address"
               >
                 <Copy size={12} aria-hidden />
@@ -257,10 +226,10 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
         </Button>
       </header>
 
-      <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="flex min-w-0 flex-col gap-8">
+      <div className="grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="flex min-w-0 flex-col gap-6">
           {org.description && (
-            <section className="flex flex-col gap-2">
+            <section className="flex flex-col gap-2 rounded-[24px] border border-forum-border bg-white p-5">
               <h2 className="font-dm-sans text-sm font-semibold text-black">About</h2>
               <p className="max-w-prose whitespace-pre-line font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
                 {org.description}
@@ -312,7 +281,7 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
           </section>
         </div>
 
-        <aside className="flex flex-col gap-4">
+        <aside className="flex h-fit flex-col gap-4 rounded-[24px] border border-forum-border bg-white p-5">
           <SideSection title="Community">
             <p className="flex items-center gap-2 font-dm-sans text-sm text-forum-dark-gray">
               <Heart size={14} aria-hidden className="text-forum-light-gray" />
