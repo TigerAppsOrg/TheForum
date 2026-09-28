@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { type UserSearchResult, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
 import { OrgAvatar } from "~/components/common/org-avatar";
+import { RichText } from "~/components/common/rich-text";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
@@ -231,9 +232,7 @@ export function OrgProfileClient({ org }: { org: OrgDetail }) {
           {org.description && (
             <section className="flex flex-col gap-2 rounded-[24px] border border-forum-border bg-white p-5">
               <h2 className="font-dm-sans text-sm font-semibold text-black">About</h2>
-              <p className="max-w-prose whitespace-pre-line font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
-                {org.description}
-              </p>
+              <RichText text={org.description} className="max-w-prose text-sm" />
             </section>
           )}
 
