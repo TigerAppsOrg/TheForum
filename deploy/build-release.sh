@@ -10,6 +10,7 @@ set -euo pipefail
 out=${1:?output path required}
 root=$(cd "$(dirname "$0")/.." && pwd)
 stage=$(mktemp -d)
+chmod 755 "$stage"  # mktemp makes 0700; the tarball root must be traversable by the service user
 trap 'rm -rf "$stage"' EXIT
 
 standalone="$root/apps/web/.next/standalone"
