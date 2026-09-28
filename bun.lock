@@ -48,10 +48,6 @@
       "name": "@the-forum/listserv-scraper",
       "version": "0.0.1",
     },
-    "apps/mpu-scraper": {
-      "name": "@the-forum/mpu-scraper",
-      "version": "0.0.1",
-    },
     "apps/web": {
       "name": "@the-forum/web",
       "version": "0.1.0",
@@ -791,8 +787,6 @@
     "@the-forum/fastapi": ["@the-forum/fastapi@workspace:backends/fastapi"],
 
     "@the-forum/listserv-scraper": ["@the-forum/listserv-scraper@workspace:apps/listserv-scraper"],
-
-    "@the-forum/mpu-scraper": ["@the-forum/mpu-scraper@workspace:apps/mpu-scraper"],
 
     "@the-forum/web": ["@the-forum/web@workspace:apps/web"],
 

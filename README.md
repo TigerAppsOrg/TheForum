@@ -11,7 +11,6 @@ This is a [Turborepo](https://turbo.build) monorepo managed with [Bun](https://b
 | `apps/admin-web` | Admin dashboard — Vite + React |
 | `backends/fastapi` | FastAPI backend (Python 3.12, managed with `uv`) |
 | `apps/listserv-scraper` | Python scraper for Princeton listserv archives |
-| `apps/mpu-scraper` | Scraper for MyPrincetonU events |
 
 New to the project? Follow **Quick start** below — it gets `apps/web` running locally,
 which is the primary thing you need. The Python backend and scrapers are optional
