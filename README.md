@@ -8,13 +8,14 @@ This is a [Turborepo](https://turbo.build) monorepo managed with [Bun](https://b
 |---|---|
 | `apps/web` | **The main app** — Next.js 16 (App Router), React 19, Tailwind v4, shadcn/ui |
 | `apps/database` | Shared Drizzle ORM schema + migrations (PostgreSQL) |
-| `apps/admin-web` | Admin dashboard — Vite + React |
-| `backends/fastapi` | FastAPI backend (Python 3.12, managed with `uv`) |
-| `apps/listserv-scraper` | Python scraper for Princeton listserv archives |
+| `packages/inbox-engine` | **Git submodule** → [TigerAppsOrg/InboxEngine](https://github.com/TigerAppsOrg/InboxEngine), the shared source of truth for Princeton organizations, campus venues and events (MyPrincetonU + listserv emails) |
 
 New to the project? Follow **Quick start** below — it gets `apps/web` running locally,
-which is the primary thing you need. The Python backend and scrapers are optional
-until you work on them.
+which is the primary thing you need.
+
+Clone with submodules (`git clone --recurse-submodules …`), or run
+`git submodule update --init` in an existing checkout. InboxEngine is a private repo;
+ask a TigerApps admin for access if the submodule fails to fetch.
 
 ---
 
@@ -109,13 +110,7 @@ cd apps/web && bun run dev
 
 Open <http://localhost:3000>. You're set up.
 
-To run **everything at once** (web + admin + FastAPI) from the repo root:
-
-```bash
-bun run dev        # Turborepo TUI: web :3000, admin-web :5173, FastAPI :8000
-```
-
-(FastAPI will only start if you've done the [Python backend](#python-backend-optional) setup.)
+To run the dev server through Turborepo from the repo root: `bun run dev`.
 
 ---
 
@@ -130,6 +125,7 @@ bun run db:up        # start Postgres        db:down     stop it (data persists)
 bun run db:push      # push schema (dev)     db:generate generate SQL migrations
 bun run db:migrate   # apply migrations      db:studio   visual DB browser
 bun run db:seed      # seed demo data (safe to re-run; refuses non-local DBs unless ALLOW_REMOTE_SEED=1)
+bun run db:sync-engine  # import orgs, venues and events from InboxEngine (needs INBOX_ENGINE_URL/TOKEN)
 (cd apps/web && bun test)   # unit tests
 ```
 
@@ -142,23 +138,33 @@ if your commit fails, read the Biome output, fix, and re-commit.
   New vars get added to `apps/web/src/env.ts` *and* the `.env.example` files.
 - **UI components:** use [shadcn/ui](https://ui.shadcn.com). Add new ones from `apps/web`:
   `bunx shadcn@latest add <component>`.
-- **Linting:** Biome only (no ESLint/Prettier). Python uses Ruff.
+- **Linting:** Biome only (no ESLint/Prettier).
 
 ---
 
-## Python backend (optional)
+## Organizations and events from InboxEngine
 
-Only needed if you're working on `backends/fastapi` or the scrapers.
+Official organizations (all MyPrincetonU groups, with logos, descriptions, social links and
+MyPrincetonU page links), campus venues and events come from
+[InboxEngine](https://github.com/TigerAppsOrg/InboxEngine), which also powers TigerInbox.
+It ingests MyPrincetonU's official events feed and residential/FreeFood listserv emails,
+resolves the hosting organization, extracts time and place, and exposes a revisioned change feed.
 
 ```bash
-cd backends/fastapi
-cp .env.example .env   # default DATABASE_URL works with the Docker database
-uv sync                # creates .venv and installs all dependencies
-bun run dev            # = uv run uvicorn app.main:app --reload --port 8000
+# apps/database/.env
+INBOX_ENGINE_URL=https://inbox-engine.tigerapps.org
+INBOX_ENGINE_TOKEN=…            # ask a TigerApps admin
+
+bun run db:sync-engine          # incremental; add -- --full to replay the whole feed
 ```
 
-API docs live at <http://localhost:8000/docs>. Lint with `uv run ruff check .`
-and format with `uv run ruff format .`.
+Imported orgs have `source = 'myprincetonu'` and `external_id = 'mpu:<group id>'`; their
+officers are managed on MyPrincetonU. Imported events are owned by the `_inboxengine` bot user,
+carry `source` (`myprincetonu` or `listserv`) and a `source_url`, and are unpublished (never
+deleted) when InboxEngine withdraws them. Production runs the sync every five minutes.
+
+To update the engine version: `cd packages/inbox-engine && git pull origin main`, then commit
+the new submodule pointer.
 
 ---
 
@@ -188,9 +194,6 @@ Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` everywhere t
 
 **Husky hooks not running**
 Re-run `bun install` from the repo root (the `prepare` script reinstalls hooks).
-
-**`bun run dev` doesn't start FastAPI**
-Expected unless you've run `uv sync` in `backends/fastapi` and `uv` is on your PATH.
 
 **Wipe the database and start fresh**
 `docker compose down -v` (deletes the data volume), then `bun run db:up && bun run db:push && bun run db:seed`.

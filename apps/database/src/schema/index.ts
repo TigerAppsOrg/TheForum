@@ -3,6 +3,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -153,9 +154,24 @@ export const organizations = pgTable("organizations", {
   description: text("description"),
   logoUrl: text("logo_url"),
   category: orgCategoryEnum("category").notNull(),
-  creatorId: uuid("creator_id")
-    .notNull()
-    .references(() => users.id),
+  /** Null for organizations imported from MyPrincetonU (no Forum user created them). */
+  creatorId: uuid("creator_id").references(() => users.id),
+  /** 'myprincetonu' (synced from InboxEngine) or 'manual' (created in The Forum). */
+  source: varchar("source", { length: 20 }).default("manual").notNull(),
+  /** Stable InboxEngine organization ID, e.g. "mpu:52941" for MyPrincetonU group 52941. */
+  externalId: varchar("external_id", { length: 64 }).unique(),
+  acronym: varchar("acronym", { length: 40 }),
+  tagline: text("tagline"),
+  groupType: varchar("group_type", { length: 120 }),
+  /** The organization's MyPrincetonU group page. */
+  groupUrl: text("group_url"),
+  website: text("website"),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  /** { instagram?, facebook?, linkedin?, twitter?, youtube? } → URLs */
+  socials: jsonb("socials").$type<Record<string, string>>().default({}).notNull(),
+  /** Member count reported by MyPrincetonU (not Forum users). */
+  memberCount: integer("member_count"),
+  syncedAt: timestamp("synced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -218,8 +234,14 @@ export const events = pgTable(
     externalLink: text("external_link"),
     isPublic: boolean("is_public").default(true).notNull(),
     status: eventStatusEnum("status").default("published").notNull(),
+    /** 'manual' | 'myprincetonu' (official) | 'listserv' (extracted from email) | legacy values. */
     source: varchar("source", { length: 20 }).default("manual").notNull(),
+    /** For imported events: "ie:<InboxEngine event id>". */
     sourceMessageId: varchar("source_message_id", { length: 255 }).unique(),
+    /** Where an imported event came from (MyPrincetonU page or the source email). */
+    sourceUrl: text("source_url"),
+    /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */
+    locationDetail: varchar("location_detail", { length: 200 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -383,6 +405,15 @@ export const listservEmails = pgTable("listserv_emails", {
   attachments: jsonb("attachments").default([]),
   listservUrl: text("listserv_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Integration state ────────────────────────────────────
+
+/** Cursors and bookkeeping for background syncs (e.g. InboxEngine event revisions). */
+export const syncState = pgTable("sync_state", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // ── Recommendation / ML tables ────────────────────────────

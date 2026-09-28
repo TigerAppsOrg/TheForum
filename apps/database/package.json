@@ -12,7 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "bun run src/seed.ts",
     "lint": "biome check .",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "db:sync-engine": "bun run src/sync-inbox-engine.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

@@ -183,7 +183,12 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
               <MapPin size={14} aria-hidden className="text-forum-light-gray" />
               <span className="sr-only">Location</span>
             </dt>
-            <dd>{event.locationName}</dd>
+            <dd>
+              {event.locationName}
+              {event.locationDetail && (
+                <span className="text-forum-light-gray"> · {event.locationDetail}</span>
+              )}
+            </dd>
             {event.externalLink && (
               <>
                 <dt>
@@ -284,7 +289,28 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forum-border pt-3 text-[12px] text-forum-light-gray">
-            <span>Posted by {event.creatorName}</span>
+            {event.source === "myprincetonu" || event.source === "listserv" ? (
+              <span>
+                {event.source === "myprincetonu"
+                  ? "Official event from MyPrincetonU"
+                  : "Found in a campus listserv email"}
+                {event.sourceUrl && (
+                  <>
+                    {" · "}
+                    <a
+                      href={event.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-forum-cerulean hover:underline"
+                    >
+                      {event.source === "myprincetonu" ? "View on MyPrincetonU" : "Read the email"}
+                    </a>
+                  </>
+                )}
+              </span>
+            ) : (
+              <span>Posted by {event.creatorName}</span>
+            )}
             {/* Org owners/officers can edit; only the creator can delete. */}
             {event.canEdit && (
               <Link

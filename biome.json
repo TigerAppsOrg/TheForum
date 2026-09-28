@@ -15,7 +15,8 @@
       "drizzle",
       "__pycache__",
       ".venv",
-      "_assets"
+      "_assets",
+      "packages/inbox-engine"
     ]
   },
   "formatter": {

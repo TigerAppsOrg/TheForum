@@ -25,6 +25,7 @@ import { formatEventDateTime } from "~/lib/date-format";
 import { eventVisibleTo } from "~/lib/event-visibility";
 import { enforceRateLimit } from "~/lib/rate-limit";
 import { uploadedImageUrlSchema } from "~/lib/s3";
+import { loadFriendIds } from "~/lib/social-graph";
 import { containsPattern } from "~/lib/sql-helpers";
 import { idSchema, orgCategorySchema, parseInput } from "~/lib/validation";
 
@@ -38,22 +39,38 @@ export interface OrgListItem {
   isFollowing: boolean;
 }
 
+export interface OrgPerson {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 export interface OrgDetail {
   id: string;
   name: string;
   description: string | null;
   logoUrl: string | null;
   category: string;
-  creatorId: string;
+  creatorId: string | null;
+  /** 'myprincetonu' for official groups imported via InboxEngine, 'manual' for Forum-created. */
+  source: string;
+  acronym: string | null;
+  tagline: string | null;
+  groupType: string | null;
+  /** The group's MyPrincetonU page. */
+  groupUrl: string | null;
+  website: string | null;
+  contactEmail: string | null;
+  socials: Record<string, string>;
+  /** Membership count reported by MyPrincetonU. */
+  memberCount: number | null;
   followerCount: number;
   isFollowing: boolean;
   isOwner: boolean;
-  members: {
-    id: string;
-    displayName: string;
-    avatarUrl: string | null;
-    role: string;
-  }[];
+  /** The viewer's friends who follow this org (social proof; never the full follower list). */
+  friendsFollowing: OrgPerson[];
+  /** Forum officers, shown only for Forum-created orgs (official rosters live on MyPrincetonU). */
+  team: (OrgPerson & { role: string })[];
   upcomingEvents: {
     id: string;
     title: string;
@@ -145,30 +162,39 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
 
   if (!org) return null;
 
-  // Follower count
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(orgFollowers)
-    .where(eq(orgFollowers.orgId, orgId));
-
-  // Is following
-  const [following] = await db
-    .select()
-    .from(orgFollowers)
-    .where(and(eq(orgFollowers.orgId, orgId), eq(orgFollowers.userId, userId)))
-    .limit(1);
-
-  // Members
-  const members = await db
-    .select({
-      id: users.id,
-      displayName: users.displayName,
-      avatarUrl: users.avatarUrl,
-      role: orgMembers.role,
-    })
-    .from(orgMembers)
-    .innerJoin(users, eq(orgMembers.userId, users.id))
-    .where(eq(orgMembers.orgId, orgId));
+  const friendIds = await loadFriendIds(userId);
+  const [[countResult], [following], friendsFollowing, team] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orgFollowers)
+      .where(eq(orgFollowers.orgId, orgId)),
+    db
+      .select({ userId: orgFollowers.userId })
+      .from(orgFollowers)
+      .where(and(eq(orgFollowers.orgId, orgId), eq(orgFollowers.userId, userId)))
+      .limit(1),
+    friendIds.length === 0
+      ? Promise.resolve([] as OrgPerson[])
+      : db
+          .select({ id: users.id, displayName: users.displayName, avatarUrl: users.avatarUrl })
+          .from(orgFollowers)
+          .innerJoin(users, eq(orgFollowers.userId, users.id))
+          .where(and(eq(orgFollowers.orgId, orgId), inArray(orgFollowers.userId, friendIds)))
+          .orderBy(users.displayName)
+          .limit(12),
+    org.source === "myprincetonu"
+      ? Promise.resolve([] as (OrgPerson & { role: string })[])
+      : db
+          .select({
+            id: users.id,
+            displayName: users.displayName,
+            avatarUrl: users.avatarUrl,
+            role: orgMembers.role,
+          })
+          .from(orgMembers)
+          .innerJoin(users, eq(orgMembers.userId, users.id))
+          .where(and(eq(orgMembers.orgId, orgId), inArray(orgMembers.role, ["owner", "officer"]))),
+  ]);
 
   // Upcoming events
   const upcomingEventsRaw = await db
@@ -192,7 +218,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
       ),
     )
     .orderBy(events.datetime)
-    .limit(10);
+    .limit(20);
 
   // One query for every event's tags rather than one per event.
   const tagRows =
@@ -232,10 +258,20 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     logoUrl: org.logoUrl,
     category: org.category,
     creatorId: org.creatorId,
+    source: org.source,
+    acronym: org.acronym,
+    tagline: org.tagline,
+    groupType: org.groupType,
+    groupUrl: org.groupUrl,
+    website: org.website,
+    contactEmail: org.contactEmail,
+    socials: org.socials ?? {},
+    memberCount: org.memberCount,
     followerCount: countResult?.count ?? 0,
     isFollowing: !!following,
-    isOwner: org.creatorId === userId,
-    members,
+    isOwner: !!org.creatorId && org.creatorId === userId,
+    friendsFollowing,
+    team,
     upcomingEvents,
   };
 }

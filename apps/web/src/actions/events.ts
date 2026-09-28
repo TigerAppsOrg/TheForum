@@ -320,6 +320,11 @@ export interface EventDetail {
   flyerUrl: string | null;
   externalLink: string | null;
   isPublic: boolean;
+  /** 'manual', or where an imported event came from: 'myprincetonu' | 'listserv'. */
+  source: string;
+  sourceUrl: string | null;
+  /** Room or free-text place, e.g. "Room 104". */
+  locationDetail: string | null;
   tags: string[];
   rsvpCount: number;
   attendees: { id: string; displayName: string; avatarUrl: string | null }[];
@@ -357,6 +362,9 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
       flyerUrl: events.flyerUrl,
       externalLink: events.externalLink,
       isPublic: events.isPublic,
+      source: events.source,
+      sourceUrl: events.sourceUrl,
+      locationDetail: events.locationDetail,
     })
     .from(events)
     .leftJoin(campusLocations, eq(events.locationId, campusLocations.id))
@@ -390,6 +398,9 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     flyerUrl: event.flyerUrl,
     externalLink: event.externalLink,
     isPublic: event.isPublic,
+    source: event.source,
+    sourceUrl: event.sourceUrl,
+    locationDetail: event.locationDetail,
     tags: extra.tags.get(eventId) ?? [],
     rsvpCount: attendees.length,
     attendees,

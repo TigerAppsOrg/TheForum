@@ -168,7 +168,7 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
                   style={{ background: color?.bg }}
                 >
                   {org.logoUrl ? (
-                    <img src={org.logoUrl} alt="" className="size-full object-cover" />
+                    <img src={org.logoUrl} alt="" className="size-full bg-white object-contain" />
                   ) : (
                     <span className="text-[13px] font-bold" style={{ color: color?.text }}>
                       {org.name[0]?.toUpperCase()}

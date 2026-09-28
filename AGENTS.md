@@ -5,7 +5,7 @@
 Turborepo monorepo with:
 - `apps/web` — Next.js 16 (App Router, Turbopack, Tailwind v4, shadcn/ui), Auth.js v5 + Princeton CAS login
 - `apps/database` — Drizzle ORM + PostgreSQL
-- `backends/fastapi` — FastAPI (Python 3.12, uv)
+- `packages/inbox-engine` — git submodule (TigerAppsOrg/InboxEngine): shared org/venue/event source of truth; sync with `bun run db:sync-engine`. Don't edit it here — change InboxEngine and bump the submodule.
 
 ---
 
