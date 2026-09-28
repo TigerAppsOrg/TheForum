@@ -31,8 +31,10 @@ import {
   eventDiscoverableBy,
   eventEditableBy,
   eventVisibleTo,
+  notFromHiddenOrg,
 } from "~/lib/event-visibility";
 import { type FeedPage, loadRankedFeed } from "~/lib/feed";
+import { loadOrgViewerState } from "~/lib/org-preferences";
 import { enforceRateLimit } from "~/lib/rate-limit";
 import { isOurImageUrl, uploadedImageUrlSchema } from "~/lib/s3";
 import { loadFriendIds } from "~/lib/social-graph";
@@ -40,6 +42,7 @@ import {
   dateInputSchema,
   eventStatusSchema,
   eventTagSchema,
+  feedSortSchema,
   httpsUrlSchema,
   idSchema,
   locationIdSchema,
@@ -56,6 +59,8 @@ export interface FeedEvent {
   orgName: string | null;
   /** Organization logo (MyPrincetonU groups often have one), else null. */
   orgLogoUrl?: string | null;
+  /** The viewer follows the host org — drives the card menu's Follow/Unfollow. Explore only. */
+  isFollowingOrg?: boolean;
   datetime: string;
   /** ISO timestamp, for building calendar links client-side. */
   rawDatetime?: string;
@@ -172,6 +177,7 @@ const feedParamsSchema = z.object({
   orgCategory: orgCategorySchema.optional(),
   locationId: z.string().max(100).optional(),
   dateRange: z.enum(["today", "week", "month"]).optional(),
+  sort: feedSortSchema.default("foryou"),
   limit: z.number().int().min(1).max(50).default(20),
   offset: z.number().int().min(0).max(5000).default(0),
   asOf: z.iso.datetime().optional(),
@@ -184,18 +190,20 @@ export interface FeedParams {
   orgCategory?: string;
   locationId?: string;
   dateRange?: "today" | "week" | "month";
+  /** "foryou" (default) | "soonest" | "recent". */
+  sort?: string;
   limit?: number;
   offset?: number;
   asOf?: string;
 }
 
 /**
- * One page of the ranked Explore feed. Ranking, org-diversity and the
- * soon-event quota are applied to the whole candidate list before paginating;
- * see `~/lib/feed.ts` and docs/ranking.md.
+ * One page of the Explore feed in the requested sort. Ordering (for "For you":
+ * ranking, org-diversity and the soon-event quota) is applied to the whole
+ * candidate list before paginating; see `~/lib/feed.ts` and docs/ranking.md.
  *
- * Pass the returned `asOf` back with the next `offset` so later pages are
- * slices of the same ranking.
+ * Pass the returned `asOf` and `nextOffset` back for the next page so later
+ * pages are slices of the same ordering.
  */
 export async function getFeedEvents(params?: FeedParams): Promise<FeedPage> {
   const session = await auth();
@@ -209,6 +217,7 @@ export async function getFeedEvents(params?: FeedParams): Promise<FeedPage> {
     orgCategory: input.orgCategory,
     locationId: input.locationId,
     dateRange: input.dateRange,
+    sort: input.sort,
     limit: input.limit,
     offset: input.offset,
     asOf: input.asOf ? new Date(input.asOf) : undefined,
@@ -340,6 +349,10 @@ export interface EventDetail {
   isOwner: boolean;
   /** The viewer may edit it: creator, or owner/officer of its org. */
   canEdit: boolean;
+  /** The viewer follows the host org. */
+  isFollowingOrg: boolean;
+  /** The viewer hid the host org's events from discovery. */
+  isOrgHidden: boolean;
 }
 
 export async function getEvent(eventId: string): Promise<EventDetail | null> {
@@ -382,9 +395,10 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
 
   if (!event) return null;
 
-  const [friendIds, canEdit] = await Promise.all([
+  const [friendIds, canEdit, orgState] = await Promise.all([
     loadFriendIds(userId),
     event.creatorId === userId ? Promise.resolve(true) : canEditEvent(eventId, userId),
+    event.orgId ? loadOrgViewerState(userId, event.orgId) : null,
   ]);
   const extra = await loadEventEnrichment([eventId], userId, friendIds);
   const attendees = extra.attendees.get(eventId) ?? [];
@@ -416,6 +430,8 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     isSaved: extra.savedByMe.has(eventId),
     isOwner: event.creatorId === userId,
     canEdit,
+    isFollowingOrg: orgState?.following ?? false,
+    isOrgHidden: orgState?.hidden ?? false,
   };
 }
 
@@ -439,6 +455,7 @@ export async function getSimilarEvents(
   const conditions = [
     gt(events.datetime, new Date()),
     eventDiscoverableBy(userId),
+    notFromHiddenOrg(userId),
     ne(events.id, input.eventId),
   ];
 
@@ -981,6 +998,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
         inArray(rsvps.userId, friendIds),
         gt(events.datetime, new Date()),
         eventDiscoverableBy(userId),
+        notFromHiddenOrg(userId),
       ),
     )
     .groupBy(
