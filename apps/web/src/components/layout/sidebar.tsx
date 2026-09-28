@@ -126,7 +126,7 @@ export function Sidebar({ floating = false }: { floating?: boolean }) {
         <div className="relative mb-3 px-[12px]">
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => signOut({ redirectTo: "/api/auth/cas/logout" })}
             className={cn(
               "flex w-full items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] font-inter text-[14px] font-semibold transition-colors",
               "text-forum-light-gray hover:bg-forum-turquoise/20 hover:text-forum-dark-gray",

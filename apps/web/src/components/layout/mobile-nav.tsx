@@ -54,7 +54,7 @@ export function MobileNav() {
         <li className="flex-1">
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => signOut({ redirectTo: "/api/auth/cas/logout" })}
             className={cn(
               "flex h-full min-h-[56px] w-full flex-col items-center justify-center gap-0.5 px-1 py-1.5",
               "font-dm-sans text-[10px] font-semibold text-forum-light-gray transition-colors",

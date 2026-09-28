@@ -15,8 +15,9 @@ export default auth((req) => {
 
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
 
-  // Public routes — always accessible
-  const publicRoutes = ["/", "/api/auth"];
+  // Public routes — always accessible. `/api/auth` covers Auth.js and the CAS
+  // login/callback/logout routes; `/auth/error` is Auth.js' `pages.error`.
+  const publicRoutes = ["/", "/api/auth", "/auth/error"];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
