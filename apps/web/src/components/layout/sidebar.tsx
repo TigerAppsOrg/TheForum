@@ -1,8 +1,6 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS, isNavItemActive } from "~/components/layout/nav-items";
@@ -122,20 +120,7 @@ export function Sidebar({ floating = false }: { floating?: boolean }) {
             );
           })}
         </nav>
-
-        <div className="relative mb-3 px-[12px]">
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className={cn(
-              "flex w-full items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] font-inter text-[14px] font-semibold transition-colors",
-              "text-forum-light-gray hover:bg-forum-turquoise/20 hover:text-forum-dark-gray",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean",
-            )}
-          >
-            <NavRow icon={LogOut} label="Log Out" iconSize={18} />
-          </button>
-        </div>
+        {/* Log Out moved to the account menu in the TopBar. */}
       </aside>
     </div>
   );

@@ -30,7 +30,9 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const isEdgeToEdge = EDGE_TO_EDGE_ROUTES.has(pathname);
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden bg-white">
+    // `h-dvh`, not `h-screen`: on mobile Safari 100vh includes the area under
+    // the URL bar, which pushed the bottom tab bar off-screen.
+    <div className="relative flex h-dvh w-full overflow-hidden bg-white">
       <GeometricBackground />
       <div className="relative z-10 flex h-full w-full">
         <Sidebar floating={isEdgeToEdge} />
