@@ -20,6 +20,7 @@ export default async function ExplorePage({
     <ExploreClient
       initialEvents={feedResult.events}
       initialTotal={feedResult.total}
+      initialAsOf={feedResult.asOf}
       savedEvents={savedEvents}
       friendsEvents={friendsEvents}
       initialSearch={search ?? ""}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { type FriendProfile, searchUsers } from "~/actions/friends";
+import { type UserSearchResult, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
 import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
@@ -45,7 +45,7 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
 
   const [members, setMembers] = useState(org.members);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<FriendProfile[]>([]);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const owners = members.filter((m) => m.role === "owner");
@@ -67,7 +67,7 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
     [memberIds],
   );
 
-  const handleAddOfficer = (user: FriendProfile) => {
+  const handleAddOfficer = (user: UserSearchResult) => {
     startTransition(async () => {
       await addOfficer(org.id, user.id);
       setMembers((prev) => [
@@ -162,7 +162,15 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
                 <EventCard
                   key={event.id}
                   id={event.id}
-                  title={event.title}
+                  // Drafts and private events only reach this list for the org's
+                  // owners/officers — label them so they aren't mistaken for live ones.
+                  title={
+                    event.status === "draft"
+                      ? `${event.title} (Draft)`
+                      : event.isPublic
+                        ? event.title
+                        : `${event.title} (Private)`
+                  }
                   datetime={event.datetime}
                   location={event.locationName}
                   tags={event.tags}
