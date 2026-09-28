@@ -2,8 +2,7 @@
  * Sync The Forum from InboxEngine (packages/inbox-engine), the shared source of truth for
  * Princeton organizations, campus venues and events.
  *
- *   bun run db:sync-engine            # orgs + venues + incremental events
- *   bun run db:sync-engine --full     # re-read the whole event feed from revision 0
+ *   bun run db:sync-engine            # orgs + venues + events (full pass; a few seconds)
  *
  * Env: DATABASE_URL, INBOX_ENGINE_URL, INBOX_ENGINE_TOKEN.
  *
@@ -11,9 +10,11 @@
  *   Forum org with the same name is linked instead of duplicated. Forum-only fields (followers,
  *   members, events) are never touched.
  * - Venues: InboxEngine's campus gazetteer, upserted into campus_locations.
- * - Events: the revisioned change feed. Official MyPrincetonU events and publishable listserv
+ * - Events: the whole revisioned feed. Official MyPrincetonU events and publishable listserv
  *   extractions become published Forum events owned by the InboxEngine bot user; withdrawn or
- *   duplicate ones are unpublished (never deleted, so RSVPs survive).
+ *   duplicate ones are unpublished (never deleted, so RSVPs survive). Recurring series (daily
+ *   prayer, weekly office hours) show only their next SERIES_WINDOW occurrences, so each run
+ *   re-reads the full feed to advance that window.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
@@ -37,6 +38,8 @@ import {
 const TBA_LOCATION = { id: "tba", name: "Location TBA", latitude: 0, longitude: 0 } as const;
 const BOT = { netId: "_inboxengine", email: "inboxengine@tigerapps.org", displayName: "The Forum" };
 const CURSOR_KEY = "inbox-engine:events";
+/** Upcoming occurrences shown per recurring series. */
+const SERIES_WINDOW = 2;
 
 type OrgCategory = (typeof orgCategoryEnum.enumValues)[number];
 type LocationCategory = (typeof locationCategoryEnum.enumValues)[number];
@@ -156,24 +159,51 @@ export async function syncLocations(client = engineClient()) {
 }
 
 function describe(e: EngineEvent): string {
-  const origin =
-    e.source.kind === "myprincetonu"
-      ? "Imported from MyPrincetonU."
-      : `Found in a ${e.source.listservs.join(" / ") || "campus listserv"} email.`;
-  return `${e.summary || e.title}\n\n${origin}`.slice(0, 5000);
+  return (e.summary || e.title).slice(0, 5000);
 }
 
-/** Events worth showing in The Forum: complete, single-occurrence and not already over. */
-function shouldPublish(e: EngineEvent): boolean {
+/** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
+function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
   if (e.status !== "active" || !e.publishable) return false;
   const end = new Date(e.endsAt ?? e.startsAt).getTime();
-  return end > Date.now() - 6 * 3600_000;
+  if (end <= Date.now() - 6 * 3600_000) return false;
+  if (e.series && e.series.size > 2)
+    return (seriesRank.get(e.id) ?? Number.POSITIVE_INFINITY) < SERIES_WINDOW;
+  return true;
 }
 
-export async function syncEvents(client = engineClient(), options: { full?: boolean } = {}) {
+/** Rank each upcoming occurrence within its series by start time (0 = next). */
+function rankSeries(all: EngineEvent[]): Map<string, number> {
+  const bySeries = new Map<string, EngineEvent[]>();
+  const now = Date.now() - 6 * 3600_000;
+  for (const e of all) {
+    if (!e.series || e.status !== "active") continue;
+    if (new Date(e.endsAt ?? e.startsAt).getTime() <= now) continue;
+    const list = bySeries.get(e.series.id) ?? [];
+    list.push(e);
+    bySeries.set(e.series.id, list);
+  }
+  const rank = new Map<string, number>();
+  for (const list of bySeries.values()) {
+    list.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    list.forEach((e, i) => rank.set(e.id, i));
+  }
+  return rank;
+}
+
+export async function syncEvents(client = engineClient()) {
   const bot = await botUserId();
-  const [cursorRow] = await db.select().from(syncState).where(eq(syncState.key, CURSOR_KEY));
-  let cursor = options.full ? 0 : Number(cursorRow?.value ?? 0);
+  // Latest state of every event, read from the start of the change feed.
+  const latest = new Map<string, EngineEvent>();
+  let cursor = 0;
+  for (;;) {
+    const { changes, next } = await client.eventChanges(cursor, 1000);
+    if (!changes.length) break;
+    for (const e of changes) latest.set(e.id, e);
+    cursor = next;
+  }
+  const all = [...latest.values()];
+  const seriesRank = rankSeries(all);
   const knownLocations = new Set(
     (await db.select({ id: campusLocations.id }).from(campusLocations)).map((l) => l.id),
   );
@@ -188,18 +218,33 @@ export async function syncEvents(client = engineClient(), options: { full?: bool
   );
   const stats = { seen: 0, published: 0, unpublished: 0, skipped: 0 };
 
-  for (;;) {
-    const { changes, next } = await client.eventChanges(cursor, 500);
-    if (!changes.length) break;
+  {
+    const changes = all;
     for (const e of changes) {
       stats.seen++;
       const key = `ie:${e.id}`;
       const [existing] = await db
-        .select({ id: events.id })
+        .select({
+          id: events.id,
+          status: events.status,
+          isPublic: events.isPublic,
+          updatedAt: events.updatedAt,
+        })
         .from(events)
         .where(eq(events.sourceMessageId, key));
-      if (!shouldPublish(e)) {
-        if (existing) {
+      const publish = shouldPublish(e, seriesRank);
+      const isPublished = existing?.status === "published" && existing.isPublic;
+      // Unchanged upstream and already in the desired state: nothing to write.
+      if (
+        existing &&
+        publish === isPublished &&
+        existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime()
+      ) {
+        stats.skipped++;
+        continue;
+      }
+      if (!publish) {
+        if (existing && isPublished) {
           await db
             .update(events)
             .set({ status: "draft", isPublic: false, updatedAt: new Date() })
@@ -227,7 +272,7 @@ export async function syncEvents(client = engineClient(), options: { full?: bool
         orgId: e.host ? (orgByExternal.get(e.host.id) ?? null) : null,
         creatorId: bot,
         flyerUrl: e.imageUrl,
-        externalLink: e.rsvpUrl ?? e.source.url,
+        externalLink: e.rsvpUrl,
         sourceUrl: e.source.url,
         isPublic: true,
         status: "published" as const,
@@ -251,25 +296,23 @@ export async function syncEvents(client = engineClient(), options: { full?: bool
       }
       stats.published++;
     }
-    cursor = next;
-    await db
-      .insert(syncState)
-      .values({ key: CURSOR_KEY, value: String(cursor) })
-      .onConflictDoUpdate({
-        target: syncState.key,
-        set: { value: String(cursor), updatedAt: sql`now()` },
-      });
   }
+  await db
+    .insert(syncState)
+    .values({ key: CURSOR_KEY, value: String(cursor) })
+    .onConflictDoUpdate({
+      target: syncState.key,
+      set: { value: String(cursor), updatedAt: sql`now()` },
+    });
   return { ...stats, cursor };
 }
 
 if (import.meta.main) {
-  const full = process.argv.includes("--full");
   const client = engineClient();
   const started = Date.now();
   console.log("organizations", await syncOrganizations(client));
   console.log("locations", await syncLocations(client));
-  console.log("events", await syncEvents(client, { full }));
+  console.log("events", await syncEvents(client));
   console.log(`done in ${((Date.now() - started) / 1000).toFixed(1)}s`);
   process.exit(0);
 }
