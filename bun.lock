@@ -10,6 +10,7 @@
         "husky": "^9.1.7",
         "lint-staged": "^15.3.0",
         "turbo": "^2.4.4",
+        "typescript": "~5.9.3",
       },
     },
     "apps/admin-web": {
