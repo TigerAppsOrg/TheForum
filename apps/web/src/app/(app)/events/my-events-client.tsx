@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { type FeedEvent, deleteEvent, toggleRsvp, toggleSave } from "~/actions/events";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
+import { EventList } from "~/components/events/event-list";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -15,26 +16,25 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { buildGCalUrl } from "~/lib/calendar";
 
 const TABS = [
   {
-    id: "created",
-    label: "Events Created",
-    emptyTitle: "No events created yet",
-    emptyBody: "Share something with campus — create your first event.",
-  },
-  {
     id: "rsvped",
-    label: "Events RSVP'd",
-    emptyTitle: "No RSVP'd events",
-    emptyBody: "Events you've RSVP'd to will show up here.",
+    label: "Going",
+    emptyTitle: "Nothing on your calendar yet",
+    emptyBody: "Events you RSVP to show up here.",
   },
   {
     id: "saved",
-    label: "Events Saved",
+    label: "Saved",
     emptyTitle: "No saved events",
-    emptyBody: "Bookmark events you're interested in.",
+    emptyBody: "Bookmark events you might go to.",
+  },
+  {
+    id: "created",
+    label: "Hosting",
+    emptyTitle: "You haven't posted any events",
+    emptyBody: "Share something with campus — create your first event.",
   },
 ] as const;
 
@@ -47,7 +47,7 @@ interface MyEventsClientProps {
 }
 
 export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("created");
+  const [activeTab, setActiveTab] = useState<TabId>("rsvped");
   const [lists, setLists] = useState<Record<TabId, FeedEvent[]>>({ created, rsvped, saved });
 
   /**
@@ -96,7 +96,12 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
     if (!pendingDelete) return;
     const { id, title } = pendingDelete;
     startDeleting(async () => {
-      await deleteEvent(id);
+      try {
+        await deleteEvent(id);
+      } catch {
+        toast.error("Couldn't delete the event. Please try again.");
+        return;
+      }
       setLists((prev) => ({
         created: prev.created.filter((e) => e.id !== id),
         rsvped: prev.rsvped.filter((e) => e.id !== id),
@@ -111,39 +116,32 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabId)}>
-      <TabsList variant="line" className="h-auto w-full border-b border-forum-medium-gray">
+      <TabsList
+        variant="line"
+        className="h-auto w-full justify-start gap-4 border-b border-forum-border"
+      >
         {TABS.map(({ id, label }) => (
           <TabsTrigger
             key={id}
             value={id}
             // Type scales down on phones so three tabs fit without clipping.
-            className="min-w-0 flex-1 px-1 py-3 font-dm-sans text-[13px] font-semibold after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black sm:px-2 sm:py-4 sm:text-[18px]"
+            className="flex-none px-0.5 py-2 font-dm-sans text-[13px] font-semibold text-forum-light-gray after:bottom-[-1px] after:h-0.5 after:bg-forum-cerulean data-[state=active]:text-black"
           >
             {label}
+            <span className="ml-1 font-normal text-forum-light-gray">{eventMap[id].length}</span>
           </TabsTrigger>
         ))}
       </TabsList>
 
       {TABS.map(({ id, emptyTitle, emptyBody }) => (
-        <TabsContent key={id} value={id} className="mt-6">
+        <TabsContent key={id} value={id} className="mt-3">
           {eventMap[id].length > 0 ? (
-            <div className="flex flex-col gap-4">
+            <EventList>
               {eventMap[id].map((event, index) => (
                 <EventCard
                   key={event.id}
                   {...event}
-                  density="wide"
-                  calendarUrl={
-                    event.rawDatetime
-                      ? buildGCalUrl({
-                          title: event.title,
-                          description: event.description,
-                          datetime: new Date(event.rawDatetime),
-                          endDatetime: null,
-                          locationName: event.location,
-                        })
-                      : undefined
-                  }
+                  density="row"
                   {...(id === "created"
                     ? {
                         editHref: `/events/${event.id}/edit`,
@@ -160,7 +158,7 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
                   position={index}
                 />
               ))}
-            </div>
+            </EventList>
           ) : (
             <EmptyState title={emptyTitle} description={emptyBody} />
           )}

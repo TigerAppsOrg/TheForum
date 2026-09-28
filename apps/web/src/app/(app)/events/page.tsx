@@ -15,15 +15,15 @@ export default async function MyEventsPage() {
     <PageShell>
       <PageHeading
         action={
-          <Button asChild variant="cerulean" size="cta">
+          <Button asChild variant="cerulean" size="sm" className="sm:hidden">
             <Link href="/events/create">
               <Plus />
-              Create an event
+              New event
             </Link>
           </Button>
         }
       >
-        Events
+        My Events
       </PageHeading>
       <MyEventsClient created={created} rsvped={rsvped} saved={saved} />
     </PageShell>
