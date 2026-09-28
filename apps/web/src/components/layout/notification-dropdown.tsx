@@ -118,15 +118,15 @@ export function NotificationDropdown() {
       <PopoverContent
         align="end"
         // Caps to the viewport on phones — a fixed 460px overflowed a 375px screen.
-        className="w-[calc(100vw-2rem)] max-w-[460px] rounded-[16px] border border-forum-border p-0 shadow-[0px_8px_30px_rgba(0,0,0,0.12)] sm:w-[460px]"
+        className="w-[calc(100vw-2rem)] max-w-[380px] rounded-lg border border-forum-border p-0 shadow-[0px_8px_30px_rgba(0,0,0,0.12)] sm:w-[380px]"
       >
         {/* Header — italic serif title */}
-        <div className="px-[24px] pt-[24px] pb-[16px]">
-          <h3 className="font-serif italic text-[28px] text-black leading-none">Notifications</h3>
+        <div className="border-b border-forum-border px-4 py-2.5">
+          <h3 className="font-dm-sans text-[13px] font-semibold text-black">Notifications</h3>
         </div>
 
         {/* List */}
-        <div className="max-h-[420px] overflow-y-auto px-[16px]">
+        <div className="max-h-[420px] overflow-y-auto px-1.5 py-1">
           {items.length > 0 ? (
             items.map((n) => (
               <NotificationRow
@@ -149,7 +149,7 @@ export function NotificationDropdown() {
               onRetry={fetchNotifications}
             />
           ) : (
-            <div className="py-[50px] text-center">
+            <div className="py-8 text-center">
               <Bell size={28} aria-hidden className="text-forum-medium-gray mx-auto mb-3" />
               <p className="text-[14px] font-dm-sans text-forum-light-gray">No notifications yet</p>
             </div>
@@ -161,14 +161,14 @@ export function NotificationDropdown() {
           re-fetched the same 20 rows; marking everything read is real.
         */}
         {items.length > 0 && (
-          <div className="px-[24px] py-[16px] flex flex-col items-center gap-2">
+          <div className="border-t border-forum-border px-4 py-2 flex flex-col items-center gap-1">
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="px-[20px] py-[8px] rounded-[20px] border border-forum-medium-gray text-[11px] font-bold font-dm-sans text-forum-dark-gray tracking-[0.1em] hover:border-forum-dark-gray transition-colors"
+                className="font-dm-sans text-[12px] font-medium text-forum-cerulean hover:underline"
               >
-                MARK ALL AS READ
+                Mark all as read
               </button>
             )}
             {items.length >= NOTIFICATION_PAGE_SIZE && (
@@ -233,17 +233,17 @@ function NotificationRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-[14px] py-[14px] px-[8px] rounded-[10px] transition-colors",
+        "flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors",
         !item.read && "bg-forum-turquoise/5",
       )}
     >
       {/* Avatar */}
       <div
         className={cn(
-          "w-[56px] h-[56px] flex-shrink-0 overflow-hidden flex items-center justify-center text-[18px] font-bold",
+          "size-8 flex-shrink-0 overflow-hidden flex items-center justify-center text-[12px] font-bold",
           isCircle
-            ? "rounded-full border-[3px] border-forum-medium-gray bg-forum-turquoise/20 text-black"
-            : "rounded-[8px] border-[2px] border-forum-medium-gray bg-forum-dark-gray/10 text-forum-dark-gray",
+            ? "rounded-full bg-forum-turquoise/40 text-black"
+            : "rounded-md bg-forum-medium-gray text-forum-dark-gray",
         )}
       >
         {avatarInitial}
@@ -251,11 +251,11 @@ function NotificationRow({
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-dm-sans text-black leading-snug">
+        <p className="text-[13px] font-dm-sans text-black leading-snug">
           <span className="font-bold">{boldText}</span>
           {restText}
         </p>
-        <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[3px]">
+        <p className="text-[11px] font-dm-sans text-forum-light-gray mt-0.5">
           {formatTimeAgo(new Date(item.createdAt))}
         </p>
       </div>
@@ -266,16 +266,16 @@ function NotificationRow({
           <button
             type="button"
             onClick={() => onAccept(item)}
-            className="px-[14px] py-[5px] rounded-[16px] bg-forum-cerulean text-white text-[11px] font-bold tracking-wider hover:opacity-90 transition-opacity"
+            className="px-2.5 py-1 rounded-full bg-forum-cerulean text-white text-[11px] font-bold hover:opacity-90 transition-opacity"
           >
-            ACCEPT
+            Accept
           </button>
           <button
             type="button"
             onClick={() => onDecline(item)}
-            className="px-[14px] py-[5px] rounded-[16px] border border-forum-medium-gray text-[11px] font-bold text-forum-light-gray tracking-wider hover:border-forum-dark-gray transition-colors"
+            className="px-2.5 py-1 rounded-full border border-forum-medium-gray text-[11px] font-bold text-forum-light-gray hover:border-forum-dark-gray transition-colors"
           >
-            DECLINE
+            Decline
           </button>
         </div>
       )}
@@ -287,9 +287,9 @@ function NotificationRow({
             const eventId = item.payload.eventId as string | undefined;
             if (eventId) onNavigate(`/events/${eventId}`);
           }}
-          className="px-[14px] py-[6px] rounded-[16px] border border-forum-medium-gray text-[11px] font-bold text-forum-light-gray tracking-wider hover:border-forum-dark-gray transition-colors flex-shrink-0"
+          className="px-2.5 py-1 rounded-full border border-forum-medium-gray text-[11px] font-bold text-forum-light-gray hover:border-forum-dark-gray transition-colors flex-shrink-0"
         >
-          DETAILS
+          View
         </button>
       )}
     </div>
