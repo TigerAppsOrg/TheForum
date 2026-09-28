@@ -1,14 +1,13 @@
 "use client";
 
-import { Heart, Plus, Users } from "lucide-react";
+import { Check, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { type OrgListItem, getOrgs, toggleFollowOrg } from "~/actions/orgs";
 import { FilterChip, FilterChipGroup } from "~/components/common/filter-chip";
-import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
-import { SectionHeading } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
@@ -81,43 +80,46 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
   };
 
   const handleToggleFollow = (orgId: string) => {
-    setOrgs((prev) =>
-      prev.map((o) =>
-        o.id === orgId
-          ? {
-              ...o,
-              isFollowing: !o.isFollowing,
-              followerCount: o.isFollowing ? o.followerCount - 1 : o.followerCount + 1,
-            }
-          : o,
-      ),
-    );
+    const flip = (o: OrgListItem) =>
+      o.id === orgId
+        ? {
+            ...o,
+            isFollowing: !o.isFollowing,
+            followerCount: o.isFollowing ? o.followerCount - 1 : o.followerCount + 1,
+          }
+        : o;
+    setOrgs((prev) => prev.map(flip));
     startTransition(async () => {
-      await toggleFollowOrg(orgId);
+      try {
+        await toggleFollowOrg(orgId);
+      } catch {
+        setOrgs((prev) => prev.map(flip));
+        toast.error("Couldn't update that follow. Please try again.");
+      }
     });
   };
 
   return (
-    <div className="space-y-6">
-      {/* Search + Create */}
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
         <SearchInput
           label="Search organizations"
+          shortcut
           placeholder="Search organizations…"
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1"
         />
-        <Button asChild variant="cerulean">
+        <Button asChild variant="cerulean" size="sm" className="h-10">
           <Link href="/orgs/create">
             <Plus />
-            Create
+            <span className="hidden sm:inline">New organization</span>
+            <span className="sm:hidden">New</span>
           </Link>
         </Button>
       </div>
 
-      {/* Category filters */}
-      <FilterChipGroup label="Filter organizations by category">
+      <FilterChipGroup label="Filter organizations by category" className="gap-1.5">
         {ORG_CATEGORIES.map(({ id, label }) => (
           <FilterChip
             key={id}
@@ -129,119 +131,83 @@ export function OrgsClient({ initialOrgs, recommendedOrgs }: OrgsClientProps) {
         ))}
       </FilterChipGroup>
 
-      {/* Recommended for You */}
       {recommendedOrgs.length > 0 && (
-        <section>
-          <SectionHeading>Recommended for You</SectionHeading>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            {recommendedOrgs.map((org) => {
-              const color = orgColor(org.name);
-              return (
-                <Panel
-                  asChild
-                  key={org.id}
-                  size="sm"
-                  className="flex items-center gap-3 transition-colors hover:border-forum-cerulean"
-                >
-                  <Link href={`/orgs/${org.id}`}>
-                    <div
-                      aria-hidden
-                      className="flex size-10 shrink-0 items-center justify-center rounded-lg"
-                      style={{ background: color?.bg }}
-                    >
-                      {org.logoUrl ? (
-                        <img
-                          src={org.logoUrl}
-                          alt=""
-                          className="size-full rounded-lg object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm font-black" style={{ color: color?.text }}>
-                          {org.name[0]?.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-dm-sans text-sm font-semibold text-black">
-                        {org.name}
-                      </p>
-                      <p className="font-dm-sans text-xs capitalize text-forum-light-gray">
-                        {org.category}
-                      </p>
-                    </div>
-                  </Link>
-                </Panel>
-              );
-            })}
-          </div>
-        </section>
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-dm-sans text-[12px] text-forum-light-gray">
+          <span className="font-semibold uppercase tracking-[0.08em] text-[11px]">Suggested</span>
+          {recommendedOrgs.map((org, i) => (
+            <span key={org.id}>
+              <Link
+                href={`/orgs/${org.id}`}
+                className="font-medium text-forum-cerulean hover:underline"
+              >
+                {org.name}
+              </Link>
+              {i < recommendedOrgs.length - 1 && <span aria-hidden> · </span>}
+            </span>
+          ))}
+        </p>
       )}
 
-      {/* Orgs grid */}
       {orgs.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <ul
+          className={cn(
+            "divide-y divide-forum-border overflow-hidden rounded-lg border border-forum-border bg-white",
+            isPending && "opacity-70 transition-opacity",
+          )}
+        >
           {orgs.map((org) => {
             const color = orgColor(org.name);
             return (
-              <Panel
+              <li
                 key={org.id}
-                size="none"
-                className="overflow-hidden transition-colors hover:border-forum-cerulean"
+                className="relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-forum-turquoise/10 sm:px-4"
               >
-                <Link href={`/orgs/${org.id}`} className="block">
-                  <div
-                    aria-hidden
-                    className="flex h-20 items-center justify-center"
-                    style={{ background: color?.bg }}
-                  >
-                    {org.logoUrl ? (
-                      <img src={org.logoUrl} alt="" className="size-12 rounded-lg object-cover" />
-                    ) : (
-                      <span className="text-2xl font-black" style={{ color: color?.text }}>
-                        {org.name[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-                <div className="p-4">
-                  <Link href={`/orgs/${org.id}`}>
-                    <h3 className="font-dm-sans text-sm font-bold text-black transition-colors hover:text-forum-cerulean">
-                      {org.name}
-                    </h3>
-                  </Link>
-                  <p className="mt-0.5 font-dm-sans text-xs capitalize text-forum-light-gray">
-                    {org.category}
-                  </p>
-                  {org.description && (
-                    <p className="mt-2 font-dm-sans text-xs text-forum-dark-gray line-clamp-2">
-                      {org.description}
-                    </p>
-                  )}
-                  <div className="mt-3 flex items-center justify-between border-t border-forum-medium-gray pt-3">
-                    <span className="flex items-center gap-1 font-dm-sans text-xs text-forum-light-gray">
-                      <Users size={11} aria-hidden />
-                      {org.followerCount} follower{org.followerCount !== 1 ? "s" : ""}
+                <div
+                  aria-hidden
+                  className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md"
+                  style={{ background: color?.bg }}
+                >
+                  {org.logoUrl ? (
+                    <img src={org.logoUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    <span className="text-[13px] font-bold" style={{ color: color?.text }}>
+                      {org.name[0]?.toUpperCase()}
                     </span>
-                    <Button
-                      variant={org.isFollowing ? "soft" : "ghost"}
-                      size="xs"
-                      aria-pressed={org.isFollowing}
-                      disabled={isPending}
-                      onClick={() => handleToggleFollow(org.id)}
-                      className={cn(
-                        "rounded-full",
-                        org.isFollowing ? "text-forum-cerulean" : "text-forum-light-gray",
-                      )}
-                    >
-                      <Heart fill={org.isFollowing ? "currentColor" : "none"} />
-                      {org.isFollowing ? "Following" : "Follow"}
-                    </Button>
-                  </div>
+                  )}
                 </div>
-              </Panel>
+                <div className="min-w-0 flex-1 font-dm-sans">
+                  <Link
+                    href={`/orgs/${org.id}`}
+                    className="block truncate text-[14px] font-semibold text-black after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+                  >
+                    {org.name}
+                  </Link>
+                  <p className="truncate text-[12px] text-forum-light-gray">
+                    <span className="capitalize">{org.category}</span> · {org.followerCount}{" "}
+                    {org.followerCount === 1 ? "follower" : "followers"}
+                    {org.description && (
+                      <span className="hidden sm:inline"> · {org.description}</span>
+                    )}
+                  </p>
+                </div>
+                <Button
+                  variant={org.isFollowing ? "soft" : "outline"}
+                  size="xs"
+                  aria-pressed={org.isFollowing}
+                  aria-label={`${org.isFollowing ? "Unfollow" : "Follow"} ${org.name}`}
+                  onClick={() => handleToggleFollow(org.id)}
+                  className={cn(
+                    "relative z-10 h-7 shrink-0 rounded-full px-3 text-[12px]",
+                    org.isFollowing && "text-forum-cerulean",
+                  )}
+                >
+                  {org.isFollowing && <Check />}
+                  {org.isFollowing ? "Following" : "Follow"}
+                </Button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       ) : (
         <EmptyState
           icon={Users}

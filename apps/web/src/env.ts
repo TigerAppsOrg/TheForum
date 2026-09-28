@@ -31,6 +31,8 @@ export const env = createEnv({
     NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk."),
     NEXT_PUBLIC_CAMPUS_MAP_TOKEN: z.string().startsWith("pk."),
     NEXT_PUBLIC_CAMPUS_MAP_STYLE: z.string().startsWith("mapbox://"),
+    /** Public origin used for metadata/OG/sitemap. Defaults to https://forum.tigerapps.org. */
+    NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   },
 
   /**
@@ -44,6 +46,7 @@ export const env = createEnv({
     NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
     NEXT_PUBLIC_CAMPUS_MAP_TOKEN: process.env.NEXT_PUBLIC_CAMPUS_MAP_TOKEN,
     NEXT_PUBLIC_CAMPUS_MAP_STYLE: process.env.NEXT_PUBLIC_CAMPUS_MAP_STYLE,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
     CAS_BASE_URL: process.env.CAS_BASE_URL,

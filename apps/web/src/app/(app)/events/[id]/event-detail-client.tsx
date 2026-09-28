@@ -25,11 +25,10 @@ import {
   toggleRsvp,
   toggleSave,
 } from "~/actions/events";
-import { Panel } from "~/components/common/panel";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
-import { getCategoryColor } from "~/components/events/event-card";
 import { EventCoverArt } from "~/components/events/event-cover-art";
-import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { MiniEventList } from "~/components/events/mini-event-list";
+import { PageShell, SectionHeading } from "~/components/layout/page-shell";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import {
@@ -42,6 +41,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
+import { formatLongDate, formatTime } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
 
 interface EventDetailClientProps {
@@ -59,286 +59,285 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   const [attendees, setAttendees] = useState(event.attendees);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const color = getCategoryColor(event.tags);
-
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-
-  const formatTime = (d: Date) =>
-    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-
+  /*
+   * Optimistic, then reconciled with the server. On failure the local state
+   * rolls back and a toast says so — previously a failed RSVP left the button
+   * claiming "You're going".
+   */
   const handleRsvp = () => {
-    const prev = isRsvped;
-    setIsRsvped(!prev);
-    setRsvpCount((c) => (prev ? c - 1 : c + 1));
-    if (prev) {
-      toast(`Removed your RSVP to ${event.title}`);
-    } else {
-      toast.success(`You're going to ${event.title}`);
-    }
+    const prev = { isRsvped, rsvpCount };
+    setIsRsvped(!prev.isRsvped);
+    setRsvpCount((c) => (prev.isRsvped ? c - 1 : c + 1));
     startTransition(async () => {
-      const result = await toggleRsvp(event.id);
-      setIsRsvped(result.rsvped);
-      setRsvpCount(result.count);
-      setAttendees(result.attendees);
+      try {
+        const result = await toggleRsvp(event.id);
+        setIsRsvped(result.rsvped);
+        setRsvpCount(result.count);
+        setAttendees(result.attendees);
+        if (result.rsvped) toast.success(`You're going to ${event.title}`);
+        else toast(`Removed your RSVP to ${event.title}`);
+      } catch {
+        setIsRsvped(prev.isRsvped);
+        setRsvpCount(prev.rsvpCount);
+        toast.error("Couldn't update your RSVP. Please try again.");
+      }
     });
   };
 
   const handleSave = () => {
-    setIsSaved(!isSaved);
+    const prev = isSaved;
+    setIsSaved(!prev);
     startTransition(async () => {
-      const result = await toggleSave(event.id);
-      setIsSaved(result.saved);
+      try {
+        const result = await toggleSave(event.id);
+        setIsSaved(result.saved);
+      } catch {
+        setIsSaved(prev);
+        toast.error("Couldn't update saved events. Please try again.");
+      }
     });
   };
 
   const handleShare = async () => {
     const url = `${window.location.origin}/events/${event.id}`;
-    if (navigator.share) {
-      await navigator.share({ title: event.title, url });
-    } else {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: event.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard");
+      }
+    } catch {
+      // Dismissing the share sheet rejects; nothing to report.
     }
   };
 
   const handleDelete = () => {
     startTransition(async () => {
-      await deleteEvent(event.id);
-      router.push("/explore");
+      try {
+        await deleteEvent(event.id);
+        router.push("/events");
+      } catch {
+        toast.error("Couldn't delete the event. Please try again.");
+      }
     });
   };
 
+  const when = `${formatTime(event.datetime)}${
+    event.endDatetime ? ` – ${formatTime(event.endDatetime)}` : ""
+  } ET`;
+
   return (
-    <PageShell>
-      {/* Back link */}
-      <Button variant="quiet" size="sm" onClick={() => router.back()} className="mb-6">
+    <PageShell width="content">
+      <Button variant="quiet" size="xs" onClick={() => router.back()} className="-ml-2 mb-3">
         <ChevronLeft />
         Back
       </Button>
 
-      {/* Main content */}
-      <div className="flex flex-wrap gap-10">
-        {/* Left: Flyer */}
-        {/* Full width on phones; a fixed column only once there's room beside it. */}
-        <div className="w-full sm:w-[340px] sm:shrink-0">
-          <div className="h-[280px] overflow-hidden rounded-xl shadow-lg sm:h-[440px]">
-            {event.flyerUrl ? (
-              <img src={event.flyerUrl} alt="" className="size-full object-cover" />
-            ) : (
-              <EventCoverArt title={event.title} tags={event.tags} className="size-full" />
-            )}
-          </div>
+      <div className="grid gap-6 sm:grid-cols-[180px_minmax(0,1fr)] md:grid-cols-[220px_minmax(0,1fr)]">
+        {/* Flyer — a supporting image, not the page */}
+        <div className="aspect-[4/5] w-full max-w-[220px] overflow-hidden rounded-lg border border-forum-border">
+          {event.flyerUrl ? (
+            <img
+              src={event.flyerUrl}
+              alt={`Flyer for ${event.title}`}
+              className="size-full object-cover"
+            />
+          ) : (
+            <EventCoverArt title={event.title} tags={event.tags} className="size-full" />
+          )}
         </div>
 
-        {/* Right: Event info */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Action buttons */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {/* Org owners/officers can edit; only the creator can delete. */}
-              {event.canEdit && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/events/${event.id}/edit`}>
-                    <Edit3 /> Edit
-                  </Link>
-                </Button>
-              )}
-              {event.isOwner && (
-                <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-forum-coral/30 text-forum-coral hover:bg-forum-coral/5"
-                    >
-                      <Trash2 /> Delete
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete Event</DialogTitle>
-                      <DialogDescription>
-                        This will permanently delete &ldquo;{event.title}&rdquo;. This cannot be
-                        undone.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button variant="coral" onClick={handleDelete} disabled={isPending}>
-                        {isPending ? "Deleting…" : "Delete Event"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline" size="sm">
-                <a href={buildGCalUrl(event)} target="_blank" rel="noopener noreferrer">
-                  <Calendar /> Calendar
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleShare}>
-                <Share2 /> Share
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                aria-pressed={isSaved}
-                onClick={handleSave}
-                className={cn(
-                  isSaved && "border-forum-cerulean bg-forum-turquoise/10 text-forum-cerulean",
-                )}
-              >
-                {isSaved ? <BookmarkCheck /> : <Bookmark />}
-                {isSaved ? "Saved" : "Save"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Title */}
-          <PageHeading className="text-[28px] font-bold leading-tight sm:text-[32px] lg:text-[36px]">
+        <div className="min-w-0 font-dm-sans">
+          <h1 className="font-serif text-[24px] font-semibold leading-tight text-black sm:text-[26px]">
             {event.title}
-          </PageHeading>
-
-          {/* Org */}
+          </h1>
           {event.orgName && (
-            <p className="text-[16px] font-dm-sans font-bold text-forum-cerulean mb-[12px]">
-              {event.orgName}
+            <p className="mt-1 text-[13px] text-forum-dark-gray">
+              Hosted by{" "}
+              {event.orgId ? (
+                <Link
+                  href={`/orgs/${event.orgId}`}
+                  className="font-semibold text-forum-cerulean hover:underline"
+                >
+                  {event.orgName}
+                </Link>
+              ) : (
+                <span className="font-semibold">{event.orgName}</span>
+              )}
             </p>
           )}
 
-          {/* Tags */}
+          <dl className="mt-3 grid grid-cols-[18px_1fr] items-center gap-x-2 gap-y-1.5 text-[13px] text-forum-dark-gray">
+            <dt>
+              <Calendar size={14} aria-hidden className="text-forum-light-gray" />
+              <span className="sr-only">Date</span>
+            </dt>
+            <dd>{formatLongDate(event.datetime)}</dd>
+            <dt>
+              <Clock size={14} aria-hidden className="text-forum-light-gray" />
+              <span className="sr-only">Time</span>
+            </dt>
+            <dd>{when}</dd>
+            <dt>
+              <MapPin size={14} aria-hidden className="text-forum-light-gray" />
+              <span className="sr-only">Location</span>
+            </dt>
+            <dd>{event.locationName}</dd>
+            {event.externalLink && (
+              <>
+                <dt>
+                  <ExternalLink size={14} aria-hidden className="text-forum-light-gray" />
+                  <span className="sr-only">Link</span>
+                </dt>
+                <dd>
+                  <a
+                    href={event.externalLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-forum-cerulean hover:underline"
+                  >
+                    Registration / more info
+                  </a>
+                </dd>
+              </>
+            )}
+          </dl>
+
+          {/* Actions */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              variant={isRsvped ? "cerulean" : "coral"}
+              size="sm"
+              aria-pressed={isRsvped}
+              disabled={isPending}
+              onClick={handleRsvp}
+              className="min-w-[96px]"
+            >
+              {isRsvped ? (
+                <>
+                  <Check />
+                  Going
+                </>
+              ) : (
+                "RSVP"
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={isSaved}
+              onClick={handleSave}
+              className={cn(isSaved && "border-forum-cerulean text-forum-cerulean")}
+            >
+              {isSaved ? <BookmarkCheck /> : <Bookmark />}
+              {isSaved ? "Saved" : "Save"}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={buildGCalUrl(event)} target="_blank" rel="noopener noreferrer">
+                <Calendar /> Add to calendar
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 /> Share
+            </Button>
+          </div>
+
+          {/* Attendance */}
+          <div className="mt-3 flex items-center gap-2 text-[12px] text-forum-dark-gray">
+            {attendees.length > 0 && <AvatarStack users={attendees} size={22} max={5} />}
+            <Users size={13} aria-hidden className="text-forum-light-gray" />
+            <AttendeesDialog
+              attendees={attendees}
+              count={rsvpCount}
+              friendIds={new Set(event.friendsAttending.map((f) => f.id))}
+              className="text-[12px] font-medium text-forum-dark-gray"
+            />
+            {event.friendsAttending.length > 0 && (
+              <span className="text-forum-coral">
+                · {event.friendsAttending.map((f) => f.displayName).join(", ")}{" "}
+                {event.friendsAttending.length === 1 ? "is" : "are"} going
+              </span>
+            )}
+          </div>
+
           {event.tags.length > 0 && (
-            <div className="flex flex-wrap gap-[8px] mb-[20px]">
+            <div className="mt-3 flex flex-wrap gap-1.5">
               {event.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-[10px] py-[2px] rounded-[15px] text-[14px] font-dm-sans text-black bg-forum-yellow-50"
+                  className="rounded bg-forum-medium-gray/70 px-1.5 py-px text-[11px] text-forum-dark-gray"
                 >
                   {tag}
                 </span>
               ))}
-              <span
-                className={cn(
-                  "px-[10px] py-[2px] rounded-[15px] text-[12px] font-bold font-dm-sans",
-                  event.isPublic
-                    ? "bg-forum-turquoise/20 text-forum-cerulean"
-                    : "bg-forum-orange/10 text-forum-orange",
-                )}
-              >
-                {event.isPublic ? "Public" : "Private"}
-              </span>
+              {!event.isPublic && (
+                <span className="rounded bg-forum-orange/10 px-1.5 py-px text-[11px] font-semibold text-forum-orange">
+                  Private
+                </span>
+              )}
             </div>
           )}
 
-          {/* Details */}
-          <div className="space-y-[10px] mb-[20px]">
-            <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
-              <Calendar size={16} className="text-forum-light-gray" />
-              {formatDate(event.datetime)}
-            </div>
-            <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
-              <Clock size={16} className="text-forum-light-gray" />
-              {formatTime(event.datetime)}
-              {event.endDatetime && ` - ${formatTime(event.endDatetime)}`}
-            </div>
-            <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
-              <MapPin size={16} className="text-forum-light-gray" />
-              {event.locationName}
-            </div>
-            {event.externalLink && (
-              <a
-                href={event.externalLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-cerulean hover:underline"
-              >
-                <ExternalLink size={16} /> Register
-              </a>
-            )}
-          </div>
-
-          {/* Description */}
-          <p className="text-[14px] font-dm-sans text-forum-dark-gray leading-relaxed whitespace-pre-wrap mb-[24px]">
+          <p className="mt-4 whitespace-pre-wrap text-[14px] leading-relaxed text-forum-dark-gray">
             {event.description}
           </p>
 
-          {/* RSVP button */}
-          <Button
-            variant={isRsvped ? "cerulean" : "coral"}
-            size="cta"
-            aria-pressed={isRsvped}
-            disabled={isPending}
-            onClick={handleRsvp}
-            className="w-full max-w-[300px]"
-          >
-            {isRsvped ? (
-              <>
-                <Check />
-                You're going
-              </>
-            ) : (
-              "RSVP now"
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-forum-border pt-3 text-[12px] text-forum-light-gray">
+            <span>Posted by {event.creatorName}</span>
+            {/* Org owners/officers can edit; only the creator can delete. */}
+            {event.canEdit && (
+              <Link
+                href={`/events/${event.id}/edit`}
+                className="inline-flex items-center gap-1 font-medium text-forum-cerulean hover:underline"
+              >
+                <Edit3 size={12} aria-hidden /> Edit
+              </Link>
             )}
-          </Button>
-
-          {/* Attendees */}
-          <div className="flex items-center gap-[12px] mt-[16px]">
-            {attendees.length > 0 && <AvatarStack users={attendees} size={30} max={6} />}
-            <div>
-              <div className="flex items-center gap-[6px]">
-                <Users size={14} aria-hidden className="text-forum-light-gray" />
-                <AttendeesDialog
-                  attendees={attendees}
-                  count={rsvpCount}
-                  friendIds={new Set(event.friendsAttending.map((f) => f.id))}
-                />
-              </div>
-              {event.friendsAttending.length > 0 && (
-                <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[2px]">
-                  {event.friendsAttending.map((f) => f.displayName).join(", ")}{" "}
-                  {event.friendsAttending.length === 1 ? "is" : "are"} going
-                </p>
-              )}
-            </div>
+            {event.isOwner && (
+              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-medium text-forum-coral hover:underline"
+                  >
+                    <Trash2 size={12} aria-hidden /> Delete
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete event</DialogTitle>
+                    <DialogDescription>
+                      This will permanently delete &ldquo;{event.title}&rdquo;. This cannot be
+                      undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="coral" onClick={handleDelete} disabled={isPending}>
+                      {isPending ? "Deleting…" : "Delete event"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
-
-          <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[20px]">
-            Posted by {event.creatorName}
-          </p>
         </div>
       </div>
 
-      {/* Similar Events */}
       {similarEvents.length > 0 && (
-        <section className="mt-12 border-t border-forum-medium-gray pt-6">
-          <SectionHeading>Similar Events</SectionHeading>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {similarEvents.map((se) => (
-              <Panel
-                asChild
-                key={se.id}
-                size="sm"
-                className="h-[120px] bg-forum-coral-bg transition-colors hover:border-forum-cerulean"
-              >
-                <Link href={`/events/${se.id}`} className="flex flex-col justify-between">
-                  <p className="font-serif text-[16px] leading-tight text-black line-clamp-2">
-                    {se.title}
-                  </p>
-                  <p className="font-dm-sans text-[12px] text-forum-light-gray">{se.datetime}</p>
-                </Link>
-              </Panel>
-            ))}
-          </div>
+        <section className="mt-8">
+          <SectionHeading>Similar events</SectionHeading>
+          <MiniEventList
+            empty=""
+            items={similarEvents.map((se) => ({
+              id: se.id,
+              title: se.title,
+              meta: `${se.datetime} · ${se.location}`,
+            }))}
+          />
         </section>
       )}
     </PageShell>

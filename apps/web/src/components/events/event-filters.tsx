@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { FilterChip } from "~/components/common/filter-chip";
 import { Button } from "~/components/ui/button";
@@ -44,7 +44,7 @@ export function EventFilters({ activeFilters, onFilterToggle }: EventFiltersProp
   const filters = expanded ? ALL_FILTERS : QUICK_FILTERS;
 
   return (
-    <fieldset className="flex flex-wrap items-center gap-2">
+    <fieldset className="flex flex-wrap items-center gap-1.5">
       <legend className="sr-only">Filter events by tag</legend>
       {filters.map(({ id, label }) => (
         <FilterChip key={id} active={activeFilters.includes(id)} onClick={() => onFilterToggle(id)}>
@@ -53,12 +53,13 @@ export function EventFilters({ activeFilters, onFilterToggle }: EventFiltersProp
       ))}
       <Button
         variant="quiet"
-        size="sm"
+        size="xs"
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
+        className="h-7 text-[12px]"
       >
-        <Pencil />
-        {expanded ? "Less" : "Edit filters"}
+        {expanded ? "Fewer topics" : "More topics"}
+        <ChevronDown className={expanded ? "rotate-180" : undefined} />
       </Button>
     </fieldset>
   );

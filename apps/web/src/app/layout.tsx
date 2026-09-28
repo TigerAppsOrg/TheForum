@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Inter, Kalnia, Source_Serif_4 } from "next/font/google";
 import { Toaster } from "~/components/ui/sonner";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "~/lib/site";
 import "./globals.css";
 
 const sourceSerif = Source_Serif_4({
@@ -33,8 +34,27 @@ const kalnia = Kalnia({
 });
 
 export const metadata: Metadata = {
-  title: "Forum — Princeton Campus Events",
-  description: "Your social life, curated. Discover campus events personalized for you.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ff7151",
 };
 
 export default function RootLayout({

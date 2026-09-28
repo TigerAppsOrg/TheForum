@@ -5,6 +5,7 @@ import type { MapEvent } from "~/actions/map";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
 import { Button } from "~/components/ui/button";
+import { formatEventDateTime } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
 
 interface EventListPanelProps {
@@ -71,13 +72,7 @@ export function EventListPanel({
             id={event.id}
             title={event.title}
             orgName={event.orgName}
-            datetime={new Date(event.rawDatetime).toLocaleString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            })}
+            datetime={formatEventDateTime(new Date(event.rawDatetime))}
             location={event.locationName}
             tags={event.tags}
             friendsAttending={event.friendsAttending}

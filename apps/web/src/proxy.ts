@@ -18,7 +18,17 @@ export default auth((req) => {
 
   // Public routes — always accessible. `/api/auth` covers Auth.js and the CAS
   // login/callback/logout routes; `/auth/error` is Auth.js' `pages.error`.
-  const publicRoutes = ["/", "/api/auth", "/auth/error"];
+  // Privacy/Terms are readable without login; the OG/Twitter images must be
+  // fetchable by link unfurlers.
+  const publicRoutes = [
+    "/",
+    "/api/auth",
+    "/auth/error",
+    "/privacy",
+    "/terms",
+    "/opengraph-image",
+    "/twitter-image",
+  ];
   const isPublicRoute = publicRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   );

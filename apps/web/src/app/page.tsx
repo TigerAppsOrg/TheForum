@@ -1,3 +1,6 @@
+import { FeedPreview, TonightPreview } from "~/components/landing/product-preview";
+import { SiteFooter } from "~/components/layout/site-footer";
+
 export default function LandingPage() {
   return (
     <main className="relative min-h-screen bg-forum-yellow-10 font-dm-sans">
@@ -96,11 +99,11 @@ export default function LandingPage() {
         {" "}
         {/* Left column */}
         <div className="flex flex-1 flex-col gap-25 justify-between py-20 md:py-20">
-          {/* Mockup */}
+          {/* Product preview — the Explore feed */}
           <div className="relative flex items-center justify-center min-h-64">
             <div className="absolute w-80 h-80 rounded-full bg-forum-cerulean opacity-75 blur-lg" />
-            <div className="relative z-10 bg-white/20 rounded-2xl w-full max-w-sm h-64 flex items-center justify-center text-white/50 text-sm">
-              UI mockup goes here
+            <div className="relative z-10 w-full">
+              <FeedPreview />
             </div>
           </div>
 
@@ -142,12 +145,10 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          {/* Second mockup */}
+          {/* Product preview — filters + what's happening soon */}
           <div className="relative flex justify-end items-center">
             <div className="absolute w-90 h-90 rounded-10 bg-forum-cerulean opacity-75 blur-lg" />
-            <div className="relative z-10 bg-white/20 rounded-2xl w-full max-w-sm h-48 flex items-center justify-center text-white/50 text-sm">
-              Second mockup goes here
-            </div>
+            <TonightPreview />
           </div>
         </div>
       </section>
@@ -228,11 +229,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="bg-white px-6 sm:px-15 py-5 border-t border-forum-medium-gray">
-        <p className="text-[11px] text-forum-light-gray">
-          Built for Princeton students — The Forum by TigerApps
-        </p>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

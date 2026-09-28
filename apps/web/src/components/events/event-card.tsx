@@ -21,6 +21,7 @@ import { logInteraction } from "~/actions/interactions";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
+import { formatDateBadge, formatTime } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
 
 export const CATEGORY_COLORS: Record<string, { bg: string; accent: string; text: string }> = {
@@ -62,6 +63,8 @@ export interface EventCardProps {
   orgName?: string | null;
   orgLogoUrl?: string | null;
   datetime: string;
+  /** ISO start time — powers the date block on `row` density. */
+  rawDatetime?: string | null;
   location: string;
   description?: string | null;
   tags: string[];
@@ -96,9 +99,11 @@ export interface EventCardProps {
   /**
    * `default` is the full feed card. `compact` drops the description and the
    * friends sentence for narrow columns — the map's 320px rail and an org
-   * profile's event list. `wide` is the full-width row used by My Events.
+   * profile's event list. `wide` is a full-width card. `row` is the dense
+   * list item (date block, title, time · place · host, save) used by Explore
+   * and My Events — render rows inside a bordered, divided list.
    */
-  density?: "default" | "compact" | "wide";
+  density?: "default" | "compact" | "wide" | "row";
   /** Google Calendar link; renders the Calendar action when supplied. */
   calendarUrl?: string;
   /**
@@ -128,6 +133,7 @@ export function EventCard({
   orgName,
   orgLogoUrl,
   datetime,
+  rawDatetime,
   location,
   description,
   tags,
@@ -165,6 +171,9 @@ export function EventCard({
 
   const displayedFriendNames = friendsAttending.slice(0, 2).map((friend) => friend.displayName);
   const remainingFriends = friendsAttending.length - displayedFriendNames.length;
+  // Friends shown here have RSVP'd — nothing is read from anyone's calendar.
+  const othersLabel = `+ ${remainingFriends} ${remainingFriends === 1 ? "other" : "others"}`;
+  const goingVerb = friendsAttending.length === 1 ? "is going!" : "are going!";
 
   // Track view — IntersectionObserver fires after 1s of visibility
   useEffect(() => {
@@ -203,7 +212,8 @@ export function EventCard({
       <div
         ref={cardRef}
         className={cn(
-          "card flex w-full items-center justify-between gap-3 rounded-xl px-5 py-3",
+          "flex w-full items-center justify-between gap-3",
+          density === "row" ? "px-3 py-1.5 sm:px-4" : "card rounded-xl px-5 py-3",
           className,
         )}
       >
@@ -217,6 +227,229 @@ export function EventCard({
           </Button>
         )}
       </div>
+    );
+  }
+
+  /*
+   * Row layout: the dense list item. The title link stretches over the whole
+   * row (one tab stop, big click target); the host link and action buttons sit
+   * above it with `relative z-10`.
+   */
+  if (density === "row") {
+    const start = rawDatetime ? new Date(rawDatetime) : null;
+    const badge = start ? formatDateBadge(start) : null;
+    const when = start ? formatTime(start) : datetime;
+    const utilityButton =
+      "relative z-10 text-forum-light-gray hover:bg-forum-coral-light hover:text-forum-coral";
+
+    return (
+      <article
+        ref={cardRef}
+        className={cn(
+          "group relative flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-forum-turquoise/10 sm:px-4",
+          className,
+        )}
+      >
+        {badge && (
+          <div aria-hidden className="w-10 shrink-0 pt-0.5 text-center leading-none">
+            <div className="font-dm-sans text-[10px] font-bold tracking-wide text-forum-coral">
+              {badge.month}
+            </div>
+            <div className="mt-0.5 font-serif text-[20px] font-semibold text-black">
+              {badge.day}
+            </div>
+            <div className="mt-0.5 font-dm-sans text-[10px] text-forum-light-gray">
+              {badge.weekday}
+            </div>
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          {onOpen ? (
+            <button
+              type="button"
+              onClick={() => {
+                trackClick();
+                onOpen();
+              }}
+              className="text-left font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-2 sm:line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+            >
+              {title}
+            </button>
+          ) : (
+            <Link
+              href={`/events/${id}`}
+              onClick={trackClick}
+              className="font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-2 sm:line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+            >
+              {title}
+            </Link>
+          )}
+          <p className="mt-0.5 truncate font-dm-sans text-[12px] text-forum-dark-gray">
+            {badge ? when : datetime}
+            {hasLocation && <> · {location}</>}
+            {orgName && (
+              <>
+                {" · "}
+                {orgId ? (
+                  <Link
+                    href={`/orgs/${orgId}`}
+                    className="relative z-10 font-medium hover:text-forum-cerulean hover:underline"
+                  >
+                    {orgName}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{orgName}</span>
+                )}
+              </>
+            )}
+          </p>
+          {(friendsAttending.length > 0 || tags.length > 0) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-dm-sans text-[11px]">
+              {friendsAttending.length > 0 && (
+                <span className="font-medium text-forum-coral">
+                  {displayedFriendNames.join(", ")}
+                  {remainingFriends > 0 && ` ${othersLabel}`} {goingVerb}
+                </span>
+              )}
+              {tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded bg-forum-medium-gray/70 px-1.5 py-px text-forum-dark-gray"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onHide && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                utilityButton,
+                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+              )}
+              aria-label={`Hide ${title}`}
+              onClick={() => {
+                logInteraction({
+                  itemId: id,
+                  interactionType: "hide",
+                  metadata: { source, position },
+                });
+                onHide();
+              }}
+            >
+              <EyeOff />
+            </Button>
+          )}
+          {onShare && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                utilityButton,
+                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+              )}
+              aria-label={`Copy link to ${title}`}
+              onClick={() => {
+                logInteraction({
+                  itemId: id,
+                  interactionType: "share",
+                  metadata: { source, position },
+                });
+                onShare();
+              }}
+            >
+              <Share2 />
+            </Button>
+          )}
+          {editHref && (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              className={utilityButton}
+              aria-label={`Edit ${title}`}
+            >
+              <Link href={editHref}>
+                <Edit3 />
+              </Link>
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={utilityButton}
+              aria-label={`Delete ${title}`}
+              onClick={onDelete}
+            >
+              <Trash2 />
+            </Button>
+          )}
+          {onSaveToggle && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(utilityButton, isSaved && "text-forum-coral")}
+              aria-label={isSaved ? `Unsave ${title}` : `Save ${title}`}
+              aria-pressed={isSaved}
+              onClick={async () => {
+                logInteraction({
+                  itemId: id,
+                  interactionType: "save",
+                  metadata: { source, position },
+                });
+                const wasSaved = isSaved;
+                try {
+                  await onSaveToggle();
+                } catch {
+                  return;
+                }
+                toast(wasSaved ? `Removed ${title} from saved` : `Saved ${title}`);
+              }}
+            >
+              {isSaved ? <BookmarkCheck /> : <Bookmark />}
+            </Button>
+          )}
+          {onRsvpToggle && (
+            <Button
+              variant={isRsvped ? "cerulean" : "outline"}
+              size="xs"
+              aria-pressed={isRsvped}
+              className="relative z-10 ml-1 h-7 rounded-full px-3 text-[12px]"
+              onClick={async () => {
+                logInteraction({
+                  itemId: id,
+                  interactionType: "rsvp",
+                  metadata: { source, position },
+                });
+                const wasRsvped = isRsvped;
+                try {
+                  await onRsvpToggle();
+                } catch {
+                  return;
+                }
+                if (wasRsvped) toast(`Removed your RSVP to ${title}`);
+                else toast.success(`You're going to ${title}`);
+              }}
+            >
+              {isRsvped ? (
+                <>
+                  <Check />
+                  Going
+                </>
+              ) : (
+                "RSVP"
+              )}
+            </Button>
+          )}
+        </div>
+      </article>
     );
   }
 
@@ -381,9 +614,9 @@ export function EventCard({
                     {displayedFriendNames.join(", ")}
                   </span>
                   {remainingFriends > 0 && (
-                    <span className="font-bold text-forum-coral"> + {remainingFriends} other</span>
+                    <span className="font-bold text-forum-coral"> {othersLabel}</span>
                   )}{" "}
-                  added this event to their calendar!
+                  {goingVerb}
                 </p>
               </div>
             )}
@@ -648,9 +881,9 @@ export function EventCard({
             <p className="font-dm-sans text-[12px] leading-tight text-forum-dark-gray">
               <span className="font-bold text-forum-coral">
                 {displayedFriendNames.join(", ")}
-                {remainingFriends > 0 && ` + ${remainingFriends} other`}
+                {remainingFriends > 0 && ` ${othersLabel}`}
               </span>{" "}
-              added this event to their calendar!
+              {goingVerb}
             </p>
           </div>
         ))}
