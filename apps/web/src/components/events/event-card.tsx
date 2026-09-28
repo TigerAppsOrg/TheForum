@@ -272,7 +272,7 @@ export function EventCard({
                 trackClick();
                 onOpen();
               }}
-              className="text-left font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+              className="text-left font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-2 sm:line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
             >
               {title}
             </button>
@@ -280,7 +280,7 @@ export function EventCard({
             <Link
               href={`/events/${id}`}
               onClick={trackClick}
-              className="font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
+              className="font-dm-sans text-[14px] font-semibold leading-snug text-black line-clamp-2 sm:line-clamp-1 after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean"
             >
               {title}
             </Link>
@@ -331,7 +331,7 @@ export function EventCard({
               size="icon-sm"
               className={cn(
                 utilityButton,
-                "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
               )}
               aria-label={`Hide ${title}`}
               onClick={() => {
@@ -352,7 +352,7 @@ export function EventCard({
               size="icon-sm"
               className={cn(
                 utilityButton,
-                "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
+                "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
               )}
               aria-label={`Copy link to ${title}`}
               onClick={() => {
