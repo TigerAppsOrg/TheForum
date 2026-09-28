@@ -254,6 +254,9 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
             <div className="flex items-center gap-[10px] text-[14px] font-dm-sans text-forum-dark-gray">
               <MapPin size={16} className="text-forum-light-gray" />
               {event.locationName}
+              {event.locationDetail && (
+                <span className="text-forum-light-gray"> · {event.locationDetail}</span>
+              )}
             </div>
             {event.externalLink && (
               <a
@@ -313,7 +316,28 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
           </div>
 
           <p className="text-[12px] font-dm-sans text-forum-light-gray mt-[20px]">
-            Posted by {event.creatorName}
+            {event.source === "myprincetonu" || event.source === "listserv" ? (
+              <>
+                {event.source === "myprincetonu"
+                  ? "Official event from MyPrincetonU"
+                  : "Found in a campus listserv email"}
+                {event.sourceUrl && (
+                  <>
+                    {" · "}
+                    <a
+                      href={event.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-forum-cerulean hover:underline"
+                    >
+                      {event.source === "myprincetonu" ? "View on MyPrincetonU" : "Read the email"}
+                    </a>
+                  </>
+                )}
+              </>
+            ) : (
+              <>Posted by {event.creatorName}</>
+            )}
           </p>
         </div>
       </div>

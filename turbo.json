@@ -43,6 +43,9 @@
     },
     "db:seed": {
       "cache": false
+    },
+    "db:sync-engine": {
+      "cache": false
     }
   }
 }

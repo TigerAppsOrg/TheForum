@@ -27,7 +27,6 @@ export const env = createEnv({
    * Add new client vars here + to .env.local and .env.example.
    */
   client: {
-    NEXT_PUBLIC_API_URL: z.string().url().optional(),
     NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk."),
     NEXT_PUBLIC_CAMPUS_MAP_TOKEN: z.string().startsWith("pk."),
     NEXT_PUBLIC_CAMPUS_MAP_STYLE: z.string().startsWith("mapbox://"),
@@ -40,7 +39,6 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
     NEXT_PUBLIC_CAMPUS_MAP_TOKEN: process.env.NEXT_PUBLIC_CAMPUS_MAP_TOKEN,
     NEXT_PUBLIC_CAMPUS_MAP_STYLE: process.env.NEXT_PUBLIC_CAMPUS_MAP_STYLE,

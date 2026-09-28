@@ -1,274 +1,406 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, Heart, MapPin, Shield, Users, X } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarDays,
+  ChevronLeft,
+  Copy,
+  ExternalLink,
+  Globe,
+  Heart,
+  Shield,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type UserSearchResult, searchUsers } from "~/actions/friends";
 import { type OrgDetail, addOfficer, removeOfficer, toggleFollowOrg } from "~/actions/orgs";
-import { Panel } from "~/components/common/panel";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { EventCard } from "~/components/events/event-card";
-import { PageHeading, PageShell, SectionHeading } from "~/components/layout/page-shell";
+import { PageShell } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
 
-function colorFromString(str: string) {
-  const colors = ["#6366f1", "#ec4899", "#14b8a6", "#f97316", "#8b5cf6", "#22c55e", "#3b82f6"];
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
+const SOCIAL_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  linkedin: "LinkedIn",
+  twitter: "X",
+  youtube: "YouTube",
+};
+
+function initials(name: string) {
+  return (
+    name
+      .replace(/[^\p{L}\p{N} ]/gu, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "?"
+  );
+}
+
+function OrgLogo({ name, logoUrl }: { name: string; logoUrl: string | null }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${name} logo`}
+        className="size-16 shrink-0 rounded-xl border border-forum-medium-gray bg-white object-contain p-1"
+      />
+    );
   }
-  return colors[Math.abs(hash) % colors.length] ?? "#6366f1";
+  return (
+    <div
+      aria-hidden
+      className="flex size-16 shrink-0 items-center justify-center rounded-xl border border-forum-medium-gray bg-forum-cerulean/10 font-dm-sans text-lg font-semibold text-forum-cerulean"
+    >
+      {initials(name)}
+    </div>
+  );
 }
 
-interface OrgProfileClientProps {
-  org: OrgDetail;
+function PersonAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+  return avatarUrl ? (
+    <img src={avatarUrl} alt="" className="size-7 rounded-full object-cover" />
+  ) : (
+    <span
+      aria-hidden
+      className="flex size-7 items-center justify-center rounded-full bg-forum-cerulean/15 font-dm-sans text-[11px] font-semibold text-forum-cerulean"
+    >
+      {name[0]?.toUpperCase()}
+    </span>
+  );
 }
 
-export function OrgProfileClient({ org }: OrgProfileClientProps) {
+function LinkChip({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-md border border-forum-medium-gray px-2.5 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
+    >
+      {children}
+    </a>
+  );
+}
+
+function SideSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2 border-t border-forum-medium-gray pt-4 first:border-t-0 first:pt-0">
+      <h2 className="font-dm-sans text-xs font-semibold uppercase tracking-wide text-forum-light-gray">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+export function OrgProfileClient({ org }: { org: OrgDetail }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isFollowing, setIsFollowing] = useState(org.isFollowing);
   const [followerCount, setFollowerCount] = useState(org.followerCount);
-
-  const handleToggleFollow = () => {
-    setIsFollowing(!isFollowing);
-    setFollowerCount((c) => (isFollowing ? c - 1 : c + 1));
-    startTransition(async () => {
-      const result = await toggleFollowOrg(org.id);
-      setIsFollowing(result.following);
-    });
-  };
-
-  const [members, setMembers] = useState(org.members);
+  const [team, setTeam] = useState(org.team);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const official = org.source === "myprincetonu";
 
-  const owners = members.filter((m) => m.role === "owner");
-  const officers = members.filter((m) => m.role === "officer");
-  const memberIds = new Set(members.map((m) => m.id));
+  const handleToggleFollow = () => {
+    const next = !isFollowing;
+    setIsFollowing(next);
+    setFollowerCount((c) => c + (next ? 1 : -1));
+    startTransition(async () => {
+      try {
+        const result = await toggleFollowOrg(org.id);
+        setIsFollowing(result.following);
+      } catch {
+        setIsFollowing(!next);
+        setFollowerCount((c) => c + (next ? -1 : 1));
+        toast.error("Couldn't update follow. Try again.");
+      }
+    });
+  };
 
   const handleSearch = useCallback(
     async (query: string) => {
       setSearchQuery(query);
-      if (query.length < 2) {
+      if (query.trim().length < 2) {
         setSearchResults([]);
         return;
       }
-      setIsSearching(true);
+      const ids = new Set(team.map((m) => m.id));
       const results = await searchUsers(query);
-      setSearchResults(results.filter((u) => !memberIds.has(u.id)));
-      setIsSearching(false);
+      setSearchResults(results.filter((u) => !ids.has(u.id)));
     },
-    [memberIds],
+    [team],
   );
 
   const handleAddOfficer = (user: UserSearchResult) => {
     startTransition(async () => {
-      await addOfficer(org.id, user.id);
-      setMembers((prev) => [
-        ...prev,
-        { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, role: "officer" },
-      ]);
-      setSearchQuery("");
-      setSearchResults([]);
-      toast.success(`${user.displayName} added as officer`);
+      try {
+        await addOfficer(org.id, user.id);
+        setTeam((prev) => [...prev, { ...user, role: "officer" }]);
+        setSearchQuery("");
+        setSearchResults([]);
+        toast.success(`${user.displayName} added as an officer`);
+      } catch {
+        toast.error("Couldn't add that officer.");
+      }
     });
   };
 
   const handleRemoveOfficer = (userId: string, name: string) => {
     startTransition(async () => {
-      await removeOfficer(org.id, userId);
-      setMembers((prev) => prev.filter((m) => m.id !== userId));
-      toast.success(`${name} removed`);
+      try {
+        await removeOfficer(org.id, userId);
+        setTeam((prev) => prev.filter((m) => m.id !== userId));
+        toast.success(`${name} removed`);
+      } catch {
+        toast.error("Couldn't remove that officer.");
+      }
     });
   };
 
+  const copyEmail = async () => {
+    if (!org.contactEmail) return;
+    try {
+      await navigator.clipboard.writeText(org.contactEmail);
+      toast.success("Email copied");
+    } catch {
+      toast.message(org.contactEmail);
+    }
+  };
+
+  const socials = Object.entries(org.socials).filter(([k, v]) => SOCIAL_LABELS[k] && v);
+
   return (
     <PageShell>
-      {/* Back */}
-      <Button variant="quiet" size="sm" onClick={() => router.back()} className="mb-6">
+      <Button variant="quiet" size="sm" onClick={() => router.back()} className="mb-4 -ml-2">
         <ChevronLeft />
         Back
       </Button>
 
-      {/* Header */}
-      <Panel size="none" className="mb-8 overflow-hidden">
-        <div
-          aria-hidden
-          className="flex h-28 items-center justify-center"
-          style={{
-            background: `linear-gradient(135deg, ${colorFromString(org.name)}20, ${colorFromString(org.name)}40)`,
-          }}
-        >
-          {org.logoUrl ? (
-            <img src={org.logoUrl} alt="" className="size-16 rounded-xl object-cover shadow-md" />
-          ) : (
-            <span className="text-4xl font-black" style={{ color: colorFromString(org.name) }}>
-              {org.name[0]?.toUpperCase()}
-            </span>
-          )}
-        </div>
-        <div className="p-6">
-          <PageHeading
-            className="text-[28px] sm:text-[32px] lg:text-[36px]"
-            description={<span className="capitalize">{org.category}</span>}
-            action={
-              <Button
-                variant={isFollowing ? "soft" : "cerulean"}
-                aria-pressed={isFollowing}
-                disabled={isPending}
-                onClick={handleToggleFollow}
-                className="rounded-full"
+      <header className="flex flex-col gap-4 border-b border-forum-medium-gray pb-5 sm:flex-row sm:items-start">
+        <OrgLogo name={org.name} logoUrl={org.logoUrl} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="font-dm-sans text-2xl font-semibold leading-tight text-black text-balance">
+              {org.name}
+            </h1>
+            {official && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-forum-cerulean/10 px-2 py-0.5 font-dm-sans text-[11px] font-medium text-forum-cerulean"
+                title="Imported from Princeton's official MyPrincetonU directory"
               >
-                <Heart fill={isFollowing ? "currentColor" : "none"} />
-                {isFollowing ? "Following" : "Follow"}
-              </Button>
-            }
-          >
-            {org.name}
-          </PageHeading>
-
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 font-dm-sans text-sm text-forum-dark-gray">
-              <Users size={14} aria-hidden className="text-forum-light-gray" />
-              {followerCount} follower{followerCount !== 1 ? "s" : ""}
-            </span>
-            <span className="flex items-center gap-1.5 font-dm-sans text-sm text-forum-dark-gray">
-              <CalendarDays size={14} aria-hidden className="text-forum-light-gray" />
-              {org.upcomingEvents.length} upcoming event{org.upcomingEvents.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-
-          {org.description && (
-            <p className="mt-4 whitespace-pre-wrap font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
-              {org.description}
-            </p>
-          )}
-        </div>
-      </Panel>
-
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-        {/* Left: Events */}
-        <section className="md:col-span-2">
-          <SectionHeading>Upcoming Events</SectionHeading>
-          {org.upcomingEvents.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {org.upcomingEvents.map((event, index) => (
-                <EventCard
-                  key={event.id}
-                  id={event.id}
-                  // Drafts and private events only reach this list for the org's
-                  // owners/officers — label them so they aren't mistaken for live ones.
-                  title={
-                    event.status === "draft"
-                      ? `${event.title} (Draft)`
-                      : event.isPublic
-                        ? event.title
-                        : `${event.title} (Private)`
-                  }
-                  datetime={event.datetime}
-                  location={event.locationName}
-                  tags={event.tags}
-                  orgName={org.name}
-                  orgId={org.id}
-                  density="compact"
-                  source="similar"
-                  position={index}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon={CalendarDays} title="No upcoming events" />
-          )}
-        </section>
-
-        {/* Right: Members */}
-        <section>
-          <SectionHeading>Team</SectionHeading>
-          <Panel size="none" className="divide-y divide-forum-medium-gray">
-            {[...owners, ...officers].map((member) => (
-              <div key={member.id} className="flex items-center gap-3 px-4 py-3">
-                <div
-                  aria-hidden
-                  className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: colorFromString(member.displayName) }}
-                >
-                  {member.avatarUrl ? (
-                    <img
-                      src={member.avatarUrl}
-                      alt=""
-                      className="size-full rounded-full object-cover"
-                    />
-                  ) : (
-                    member.displayName[0]?.toUpperCase()
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-dm-sans text-sm font-medium text-black">
-                    {member.displayName}
-                  </p>
-                </div>
-                <span className="flex items-center gap-1 font-dm-sans text-[10px] font-medium uppercase tracking-wider text-forum-light-gray">
-                  {member.role === "owner" && (
-                    <Shield size={10} aria-hidden className="text-forum-yellow" />
-                  )}
-                  {member.role}
-                </span>
-                {org.isOwner && member.role === "officer" && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Remove ${member.displayName} as officer`}
-                    disabled={isPending}
-                    onClick={() => handleRemoveOfficer(member.id, member.displayName)}
-                    className="text-forum-light-gray hover:text-forum-coral"
-                  >
-                    <X />
-                  </Button>
-                )}
-              </div>
-            ))}
-            {owners.length === 0 && officers.length === 0 && (
-              <p className="p-4 text-center font-dm-sans text-xs text-forum-light-gray">
-                No team members listed
-              </p>
+                <BadgeCheck size={12} aria-hidden />
+                MyPrincetonU
+              </span>
             )}
-          </Panel>
+          </div>
+          <p className="font-dm-sans text-sm text-forum-dark-gray">
+            {[org.acronym, org.groupType, org.category].filter(Boolean).map((part, i) => (
+              <span key={part} className={i === 2 ? "capitalize" : undefined}>
+                {i > 0 && <span className="px-1.5 text-forum-light-gray">·</span>}
+                {part}
+              </span>
+            ))}
+          </p>
+          {org.tagline && (
+            <p className="font-dm-sans text-sm italic text-forum-dark-gray">{org.tagline}</p>
+          )}
+          <div className="mt-1 flex flex-wrap gap-2">
+            {org.groupUrl && (
+              <LinkChip href={org.groupUrl}>
+                <ExternalLink size={12} aria-hidden />
+                MyPrincetonU page
+              </LinkChip>
+            )}
+            {org.website && (
+              <LinkChip href={org.website}>
+                <Globe size={12} aria-hidden />
+                Website
+              </LinkChip>
+            )}
+            {socials.map(([key, url]) => (
+              <LinkChip key={key} href={url}>
+                {SOCIAL_LABELS[key]}
+              </LinkChip>
+            ))}
+            {org.contactEmail && (
+              <button
+                type="button"
+                onClick={copyEmail}
+                className="inline-flex items-center gap-1.5 rounded-md border border-forum-medium-gray px-2.5 py-1 font-dm-sans text-xs font-medium text-forum-dark-gray transition-colors hover:border-forum-cerulean hover:text-forum-cerulean"
+                title="Copy email address"
+              >
+                <Copy size={12} aria-hidden />
+                <span className="select-all">{org.contactEmail}</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <Button
+          variant={isFollowing ? "soft" : "cerulean"}
+          aria-pressed={isFollowing}
+          disabled={isPending}
+          onClick={handleToggleFollow}
+          className="shrink-0 rounded-full"
+        >
+          <Heart fill={isFollowing ? "currentColor" : "none"} />
+          {isFollowing ? "Following" : "Follow"}
+        </Button>
+      </header>
 
-          {/* Add officer search — owner only */}
-          {org.isOwner && (
-            <div className="mt-4">
-              <SearchInput
-                label="Search users to add as officers"
-                placeholder="Search users to add…"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+      <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="flex min-w-0 flex-col gap-8">
+          {org.description && (
+            <section className="flex flex-col gap-2">
+              <h2 className="font-dm-sans text-sm font-semibold text-black">About</h2>
+              <p className="max-w-prose whitespace-pre-line font-dm-sans text-sm leading-relaxed text-forum-dark-gray">
+                {org.description}
+              </p>
+            </section>
+          )}
+
+          <section className="flex flex-col gap-3">
+            <h2 className="flex items-center gap-2 font-dm-sans text-sm font-semibold text-black">
+              Upcoming events
+              <span className="font-normal text-forum-light-gray">{org.upcomingEvents.length}</span>
+            </h2>
+            {org.upcomingEvents.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {org.upcomingEvents.map((event, index) => (
+                  <EventCard
+                    key={event.id}
+                    id={event.id}
+                    // Drafts and private events only reach this list for owners/officers.
+                    title={
+                      event.status === "draft"
+                        ? `${event.title} (Draft)`
+                        : event.isPublic
+                          ? event.title
+                          : `${event.title} (Private)`
+                    }
+                    datetime={event.datetime}
+                    location={event.locationName}
+                    tags={event.tags}
+                    orgName={org.name}
+                    orgId={org.id}
+                    density="compact"
+                    source="similar"
+                    position={index}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={CalendarDays}
+                title="No upcoming events"
+                description={
+                  official
+                    ? "Events this group posts on MyPrincetonU or sends to campus listservs appear here automatically."
+                    : undefined
+                }
               />
-              {searchResults.length > 0 && (
-                <Panel size="none" className="mt-2 divide-y divide-forum-medium-gray">
+            )}
+          </section>
+        </div>
+
+        <aside className="flex flex-col gap-4">
+          <SideSection title="Community">
+            <p className="flex items-center gap-2 font-dm-sans text-sm text-forum-dark-gray">
+              <Heart size={14} aria-hidden className="text-forum-light-gray" />
+              {followerCount} {followerCount === 1 ? "follower" : "followers"} on The Forum
+            </p>
+            {org.memberCount ? (
+              <p className="flex items-center gap-2 font-dm-sans text-sm text-forum-dark-gray">
+                <Users size={14} aria-hidden className="text-forum-light-gray" />
+                {org.memberCount} members on MyPrincetonU
+              </p>
+            ) : null}
+          </SideSection>
+
+          {org.friendsFollowing.length > 0 && (
+            <SideSection title="Friends who follow">
+              <ul className="flex flex-col gap-2">
+                {org.friendsFollowing.map((friend) => (
+                  <li key={friend.id} className="flex items-center gap-2">
+                    <PersonAvatar name={friend.displayName} avatarUrl={friend.avatarUrl} />
+                    <span className="truncate font-dm-sans text-sm text-black">
+                      {friend.displayName}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </SideSection>
+          )}
+
+          {official ? (
+            org.groupUrl && (
+              <SideSection title="Leadership">
+                <p className="font-dm-sans text-xs leading-relaxed text-forum-dark-gray">
+                  Officers and membership are managed on{" "}
+                  <a
+                    href={org.groupUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-forum-cerulean underline-offset-2 hover:underline"
+                  >
+                    MyPrincetonU
+                  </a>
+                  .
+                </p>
+              </SideSection>
+            )
+          ) : (
+            <SideSection title="Team">
+              {team.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {team.map((member) => (
+                    <li key={member.id} className="flex items-center gap-2">
+                      <PersonAvatar name={member.displayName} avatarUrl={member.avatarUrl} />
+                      <span className="min-w-0 flex-1 truncate font-dm-sans text-sm text-black">
+                        {member.displayName}
+                      </span>
+                      <span className="flex items-center gap-1 font-dm-sans text-[10px] font-medium uppercase tracking-wide text-forum-light-gray">
+                        {member.role === "owner" && <Shield size={10} aria-hidden />}
+                        {member.role}
+                      </span>
+                      {org.isOwner && member.role === "officer" && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove ${member.displayName} as officer`}
+                          disabled={isPending}
+                          onClick={() => handleRemoveOfficer(member.id, member.displayName)}
+                        >
+                          <X />
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="font-dm-sans text-xs text-forum-light-gray">No officers listed.</p>
+              )}
+              {org.isOwner && (
+                <div className="flex flex-col gap-2 pt-1">
+                  <SearchInput
+                    label="Add an officer"
+                    placeholder="Add an officer…"
+                    value={searchQuery}
+                    onChange={(e) => handleSearch(e.target.value)}
+                  />
                   {searchResults.map((user) => (
-                    <div key={user.id} className="flex items-center gap-3 px-3 py-2">
-                      <div
-                        aria-hidden
-                        className="flex size-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ background: colorFromString(user.displayName) }}
-                      >
-                        {user.avatarUrl ? (
-                          <img
-                            src={user.avatarUrl}
-                            alt=""
-                            className="size-full rounded-full object-cover"
-                          />
-                        ) : (
-                          user.displayName[0]?.toUpperCase()
-                        )}
-                      </div>
-                      <span className="flex-1 truncate font-dm-sans text-sm text-black">
+                    <div key={user.id} className="flex items-center gap-2">
+                      <PersonAvatar name={user.displayName} avatarUrl={user.avatarUrl} />
+                      <span className="flex-1 truncate font-dm-sans text-sm">
                         {user.displayName}
                       </span>
                       <Button
@@ -276,20 +408,25 @@ export function OrgProfileClient({ org }: OrgProfileClientProps) {
                         size="xs"
                         disabled={isPending}
                         onClick={() => handleAddOfficer(user)}
-                        className="text-forum-cerulean"
                       >
                         Add
                       </Button>
                     </div>
                   ))}
-                </Panel>
+                </div>
               )}
-              {isSearching && (
-                <p className="mt-2 px-1 font-dm-sans text-xs text-forum-light-gray">Searching…</p>
-              )}
-            </div>
+            </SideSection>
           )}
-        </section>
+
+          {!official && (
+            <p className="font-dm-sans text-xs text-forum-light-gray">
+              Created on The Forum.{" "}
+              <Link href="/orgs" className="text-forum-cerulean hover:underline">
+                Browse official groups
+              </Link>
+            </p>
+          )}
+        </aside>
       </div>
     </PageShell>
   );
