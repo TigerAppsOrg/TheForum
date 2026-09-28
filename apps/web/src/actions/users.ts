@@ -15,6 +15,8 @@ const profileFieldsSchema = z.object({
   isOrgLeader: z.boolean(),
   interests: uniqueEnumArray(eventTagSchema),
   regions: uniqueEnumArray(campusRegionSchema),
+  // Optional everywhere: omitted means "leave the stored name alone".
+  displayName: z.string().trim().min(1).max(255).optional(),
 });
 
 const onboardingSchema = profileFieldsSchema;
@@ -51,6 +53,7 @@ export async function completeOnboarding(data: {
   major: string;
   regions: string[];
   isOrgLeader: boolean;
+  displayName?: string;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
@@ -64,6 +67,7 @@ export async function completeOnboarding(data: {
     await tx
       .update(users)
       .set({
+        displayName: input.displayName,
         classYear: input.classYear,
         major: input.major,
         isOrgLeader: input.isOrgLeader,
@@ -168,6 +172,7 @@ export async function updateProfile(data: {
   isOrgLeader?: boolean;
   interests?: string[];
   regions?: string[];
+  displayName?: string;
 }): Promise<void> {
   const user = await getCurrentUser();
   const userId = user.id;
@@ -177,6 +182,7 @@ export async function updateProfile(data: {
     await tx
       .update(users)
       .set({
+        displayName: input.displayName,
         classYear: input.classYear,
         major: input.major,
         isOrgLeader: input.isOrgLeader,

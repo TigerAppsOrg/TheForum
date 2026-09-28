@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { MapRef } from "react-map-gl/mapbox";
 import type { MapEvent } from "~/actions/map";
 import { cn } from "~/lib/utils";
-import { getTimeGroup } from "./_lib/map-helpers";
+import { eventDateKey, getTimeGroup } from "./_lib/map-helpers";
 
 /* Dynamic import for MapView — mapbox-gl accesses `window` at module init */
 const MapView = dynamic(
@@ -48,7 +48,7 @@ const EventDetailModal = dynamic(
 );
 
 /* ═══ Filter types ═══ */
-export type FilterKey = "friends" | "now" | "attending";
+export type FilterKey = "friends" | "now";
 
 /* ═══ Component ═══ */
 interface MapClientProps {
@@ -78,7 +78,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
   const filteredEvents = useMemo(() => {
     let result = events;
     if (selectedDate) {
-      result = result.filter((e) => e.rawDatetime.startsWith(selectedDate));
+      result = result.filter((e) => eventDateKey(e.rawDatetime) === selectedDate);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -92,6 +92,9 @@ export function MapClient({ initialEvents }: MapClientProps) {
     }
     if (activeFilters.has("now")) {
       result = result.filter((e) => getTimeGroup(e.rawDatetime) === "now");
+    }
+    if (activeFilters.has("friends")) {
+      result = result.filter((e) => e.friendsAttending.length > 0);
     }
     return result;
   }, [events, selectedDate, searchQuery, activeFilters]);
@@ -118,7 +121,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
   const eventCountByDate = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of events) {
-      const d = event.rawDatetime.slice(0, 10);
+      const d = eventDateKey(event.rawDatetime);
       counts.set(d, (counts.get(d) ?? 0) + 1);
     }
     return counts;
@@ -181,12 +184,7 @@ export function MapClient({ initialEvents }: MapClientProps) {
           />
 
           {/* ═══ Search bar + filter pills (top center) ═══ */}
-          {/*
-            The rail floats over the map on this route, so the left inset clears
-            its *expanded* 212px width — the controls are never swallowed when it
-            opens. The wider right inset on ≥sm clears the TopBar's bell + avatar.
-          */}
-          <div className="pointer-events-none absolute top-4 right-4 left-4 z-10 sm:left-[224px] sm:right-32">
+          <div className="pointer-events-none absolute top-3 right-3 left-3 z-10">
             <div className="pointer-events-auto mx-auto flex max-w-2xl flex-col gap-2">
               <MapSearchBar value={searchQuery} onChange={setSearchQuery} />
               <MapFilterPills activeFilters={activeFilters} onToggle={toggleFilter} />

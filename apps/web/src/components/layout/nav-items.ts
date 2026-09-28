@@ -16,15 +16,14 @@ export interface NavItem {
 /**
  * Single source of truth for primary navigation.
  *
- * Both the docked `Sidebar` and the map route's floating mini-nav read from
- * this list — previously they were separate arrays and had already drifted
- * (the map nav was missing Orgs entirely).
+ * Read by both the desktop `AppHeader` and the phone `MobileNav`, so the two
+ * can never drift.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/explore", icon: Home, label: "Home" },
+  { href: "/explore", icon: Home, label: "Explore" },
   { href: "/events", icon: CalendarDays, label: "My Events" },
   { href: "/map", icon: MapIcon, label: "Map" },
-  { href: "/friends", icon: Users, label: "My Friends" },
+  { href: "/friends", icon: Users, label: "Friends" },
   { href: "/orgs", icon: Building2, label: "Orgs" },
 ];
 
@@ -35,5 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
  * a hypothetical `/events-archive` route the way a bare `startsWith` would.
  */
 export function isNavItemActive(pathname: string, href: string): boolean {
+  // Event pages are usually opened from Explore, so only /events itself is "My Events".
+  if (href === "/events") return pathname === "/events";
   return pathname === href || pathname.startsWith(`${href}/`);
 }

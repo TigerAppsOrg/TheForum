@@ -1,9 +1,10 @@
-import { getFriends } from "~/actions/friends";
+import type { Metadata } from "next";
 import { getUserProfile } from "~/actions/users";
 import { SettingsClient } from "./settings-client";
 
-export default async function SettingsPage() {
-  const [profile, friends] = await Promise.all([getUserProfile(), getFriends()]);
+export const metadata: Metadata = { title: "Settings" };
 
-  return <SettingsClient profile={profile} friends={friends} />;
+export default async function SettingsPage() {
+  const profile = await getUserProfile();
+  return <SettingsClient profile={profile} />;
 }

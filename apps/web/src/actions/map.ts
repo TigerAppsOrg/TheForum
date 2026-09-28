@@ -18,6 +18,7 @@ import {
 } from "@the-forum/database";
 import { z } from "zod";
 import { auth } from "~/auth";
+import { formatTime } from "~/lib/date-format";
 import { eventDiscoverableBy } from "~/lib/event-visibility";
 import { loadFriendIds } from "~/lib/social-graph";
 import { dateInputSchema, parseInput } from "~/lib/validation";
@@ -139,10 +140,7 @@ export async function getMapEvents(opts?: {
     locationId: r.locationId ?? "",
     locationName: r.locationName ?? "TBD",
     rawDatetime: r.datetime.toISOString(),
-    datetime: r.datetime.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    datetime: formatTime(r.datetime),
     tags: tagsByEvent.get(r.id) ?? [],
   }));
 }

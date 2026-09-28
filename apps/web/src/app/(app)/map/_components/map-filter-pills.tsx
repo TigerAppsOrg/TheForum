@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Users, Zap } from "lucide-react";
+import { Users, Zap } from "lucide-react";
 import { FilterChip } from "~/components/common/filter-chip";
 import type { FilterKey } from "../map-client";
 
@@ -9,10 +9,14 @@ interface MapFilterPillsProps {
   onToggle: (key: FilterKey) => void;
 }
 
+/*
+ * "Events You're Attending" was dropped: map events don't carry the viewer's
+ * RSVP state, so the pill could never filter anything. Friends Going filters
+ * on the friend RSVPs each map event already includes.
+ */
 const PILLS: { key: FilterKey; label: string; icon: typeof Users }[] = [
-  { key: "friends", label: "Find Your Friends", icon: Users },
+  { key: "friends", label: "Friends Going", icon: Users },
   { key: "now", label: "Happening Now", icon: Zap },
-  { key: "attending", label: "Events You're Attending", icon: Heart },
 ];
 
 export function MapFilterPills({ activeFilters, onToggle }: MapFilterPillsProps) {
