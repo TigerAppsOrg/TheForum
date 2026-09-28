@@ -201,7 +201,16 @@ export function OrgEmails({
 
               <div className="flex-1 p-4 sm:p-5">
                 {state === "loading" ? (
-                  <LoadingState label="Loading email…" className="py-10" />
+                  // The first open can take ~10s: InboxEngine may fetch the
+                  // original from LISTSERV on demand.
+                  <div className="flex flex-col gap-3">
+                    <LoadingState label="Fetching the full email…" className="py-6" />
+                    {shown.preview && (
+                      <div className="opacity-60">
+                        <RichText text={shown.preview} />
+                      </div>
+                    )}
+                  </div>
                 ) : state === "error" ? (
                   <div className="flex flex-col gap-3">
                     <p className="font-dm-sans text-[13px] text-forum-light-gray">
@@ -210,7 +219,27 @@ export function OrgEmails({
                     <RichText text={shown.preview} />
                   </div>
                 ) : (
-                  <RichText text={detail?.body ?? shown.preview} />
+                  <div className="flex flex-col gap-3">
+                    {detail && !detail.complete && (
+                      <p className="rounded-xl bg-forum-yellow-50 px-3 py-2 font-dm-sans text-[12px] text-forum-dark-gray">
+                        Only a preview is archived.{" "}
+                        {detail.url ? (
+                          <a
+                            href={detail.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-forum-cerulean hover:underline"
+                          >
+                            Open in TigerInbox
+                          </a>
+                        ) : (
+                          "Open in TigerInbox"
+                        )}{" "}
+                        for the original.
+                      </p>
+                    )}
+                    <RichText text={detail?.body ?? shown.preview} />
+                  </div>
                 )}
               </div>
 

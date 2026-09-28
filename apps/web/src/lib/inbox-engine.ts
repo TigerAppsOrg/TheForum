@@ -19,6 +19,8 @@ export interface InboxMessage {
   category: string | null;
   preview: string;
   isEvent: boolean;
+  /** False when InboxEngine only has the RSS preview, not the full original. */
+  complete: boolean;
   /** TigerInbox permalink. */
   url: string | null;
   archiveUrl: string | null;
@@ -34,7 +36,9 @@ export interface OrgEmails {
   messages: InboxMessage[];
 }
 
-const TIMEOUT_MS = 5_000;
+/** Lists are cheap; a single email may be fetched from LISTSERV on demand (up to ~10s). */
+const LIST_TIMEOUT_MS = 5_000;
+const EMAIL_TIMEOUT_MS = 15_000;
 const TIGERINBOX_ORIGIN = "https://inbox.tigerapps.org";
 
 /** TigerInbox page listing every email from an org, e.g. /org/mpu:70043. */
@@ -81,18 +85,23 @@ function toMessage(raw: unknown): InboxMessage | null {
     category: str(r.category),
     preview: str(r.preview) ?? "",
     isEvent: r.isEvent === true,
+    // Treat a missing flag as complete; only an explicit false means preview-only.
+    complete: r.complete !== false,
     url: httpUrl(r.url),
     archiveUrl: httpUrl(r.archiveUrl),
   };
 }
 
-async function engineFetch(path: string, init: { revalidate: number | false }): Promise<unknown> {
+async function engineFetch(
+  path: string,
+  init: { revalidate: number | false; timeoutMs: number },
+): Promise<unknown> {
   if (!env.INBOX_ENGINE_URL || !env.INBOX_ENGINE_TOKEN) return null;
   const base = env.INBOX_ENGINE_URL.replace(/\/+$/, "");
   try {
     const res = await fetch(`${base}${path}`, {
       headers: { Authorization: `Bearer ${env.INBOX_ENGINE_TOKEN}`, Accept: "application/json" },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(init.timeoutMs),
       ...(init.revalidate === false
         ? { cache: "no-store" as const }
         : { next: { revalidate: init.revalidate } }),
@@ -111,7 +120,10 @@ export async function getOrgEmails(externalId: string, limit = 8): Promise<OrgEm
     sort: "newest",
     limit: String(limit),
   });
-  const data = await engineFetch(`/v1/messages?${params}`, { revalidate: 300 });
+  const data = await engineFetch(`/v1/messages?${params}`, {
+    revalidate: 300,
+    timeoutMs: LIST_TIMEOUT_MS,
+  });
   if (!data || typeof data !== "object") return { total: 0, messages: [] };
   const d = data as Record<string, unknown>;
   const messages = Array.isArray(d.results)
@@ -125,7 +137,10 @@ export async function getOrgEmails(externalId: string, limit = 8): Promise<OrgEm
 /** One full email (fetched per request, not cached). */
 export async function getEmailById(id: string): Promise<InboxMessageDetail | null> {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
-  const data = await engineFetch(`/v1/messages/${id}`, { revalidate: false });
+  const data = await engineFetch(`/v1/messages/${id}`, {
+    revalidate: false,
+    timeoutMs: EMAIL_TIMEOUT_MS,
+  });
   const message = toMessage(data);
   if (!message) return null;
   const r = data as Record<string, unknown>;
