@@ -1001,15 +1001,9 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
         notFromHiddenOrg(userId),
       ),
     )
-    .groupBy(
-      events.id,
-      events.title,
-      events.datetime,
-      events.flyerUrl,
-      events.orgId,
-      campusLocations.name,
-      organizations.name,
-    )
+    // Grouping by each table's primary key lets Postgres accept every selected
+    // column from that table (functional dependency).
+    .groupBy(events.id, campusLocations.id, organizations.id)
     .orderBy(desc(sql`friend_count`), events.datetime)
     .limit(20);
 
