@@ -621,6 +621,7 @@ export async function createEvent(data: {
         externalLink: input.externalLink,
         isPublic: input.isPublic,
         status: input.status,
+        locationResolution: "manual",
       })
       .returning({ id: events.id });
 
@@ -697,7 +698,11 @@ export async function updateEvent(
 
   // Creator, or owner/officer of the event's org.
   const [event] = await db
-    .select({ flyerUrl: events.flyerUrl })
+    .select({
+      flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
+      sourceMessageId: events.sourceMessageId,
+    })
     .from(events)
     .where(and(eq(events.id, id), eventEditableBy(userId)))
     .limit(1);
@@ -705,6 +710,9 @@ export async function updateEvent(
   if (!event) {
     throw new Error("Not authorized to edit this event");
   }
+
+  const settingSyncedLocation =
+    event.sourceMessageId?.startsWith("ie:") && input.locationId !== event.locationId;
 
   if (
     input.flyerUrl !== null &&
@@ -723,6 +731,9 @@ export async function updateEvent(
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
+        ...(settingSyncedLocation
+          ? { locationDetail: null, locationResolution: "manual" as const }
+          : {}),
         flyerUrl: input.flyerUrl,
         externalLink: input.externalLink,
         isPublic: input.isPublic,

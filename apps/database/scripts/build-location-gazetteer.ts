@@ -1,9 +1,3 @@
-/**
- * Produces the compact, database-local map lookup used by location resolution.
- *
- * Run from the repository root:
- *   bun run apps/database/scripts/build-location-gazetteer.ts
- */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 

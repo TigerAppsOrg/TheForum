@@ -10,7 +10,7 @@ export type LocationAlias = {
 
 export type GazetteerPlace = {
   id: string | number;
-  name: string;
+  name: string | null;
   alt_name?: string | null;
   parent_id?: string | number | null;
 };
@@ -34,6 +34,7 @@ export type LocationResolution =
   | "alias"
   | "gazetteer"
   | "fuzzy"
+  | "manual"
   | "unresolved";
 
 export type ResolvedEventLocation = {
