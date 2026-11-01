@@ -117,6 +117,8 @@ function diversifyByOrg<T extends { orgId: string | null }>(list: T[], cap: numb
     }
   }
   return [...primary, ...deferred];
+}
+
 /** Accepted friendships are stored one-directional, so both columns are read. */
 async function loadFriendIds(userId: string): Promise<string[]> {
   const [outgoing, incoming] = await Promise.all([
