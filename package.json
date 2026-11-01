@@ -17,7 +17,7 @@
     "db:seed": "turbo db:seed",
     "prepare": "husky",
     "db:sync-engine": "turbo db:sync-engine",
-    "db:resolve-locations": "turbo db:resolve-locations"
+    "db:resolve-locations": "cd apps/database && bun run db:resolve-locations"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
