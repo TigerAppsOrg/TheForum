@@ -25,6 +25,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
+import { formatEventLocation } from "~/lib/event-location";
 import {
   canEditEvent,
   canViewEvent,
@@ -67,6 +68,8 @@ export interface FeedEvent {
   location: string;
   /** Room or free-text place within the venue, e.g. "Room 207". */
   locationDetail?: string | null;
+  /** Original InboxEngine location text, shown when it differs from the resolved venue. */
+  locationText?: string | null;
   tags: string[];
   flyerUrl: string | null;
   rsvpCount: number;
@@ -325,7 +328,7 @@ export interface EventDetail {
   datetime: Date;
   endDatetime: Date | null;
   locationId: string;
-  locationName: string;
+  locationName: string | null;
   orgId: string | null;
   orgName: string | null;
   orgLogoUrl: string | null;
@@ -339,6 +342,7 @@ export interface EventDetail {
   sourceUrl: string | null;
   /** Room or free-text place, e.g. "Room 104". */
   locationDetail: string | null;
+  locationText: string | null;
   tags: string[];
   rsvpCount: number;
   attendees: { id: string; displayName: string; avatarUrl: string | null }[];
@@ -373,6 +377,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
       endDatetime: events.endDatetime,
       locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -410,7 +415,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     datetime: event.datetime,
     endDatetime: event.endDatetime,
     locationId: event.locationId,
-    locationName: event.locationName ?? "TBD",
+    locationName: event.locationName,
     orgId: event.orgId,
     orgName: event.orgName,
     orgLogoUrl: event.orgLogoUrl ?? null,
@@ -422,6 +427,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     source: event.source,
     sourceUrl: event.sourceUrl,
     locationDetail: event.locationDetail,
+    locationText: event.locationText,
     tags: extra.tags.get(eventId) ?? [],
     rsvpCount: attendees.length,
     attendees,
@@ -486,7 +492,9 @@ export async function getSimilarEvents(
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -517,8 +525,9 @@ export async function getSimilarEvents(
       orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
-      location: event.locationName ?? "TBD",
+      location: formatEventLocation(event),
       locationDetail: event.locationDetail ?? null,
+      locationText: event.locationText ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,
@@ -796,7 +805,9 @@ export async function getMyEvents(): Promise<{
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -816,7 +827,9 @@ export async function getMyEvents(): Promise<{
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -838,7 +851,9 @@ export async function getMyEvents(): Promise<{
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -873,8 +888,9 @@ export async function getMyEvents(): Promise<{
       orgLogoUrl: e.orgLogoUrl ?? null,
       datetime: formatEventDateTime(e.datetime),
       rawDatetime: e.datetime.toISOString(),
-      location: e.locationName ?? "TBD",
+      location: formatEventLocation(e),
       locationDetail: e.locationDetail ?? null,
+      locationText: e.locationText ?? null,
       tags: extra.tags.get(e.id) ?? [],
       flyerUrl: e.flyerUrl,
       rsvpCount: attendees.length,
@@ -918,7 +934,9 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -957,8 +975,9 @@ export async function getSavedEvents(): Promise<FeedEvent[]> {
       orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
-      location: event.locationName ?? "TBD",
+      location: formatEventLocation(event),
       locationDetail: event.locationDetail ?? null,
+      locationText: event.locationText ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,
@@ -992,7 +1011,9 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
       description: events.description,
       datetime: events.datetime,
       flyerUrl: events.flyerUrl,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationText: events.locationText,
       orgId: events.orgId,
       orgName: organizations.name,
       orgLogoUrl: organizations.logoUrl,
@@ -1012,9 +1033,17 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
         notFromHiddenOrg(userId),
       ),
     )
-    // Grouping by each table's primary key lets Postgres accept every selected
-    // column from that table (functional dependency).
-    .groupBy(events.id, campusLocations.id, organizations.id)
+    .groupBy(
+      events.id,
+      events.title,
+      events.datetime,
+      events.flyerUrl,
+      events.locationId,
+      events.locationText,
+      events.orgId,
+      campusLocations.name,
+      organizations.name,
+    )
     .orderBy(desc(sql`friend_count`), events.datetime)
     .limit(20);
 
@@ -1035,8 +1064,9 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
       orgLogoUrl: event.orgLogoUrl ?? null,
       datetime: formatEventDateTime(event.datetime),
       rawDatetime: event.datetime.toISOString(),
-      location: event.locationName ?? "TBD",
+      location: formatEventLocation(event),
       locationDetail: event.locationDetail ?? null,
+      locationText: event.locationText ?? null,
       tags: extra.tags.get(event.id) ?? [],
       flyerUrl: event.flyerUrl,
       rsvpCount: attendees.length,

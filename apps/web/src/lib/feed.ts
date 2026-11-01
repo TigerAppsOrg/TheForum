@@ -25,6 +25,7 @@ import {
 } from "@the-forum/database";
 import type { FeedEvent } from "~/actions/events";
 import { formatEventDateTime } from "~/lib/date-format";
+import { formatEventLocation } from "~/lib/event-location";
 import { eventDiscoverableBy, hiddenOrgIdsQuery, notFromHiddenOrg } from "~/lib/event-visibility";
 import {
   CANDIDATE_HORIZON_DAYS,
@@ -219,7 +220,9 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
     description: events.description,
     datetime: events.datetime,
     flyerUrl: events.flyerUrl,
+    locationId: events.locationId,
     locationName: campusLocations.name,
+    locationText: events.locationText,
     orgId: events.orgId,
     orgName: organizations.name,
     orgLogoUrl: organizations.logoUrl,
@@ -384,8 +387,9 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
         isFollowingOrg: event.orgId ? details.followedOrgIds.has(event.orgId) : false,
         datetime: formatEventDateTime(event.datetime),
         rawDatetime: event.datetime.toISOString(),
-        location: event.locationName ?? "TBD",
+        location: formatEventLocation(event),
         locationDetail: event.locationDetail ?? null,
+        locationText: event.locationText ?? null,
         tags: signals.tags.get(event.id) ?? [],
         flyerUrl: event.flyerUrl,
         rsvpCount: attendees.length,

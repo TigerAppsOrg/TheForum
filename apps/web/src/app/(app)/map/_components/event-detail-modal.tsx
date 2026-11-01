@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
 import { formatEventDateTime } from "~/lib/date-format";
+import { formatEventLocation } from "~/lib/event-location";
 
 interface EventDetailModalProps {
   eventId: string | null;
@@ -117,7 +118,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
              * you opened it — the exact thing this modal exists to avoid.
              */
             datetime={formatEventDateTime(event.datetime)}
-            location={event.locationName}
+            location={formatEventLocation(event)}
             description={event.description}
             tags={event.tags}
             rsvpCount={event.rsvpCount}
