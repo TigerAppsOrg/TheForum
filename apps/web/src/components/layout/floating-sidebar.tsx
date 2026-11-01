@@ -1,20 +1,8 @@
 "use client";
 
-import { LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { NAV_ITEMS, isNavItemActive } from "~/components/layout/nav-items";
-import { Button } from "~/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 
@@ -24,13 +12,11 @@ const ITEM =
 /**
  * The floating left sidebar from the Figma: a tall, detached, rounded card
  * with a pale turquoise → blush gradient and icon-only navigation. Every icon
- * has an accessible name and a tooltip (with its "g then …" shortcut); Log out
- * sits at the bottom behind a confirmation so a stray click can't end the
- * session.
+ * has an accessible name and a tooltip (with its "g then …" shortcut). Log out
+ * lives in the header's account menu.
  */
 export function FloatingSidebar() {
   const pathname = usePathname();
-  const [confirmLogout, setConfirmLogout] = useState(false);
 
   return (
     <aside
@@ -71,41 +57,6 @@ export function FloatingSidebar() {
           );
         })}
       </nav>
-
-      <div className="mt-auto">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label="Log out"
-              onClick={() => setConfirmLogout(true)}
-              className={cn(ITEM, "hover:bg-white/80")}
-            >
-              <LogOut size={22} strokeWidth={2} aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={10}>
-            Log out
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <Dialog open={confirmLogout} onOpenChange={setConfirmLogout}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Log out of The Forum?</DialogTitle>
-            <DialogDescription>You'll be signed out of Princeton CAS here too.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmLogout(false)}>
-              Cancel
-            </Button>
-            <Button variant="coral" onClick={() => signOut({ redirectTo: "/api/auth/cas/logout" })}>
-              Log out
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </aside>
   );
 }

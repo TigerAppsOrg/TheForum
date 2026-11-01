@@ -16,8 +16,7 @@ import {
 /**
  * Top utility bar: the wordmark (phones only — the floating sidebar carries
  * navigation on larger screens), New event, notifications and the account
- * menu. Log out is also in the account menu so phones, which have no sidebar,
- * can reach it.
+ * menu, which is where Log out lives on every screen size.
  */
 export function AppHeader() {
   const { data: session } = useSession();
@@ -85,12 +84,8 @@ export function AppHeader() {
                 Terms of Use
               </Link>
             </DropdownMenuItem>
-            {/* Desktop has Log out in the sidebar; phones get it here. */}
-            <DropdownMenuSeparator className="md:hidden" />
-            <DropdownMenuItem
-              className="md:hidden"
-              onSelect={() => signOut({ redirectTo: "/api/auth/cas/logout" })}
-            >
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => signOut({ redirectTo: "/api/auth/cas/logout" })}>
               <LogOut aria-hidden />
               Log out
             </DropdownMenuItem>
