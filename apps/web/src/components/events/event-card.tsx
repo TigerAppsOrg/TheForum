@@ -24,6 +24,7 @@ import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
 import { buildGCalUrl } from "~/lib/calendar";
 import { formatDateBadge, formatTime } from "~/lib/date-format";
+import { originalLocationDiffers } from "~/lib/event-location";
 import { descriptionPreview, eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
 
@@ -71,6 +72,8 @@ export interface EventCardProps {
   location: string;
   /** Room or free-text place within the venue, e.g. "Room 207". */
   locationDetail?: string | null;
+  /** Original source wording, shown when it materially differs from the venue. */
+  locationText?: string | null;
   description?: string | null;
   tags: string[];
   /** Event photo (MyPrincetonU events often have one) — a thumbnail when present. */
@@ -151,6 +154,7 @@ export function EventCard({
   rawDatetime,
   location,
   locationDetail,
+  locationText,
   description,
   tags,
   flyerUrl,
@@ -182,13 +186,8 @@ export function EventCard({
   const compact = density === "compact";
   const wide = density === "wide";
 
-  /*
-   * Ingested events often have no location, and the server substitutes the
-   * string "TBD" for a missing one — rendering that verbatim next to a map pin
-   * reads as a bug. Treat it as absent and drop the row instead.
-   */
-  const hasLocation = Boolean(location) && location !== "TBD";
-  const locationLine = hasLocation && locationDetail ? `${location} · ${locationDetail}` : location;
+  const hasLocation = Boolean(location);
+  const showOriginalLocation = originalLocationDiffers({ locationName: location, locationText });
   const photoUrl = eventPhotoUrl(flyerUrl);
   // Full cards always offer "+ Calendar" (Figma); built here when the caller didn't.
   const cardCalendarUrl =
@@ -200,7 +199,7 @@ export function EventCard({
           datetime: new Date(rawDatetime),
           endDatetime: null,
           locationName: hasLocation ? location : null,
-          locationDetail,
+          locationDetail: null,
         })
       : undefined);
   const preview = descriptionPreview(description);
@@ -885,9 +884,14 @@ export function EventCard({
           <div className="flex items-center gap-1.5">
             <MapPin size={12} aria-hidden className="shrink-0 text-forum-light-gray" />
             <span className="truncate font-dm-sans text-[12px] text-forum-dark-gray">
-              {locationLine}
+              {location}
             </span>
           </div>
+        )}
+        {showOriginalLocation && (
+          <span className="ml-[18px] truncate font-dm-sans text-[11px] text-forum-light-gray">
+            {locationText}
+          </span>
         )}
         <div className="flex items-center gap-1.5">
           <Clock size={12} aria-hidden className="shrink-0 text-forum-light-gray" />

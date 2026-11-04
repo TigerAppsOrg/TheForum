@@ -892,7 +892,12 @@ async function seed() {
     }
     const [inserted] = await db
       .insert(events)
-      .values({ ...vals, source: "seed", sourceMessageId: seedKey })
+      .values({
+        ...vals,
+        source: "seed",
+        sourceMessageId: seedKey,
+        locationResolution: "manual",
+      })
       .returning({ id: events.id });
     if (inserted) {
       insertedEvents.push({ id: inserted.id, tags: tagList });

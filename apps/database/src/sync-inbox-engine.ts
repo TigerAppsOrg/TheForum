@@ -23,23 +23,29 @@ import {
   InboxEngineClient,
 } from "../../../packages/inbox-engine/src/client/index.ts";
 import { db } from "./db";
+import type { GazetteerPlace, LocationResolverContext } from "./location-resolver";
+import { mapEngineEvent } from "./map-engine-event";
 import {
   events,
   campusLocations,
   eventTagEnum,
   eventTags,
+  locationAliases,
   locationCategoryEnum,
   orgCategoryEnum,
   organizations,
   syncState,
   users,
 } from "./schema";
+import gazetteer from "./seeddata/location-gazetteer.json";
 
 const TBA_LOCATION = { id: "tba", name: "Location TBA", latitude: 0, longitude: 0 } as const;
+const ONLINE_LOCATION = { id: "online", name: "Online", latitude: 0, longitude: 0 } as const;
 const BOT = { netId: "_inboxengine", email: "inboxengine@tigerapps.org", displayName: "The Forum" };
 const CURSOR_KEY = "inbox-engine:events";
 /** Upcoming occurrences shown per recurring series. */
 const SERIES_WINDOW = 2;
+const PUBLISH_LOCATIONLESS_EVENTS = process.env.PUBLISH_LOCATIONLESS_EVENTS === "true";
 
 type OrgCategory = (typeof orgCategoryEnum.enumValues)[number];
 type LocationCategory = (typeof locationCategoryEnum.enumValues)[number];
@@ -141,6 +147,7 @@ export async function syncLocations(client = engineClient()) {
       category: (locationCategories.has(l.category) ? l.category : "other") as LocationCategory,
     })),
     { ...TBA_LOCATION, category: "other" as LocationCategory },
+    { ...ONLINE_LOCATION, category: "other" as LocationCategory },
   ];
   for (const row of rows)
     await db
@@ -158,18 +165,27 @@ export async function syncLocations(client = engineClient()) {
   return { locations: rows.length };
 }
 
-function describe(e: EngineEvent): string {
-  return (e.summary || e.title).slice(0, 5000);
-}
-
 /** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
 function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
-  if (e.status !== "active" || !e.publishable) return false;
+  const locationless = e as EngineEvent & { timePrecision?: string; confidence?: number };
+  const admitsLocationless =
+    PUBLISH_LOCATIONLESS_EVENTS &&
+    e.status === "active" &&
+    !e.publishable &&
+    locationless.timePrecision === "exact" &&
+    (locationless.confidence ?? 0) >= 0.7 &&
+    !e.location.text &&
+    !e.location.online;
+  if (e.status !== "active" || (!e.publishable && !admitsLocationless)) return false;
   const end = new Date(e.endsAt ?? e.startsAt).getTime();
   if (end <= Date.now() - 6 * 3600_000) return false;
   if (e.series && e.series.size > 2)
     return (seriesRank.get(e.id) ?? Number.POSITIVE_INFINITY) < SERIES_WINDOW;
   return true;
+}
+
+function isUpcoming(e: EngineEvent): boolean {
+  return new Date(e.endsAt ?? e.startsAt).getTime() > Date.now() - 6 * 3600_000;
 }
 
 /** Rank each upcoming occurrence within its series by start time (0 = next). */
@@ -204,9 +220,18 @@ export async function syncEvents(client = engineClient()) {
   }
   const all = [...latest.values()];
   const seriesRank = rankSeries(all);
-  const knownLocations = new Set(
-    (await db.select({ id: campusLocations.id }).from(campusLocations)).map((l) => l.id),
-  );
+  const locationContext: LocationResolverContext = {
+    campusLocations: await db
+      .select({ id: campusLocations.id, name: campusLocations.name })
+      .from(campusLocations),
+    locationAliases: await db
+      .select({
+        aliasNormalized: locationAliases.aliasNormalized,
+        locationId: locationAliases.locationId,
+      })
+      .from(locationAliases),
+    gazetteer: gazetteer as GazetteerPlace[],
+  };
   const orgByExternal = new Map(
     (
       await db
@@ -217,6 +242,7 @@ export async function syncEvents(client = engineClient()) {
       .map((o) => [o.externalId as string, o.id]),
   );
   const stats = { seen: 0, published: 0, unpublished: 0, skipped: 0 };
+  const unresolvedLocationTexts = new Map<string, number>();
 
   {
     const changes = all;
@@ -231,6 +257,10 @@ export async function syncEvents(client = engineClient()) {
           updatedAt: events.updatedAt,
           announcementCount: events.announcementCount,
           announcedAt: events.announcedAt,
+          locationId: events.locationId,
+          locationDetail: events.locationDetail,
+          locationText: events.locationText,
+          locationResolution: events.locationResolution,
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
@@ -250,7 +280,8 @@ export async function syncEvents(client = engineClient()) {
         existing &&
         publish === isPublished &&
         existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime() &&
-        (!publish || announcementsCurrent)
+        (!publish || announcementsCurrent) &&
+        !(existing.locationResolution === "unresolved" && isUpcoming(e))
       ) {
         stats.skipped++;
         continue;
@@ -265,35 +296,21 @@ export async function syncEvents(client = engineClient()) {
         } else stats.skipped++;
         continue;
       }
-      const locationId =
-        e.location.id && knownLocations.has(e.location.id) ? e.location.id : TBA_LOCATION.id;
-      const detail =
-        [
-          e.location.room ? `Room ${e.location.room}` : null,
-          locationId === "tba" ? e.location.text : null,
-        ]
-          .filter(Boolean)
-          .join(" · ") || null;
       const values = {
-        title: e.title.slice(0, 200),
-        description: describe(e),
-        datetime: new Date(e.startsAt),
-        endDatetime: e.endsAt ? new Date(e.endsAt) : null,
-        locationId,
-        locationDetail: detail?.slice(0, 200) ?? null,
-        orgId: e.host ? (orgByExternal.get(e.host.id) ?? null) : null,
-        creatorId: bot,
-        flyerUrl: e.imageUrl,
-        externalLink: e.rsvpUrl,
-        sourceUrl: e.source.url,
-        isPublic: true,
-        status: "published" as const,
-        source: e.source.kind,
+        ...mapEngineEvent(e, {
+          botId: bot,
+          orgByExternal,
+          locationContext,
+          existingLocation: existing,
+        }),
         sourceMessageId: key,
-        announcementCount,
-        announcedAt,
-        updatedAt: new Date(),
       };
+      if (values.locationResolution === "unresolved" && values.locationText) {
+        unresolvedLocationTexts.set(
+          values.locationText,
+          (unresolvedLocationTexts.get(values.locationText) ?? 0) + 1,
+        );
+      }
       let eventId = existing?.id;
       if (eventId) await db.update(events).set(values).where(eq(events.id, eventId));
       else {
@@ -318,6 +335,14 @@ export async function syncEvents(client = engineClient()) {
       target: syncState.key,
       set: { value: String(cursor), updatedAt: sql`now()` },
     });
+  const commonUnresolved = [...unresolvedLocationTexts.entries()]
+    .sort(
+      ([leftText, leftCount], [rightText, rightCount]) =>
+        rightCount - leftCount || leftText.localeCompare(rightText),
+    )
+    .slice(0, 20)
+    .map(([text, count]) => ({ count, text }));
+  console.table(commonUnresolved);
   return { ...stats, cursor };
 }
 

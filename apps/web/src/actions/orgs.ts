@@ -23,6 +23,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatEventDateTime } from "~/lib/date-format";
+import { formatEventLocation } from "~/lib/event-location";
 import { eventVisibleTo } from "~/lib/event-visibility";
 import { clearFollowing, clearHidden, setFollowing, setHidden } from "~/lib/org-preferences";
 import { enforceRateLimit } from "~/lib/rate-limit";
@@ -218,7 +219,10 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
       id: events.id,
       title: events.title,
       datetime: events.datetime,
+      locationId: events.locationId,
       locationName: campusLocations.name,
+      locationDetail: events.locationDetail,
+      locationText: events.locationText,
       flyerUrl: events.flyerUrl,
       status: events.status,
       isPublic: events.isPublic,
@@ -260,7 +264,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     id: e.id,
     title: e.title,
     datetime: formatEventDateTime(e.datetime),
-    locationName: e.locationName ?? "TBD",
+    locationName: formatEventLocation(e),
     flyerUrl: e.flyerUrl,
     tags: tagsByEvent.get(e.id) ?? [],
     status: e.status,

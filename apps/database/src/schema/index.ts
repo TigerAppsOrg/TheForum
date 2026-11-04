@@ -17,6 +17,16 @@ import {
 
 // ── Enums ─────────────────────────────────────────────────
 
+export const locationResolutionEnum = pgEnum("location_resolution", [
+  "engine",
+  "online",
+  "alias",
+  "gazetteer",
+  "fuzzy",
+  "manual",
+  "unresolved",
+]);
+
 export const eventTagEnum = pgEnum("event_tag", [
   "free food",
   "career",
@@ -150,6 +160,15 @@ export const campusLocations = pgTable("campus_locations", {
   category: locationCategoryEnum("category").notNull(),
 });
 
+export const locationAliases = pgTable("location_aliases", {
+  aliasNormalized: varchar("alias_normalized", { length: 250 }).primaryKey(),
+  locationId: varchar("location_id", { length: 100 })
+    .notNull()
+    .references(() => campusLocations.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull().unique(),
@@ -262,6 +281,8 @@ export const events = pgTable(
     sourceUrl: text("source_url"),
     /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */
     locationDetail: varchar("location_detail", { length: 200 }),
+    locationText: varchar("location_text", { length: 300 }),
+    locationResolution: locationResolutionEnum().notNull(),
     /**
      * How many campus listserv emails announced this event (its own source
      * email plus folded-in reminders), from InboxEngine. 0 for unannounced
@@ -579,6 +600,17 @@ export const savedEventsRelations = relations(savedEvents, ({ one }) => ({
   event: one(events, {
     fields: [savedEvents.eventId],
     references: [events.id],
+  }),
+}));
+
+export const locationAliasesRelations = relations(locationAliases, ({ one }) => ({
+  location: one(campusLocations, {
+    fields: [locationAliases.locationId],
+    references: [campusLocations.id],
+  }),
+  creator: one(users, {
+    fields: [locationAliases.createdBy],
+    references: [users.id],
   }),
 }));
 
