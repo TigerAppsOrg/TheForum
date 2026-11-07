@@ -2,7 +2,7 @@
   "name": "the-forum",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "docker compose up -d --wait && bun run db:push && bun run --cwd apps/web dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "format": "biome format --write .",

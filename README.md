@@ -77,14 +77,20 @@ Clicking "Log in" goes to `/api/auth/cas/login`, which redirects to
 `fed.princeton.edu/cas`; CAS sends you back to `/api/auth/cas/callback`, where the
 ticket is validated server-side and your user row is created from your NetID.
 
-### 3. Start the database
+### 3. Start the database and app
 
 Make sure **Docker Desktop is running**, then from the repo root:
 
 ```bash
-bun run db:up      # starts Postgres 17 in Docker (container: the-forum-db, host port 5434)
-bun run db:push    # push the Drizzle schema into the fresh database
+bun run dev
 ```
+
+This starts Postgres 17 in Docker (container: `the-forum-db`, host port **5434**),
+waits until it is healthy, pushes the Drizzle schema, and runs the `apps/web` dev
+script from the repo root. Open <http://localhost:3000>.
+
+Use the same command on every startup. It runs `db:push` to keep the local schema
+up to date; Docker preserves existing data between restarts.
 
 Sanity checks:
 
@@ -102,21 +108,14 @@ Optionally fill the database with realistic demo data:
 bun run db:seed
 ```
 
-### 4. Run the app
-
-```bash
-cd apps/web && bun run dev
-```
-
-Open <http://localhost:3000>. You're set up.
-
-To run the dev server through Turborepo from the repo root: `bun run dev`.
+To start only the web app, use `bun run --cwd apps/web dev` from the repo root.
 
 ---
 
 ## Everyday commands
 
 ```bash
+bun run dev          # start Postgres, wait for health, push schema, and start apps/web
 bun run check        # Biome lint + format with auto-fix (run before pushing)
 bun run format       # format only
 bun run build        # build all packages
