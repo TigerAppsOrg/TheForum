@@ -143,6 +143,7 @@ export const userRegions = pgTable(
 );
 
 export const campusLocations = pgTable("campus_locations", {
+  area: campusRegionEnum("area"),
   id: varchar("id", { length: 100 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   latitude: doublePrecision("latitude").notNull(),
