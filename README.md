@@ -89,6 +89,11 @@ This starts Postgres 17 in Docker (container: `the-forum-db`, host port **5434**
 waits until it is healthy, pushes the Drizzle schema, and runs the `apps/web` dev
 script from the repo root. Open <http://localhost:3000>.
 
+On a fresh database volume, Docker enables the `vector` extension before reporting
+Postgres ready. You can also run `bun run db:up` followed by `bun run db:push`
+separately. In Turbo's terminal UI, select the database task and press `i` to
+interact with Drizzle's confirmation menu, then use the arrow keys and Enter.
+
 Use the same command on every startup. It runs `db:push` to keep the local schema
 up to date; Docker preserves existing data between restarts.
 
@@ -194,9 +199,19 @@ To change runtime configuration, update the SSM parameter and redeploy (or re-ru
 `main` is protected — you cannot push to it directly, and pull requests into `main`
 are only accepted from `staging`.
 
-1. Branch off `main`: `git checkout -b feat/my-feature origin/main`
+1. Branch off the latest `staging`: `git fetch origin`, then
+   `git checkout -b alex_11-07_TIG-123-update-feed origin/staging`.
 2. Open a PR **into `staging`** and merge it there
 3. When `staging` is ready to ship, open a PR from `staging` into `main`
+
+Name branches `<first-name>_<mm-dd>_<ticket-id>[-optional-descriptors]`, using
+the branch creation date. Linear's generated Git branch name is also acceptable.
+Without a Linear issue, replace the ticket ID with a description, for example
+`alex_11-07_local-startup`. Read the relevant Linear issue and project guidance
+before starting when access is available.
+
+Agent instructions live in `AGENTS.md` and `CLAUDE.md`; keep these files identical
+when updating either one.
 
 ---
 
@@ -212,6 +227,19 @@ uses the wrong port — the Docker database listens on **5434**, not 5432.
 
 **Port 5434 already in use**
 Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` everywhere to match.
+
+**`type "vector" does not exist` on an existing database**
+
+First-time initialization scripts only run for an empty data volume. For an
+existing local database, enable the extension once without deleting data:
+
+```bash
+docker compose exec postgres psql -U forum -d the_forum -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+Replace the user and database if you customized `POSTGRES_USER` or `POSTGRES_DB`,
+then retry `bun run db:push`. For a hosted database, enable the extension in the
+database referenced by `DATABASE_URL` instead.
 
 **Husky hooks not running**
 Re-run `bun install` from the repo root (the `prepare` script reinstalls hooks).

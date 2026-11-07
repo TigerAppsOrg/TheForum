@@ -1,4 +1,4 @@
-# The Forum — Codex Rules
+# The Forum — Agent Rules
 
 ## Project Overview
 
@@ -6,6 +6,20 @@ Turborepo monorepo with:
 - `apps/web` — Next.js 16 (App Router, Turbopack, Tailwind v4, shadcn/ui), Auth.js v5 + Princeton CAS login
 - `apps/database` — Drizzle ORM + PostgreSQL
 - `packages/inbox-engine` — git submodule (TigerAppsOrg/InboxEngine): shared org/venue/event source of truth; sync with `bun run db:sync-engine`. Don't edit it here — change InboxEngine and bump the submodule.
+
+---
+
+## Workflow
+
+- Before starting work, read the relevant Linear issue and project guidance when Linear access is available. Use the issue ID and scope to guide the branch name and implementation. If Linear is unavailable, say so and work from the provided context.
+
+- Start branches for changes from the latest `staging`. `main` is the production branch.
+- Name branches `<first-name>_<mm-dd>_<ticket-id>[-optional-descriptors]`, using the date the branch is created. Example: `alex_10-27_TIG-123-update-feed`. Linear's generated Git branch name is also acceptable. For work without a Linear issue, use a descriptive name in place of the ticket ID, such as `alex_10-27_agent-workflow`.
+- Keep `AGENTS.md` and `CLAUDE.md` identical. They are separate regular files for portability across Windows checkouts; whenever either file changes, repeat the same changes in the other file in the same commit.
+
+### Linear description edits
+
+When proposing a change to a Linear issue description, preserve the full original description in the issue itself. Append a horizontal separator (`---`), then a clearly labeled `Proposed description` section containing the full new description. Keep the original intact so others can review the proposal before accepting the change; do not replace the original with the proposal before acceptance.
 
 ---
 

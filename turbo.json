@@ -50,6 +50,7 @@
     },
     "db:push": {
       "cache": false,
+      "interactive": true,
       "passThroughEnv": [
         "DATABASE_URL",
         "INBOX_ENGINE_URL",
