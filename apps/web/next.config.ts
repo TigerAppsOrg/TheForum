@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Monorepo: trace workspace packages from the repo root.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
+  // Keep Bun's workspace symlinks and shared packages inside Turbopack's root.
+  turbopack: {
+    root: path.join(import.meta.dirname, "../.."),
+  },
   // Allow Next.js to transpile the workspace database package (TypeScript sources)
   transpilePackages: ["@the-forum/database"],
   images: {
