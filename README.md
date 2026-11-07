@@ -119,6 +119,9 @@ bun run db:seed
 
 To start only the web app, use `bun run --cwd apps/web dev` from the repo root.
 
+Local development uses Webpack to avoid a recurring Turbopack hot-reload panic
+(`Next.js package not found`) observed with Bun workspace dependencies on Windows.
+
 ---
 
 ## Everyday commands
