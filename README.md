@@ -145,6 +145,12 @@ if your commit fails, read the Biome output, fix, and re-commit.
 
 ## Organizations and events from InboxEngine
 
+InboxEngine is the only source of new organizations in the application. Users can no
+longer create organizations. Existing `source = 'manual'` organizations are retained,
+including their owners, officers, logos and event-posting permissions; new manual
+organizations are no longer created through the app. The seed script still provides
+local development organizations.
+
 Official organizations (all MyPrincetonU groups, with logos, descriptions, social links and
 MyPrincetonU page links), campus venues and events come from
 [InboxEngine](https://github.com/TigerAppsOrg/InboxEngine), which also powers TigerInbox.

@@ -27,7 +27,6 @@ import { formatEventLocation } from "~/lib/event-location";
 import { eventVisibleTo } from "~/lib/event-visibility";
 import { clearFollowing, clearHidden, setFollowing, setHidden } from "~/lib/org-preferences";
 import { enforceRateLimit } from "~/lib/rate-limit";
-import { uploadedImageUrlSchema } from "~/lib/s3";
 import { loadFriendIds } from "~/lib/social-graph";
 import { containsPattern } from "~/lib/sql-helpers";
 import { idSchema, orgCategorySchema, parseInput } from "~/lib/validation";
@@ -57,7 +56,7 @@ export interface OrgDetail {
   logoUrl: string | null;
   category: string;
   creatorId: string | null;
-  /** 'myprincetonu' for official groups imported via InboxEngine, 'manual' for Forum-created. */
+  /** 'myprincetonu' for official groups imported via InboxEngine, 'manual' for legacy Forum-created groups. */
   source: string;
   acronym: string | null;
   tagline: string | null;
@@ -78,7 +77,7 @@ export interface OrgDetail {
   isOwner: boolean;
   /** The viewer's friends who follow this org (social proof; never the full follower list). */
   friendsFollowing: OrgPerson[];
-  /** Forum officers, shown only for Forum-created orgs (official rosters live on MyPrincetonU). */
+  /** Forum officers, shown only for legacy Forum-created orgs (official rosters live on MyPrincetonU). */
   team: (OrgPerson & { role: string })[];
   upcomingEvents: {
     id: string;
@@ -296,62 +295,6 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     team,
     upcomingEvents,
   };
-}
-
-const createOrgSchema = z.object({
-  name: z.string().trim().min(1, { message: "Name is required" }).max(120),
-  description: z.string().trim().max(5_000),
-  category: orgCategorySchema,
-  logoUrl: uploadedImageUrlSchema("org-logos"),
-});
-
-export async function createOrg(data: {
-  name: string;
-  description: string;
-  category: string;
-  logoUrl?: string;
-}): Promise<{ id: string }> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
-
-  const userId = session.user.id;
-  const input = parseInput(createOrgSchema, data);
-  enforceRateLimit("createOrg", userId);
-
-  // Verify user is an org leader
-  const [user] = await db
-    .select({ isOrgLeader: users.isOrgLeader })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (!user?.isOrgLeader) {
-    throw new Error("Only org leaders can create organizations");
-  }
-
-  // Org + owner membership commit together; a name clash (unique) is reported
-  // as a readable error rather than a raw constraint violation.
-  const orgId = await db.transaction(async (tx) => {
-    const [org] = await tx
-      .insert(organizations)
-      .values({
-        name: input.name,
-        description: input.description,
-        category: input.category,
-        logoUrl: input.logoUrl,
-        creatorId: userId,
-      })
-      .onConflictDoNothing({ target: organizations.name })
-      .returning({ id: organizations.id });
-
-    if (!org) throw new Error("An organization with that name already exists");
-
-    await tx.insert(orgMembers).values({ orgId: org.id, userId, role: "owner" });
-    return org.id;
-  });
-
-  revalidatePath("/orgs");
-  return { id: orgId };
 }
 
 /**
