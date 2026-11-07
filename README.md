@@ -91,7 +91,11 @@ script from the repo root. Open <http://localhost:3000>.
 
 On a fresh database volume, Docker enables the `vector` extension before reporting
 Postgres ready. You can also run `bun run db:up` followed by `bun run db:push`
-separately. In Turbo's terminal UI, select the database task and press `i` to
+separately. Before comparing schemas, `db:push` also ensures the `vector` extension
+exists in its target database, including existing volumes. This requires a database
+role allowed to enable extensions. Drizzle compares the live schema on each run
+and applies only differences; it does not recreate unchanged tables.
+In Turbo's terminal UI, select the database task and press `i` to
 interact with Drizzle's confirmation menu, then use the arrow keys and Enter.
 
 Use the same command on every startup. It runs `db:push` to keep the local schema
@@ -230,8 +234,9 @@ Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` everywhere t
 
 **`type "vector" does not exist` on an existing database**
 
-First-time initialization scripts only run for an empty data volume. For an
-existing local database, enable the extension once without deleting data:
+First-time Docker initialization scripts only run for an empty data volume.
+`bun run db:push` now enables the extension for existing databases too. If the
+configured database role lacks permission, have an administrator enable it:
 
 ```bash
 docker compose exec postgres psql -U forum -d the_forum -c "CREATE EXTENSION IF NOT EXISTS vector;"
