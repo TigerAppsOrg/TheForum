@@ -16,6 +16,14 @@ import {
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState, LoadingState } from "~/components/common/states";
 import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { classYearShort } from "~/lib/profile-options";
 import { cn } from "~/lib/utils";
@@ -72,6 +80,9 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
     new Set(initialPending.outgoing.map((r) => r.id)),
   );
   const [activeTab, setActiveTab] = useState<"friends" | "requests">("friends");
+  // Kept after the dialog closes so its text doesn't blank out mid-animation.
+  const [removeTarget, setRemoveTarget] = useState<FriendProfile | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   const friendIds = new Set(friends.map((f) => f.id));
@@ -287,7 +298,10 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Remove ${friend.displayName} from friends`}
-                      onClick={() => handleRemove(friend.id)}
+                      onClick={() => {
+                        setRemoveTarget(friend);
+                        setConfirmRemove(true);
+                      }}
                       className="text-forum-light-gray hover:bg-forum-coral/10 hover:text-forum-coral"
                     >
                       <UserMinus />
@@ -341,6 +355,30 @@ export function FriendsClient({ initialFriends, initialPending }: FriendsClientP
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Removing is a one-click button in the list, so confirm first. */}
+      <Dialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove {removeTarget?.displayName} from friends?</DialogTitle>
+            <DialogDescription>You can send them a new friend request later.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRemove(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="coral"
+              onClick={() => {
+                if (removeTarget) handleRemove(removeTarget.id);
+                setConfirmRemove(false);
+              }}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
