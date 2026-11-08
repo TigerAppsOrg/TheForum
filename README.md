@@ -47,17 +47,23 @@ bun install   # installs every workspace package + sets up Husky pre-commit hook
 
 ### 2. Environment variables
 
-Copy the example files:
+Copy the single root example file:
 
 ```bash
-cp .env.example .env                                  # root — used by docker-compose
-cp apps/web/.env.local.example apps/web/.env.local    # Next.js app
-cp apps/database/.env.example apps/database/.env      # drizzle-kit CLI
+cp .env.example .env
 ```
 
-Then fill in `apps/web/.env.local`. Env vars are validated at startup by
+Then fill in the root `.env`. Docker, the web app, and database commands share this
+file. Env vars are validated at startup by
 [`apps/web/src/env.ts`](apps/web/src/env.ts) — the app won't boot if a required
 one is missing, and that file is the source of truth for what's required.
+
+Workspace package scripts explicitly load the root `.env`, so commands work from
+the repo root or their app directory. Deployment can continue supplying variables
+through the process environment without a local file. For existing checkouts, move
+your values from `apps/web/.env.local` and `apps/database/.env` into the root `.env`,
+then remove those old files so Next.js and Bun cannot load stale overrides.
+Restart the dev server after editing the root `.env`.
 
 > **Can't obtain a value yourself? Ask Ibraheem.** He is the contact for all
 > credentials that aren't self-serve (Mapbox tokens, AWS, etc.).
@@ -148,7 +154,7 @@ if your commit fails, read the Biome output, fix, and re-commit.
 ### Conventions
 
 - **Env vars in `apps/web`:** always `import { env } from "~/env"` — never `process.env.*` directly.
-  New vars get added to `apps/web/src/env.ts` *and* the `.env.example` files.
+  New vars get added to `apps/web/src/env.ts` *and* the root `.env.example`.
 - **UI components:** use [shadcn/ui](https://ui.shadcn.com). Add new ones from `apps/web`:
   `bunx shadcn@latest add <component>`.
 - **Linting:** Biome only (no ESLint/Prettier).
@@ -164,7 +170,7 @@ It ingests MyPrincetonU's official events feed and residential/FreeFood listserv
 resolves the hosting organization, extracts time and place, and exposes a revisioned change feed.
 
 ```bash
-# apps/database/.env
+# Root .env
 INBOX_ENGINE_URL=https://inbox-engine.tigerapps.org
 INBOX_ENGINE_TOKEN=…            # ask a TigerApps admin
 
@@ -227,15 +233,15 @@ when updating either one.
 ## Troubleshooting
 
 **The app crashes on startup with "Invalid environment variables"**
-A required var in `apps/web/.env.local` is missing or malformed — compare against
-`apps/web/.env.local.example` and the table above.
+A required var in the root `.env` is missing or malformed — compare against
+the root `.env.example` and the table above.
 
 **`ECONNREFUSED` / `DATABASE_URL` errors**
 The database container isn't running (`bun run db:up`), or your `DATABASE_URL`
 uses the wrong port — the Docker database listens on **5434**, not 5432.
 
 **Port 5434 already in use**
-Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` everywhere to match.
+Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` in that file to match.
 
 **`type "vector" does not exist` on an existing database**
 

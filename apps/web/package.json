@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
+    "dev": "bun --env-file=../../.env run next dev --turbopack",
+    "build": "bun --env-file=../../.env run next build",
+    "start": "bun --env-file=../../.env run next start",
     "lint": "biome check .",
-    "test": "bun test",
+    "test": "bun --env-file=../../.env test",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

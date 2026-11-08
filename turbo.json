@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalDependencies": [".env"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -15,7 +16,9 @@
         "AUTH_TRUST_HOST",
         "CAS_BASE_URL",
         "AWS_S3_BUCKET",
-        "AWS_REGION"
+        "AWS_REGION",
+        "INBOX_ENGINE_URL",
+        "INBOX_ENGINE_TOKEN"
       ]
     },
     "dev": {

@@ -59,9 +59,9 @@ Never use `process.env.*` directly in Next.js application code.**
    - **Client-side** (must start with `NEXT_PUBLIC_`) → goes in the `client:` block
    - Add a matching entry in `runtimeEnv:` pointing to `process.env.VAR_NAME`
 
-2. Add it to `apps/web/.env.local.example` and to the root `.env.example`
+2. Add it to the root `.env.example`
 
-3. Add it to your local `apps/web/.env.local`
+3. Add it to your local root `.env`. Keep local configuration in this single file; workspace scripts explicitly load it.
 
 ### Usage in code
 
