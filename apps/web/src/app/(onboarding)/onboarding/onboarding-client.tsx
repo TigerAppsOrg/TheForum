@@ -86,7 +86,6 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
           classYear,
           major,
           regions,
-          isOrgLeader: orgRole === "leader",
         });
         setStep(3);
       } catch {
