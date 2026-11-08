@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(import.meta.dirname, "../.."),
   },
+  experimental: {
+    // Avoid a cached-resolution HMR panic with Bun workspaces on Windows.
+    // Turbopack still caches in memory during each dev session.
+    turbopackFileSystemCacheForDev: false,
+  },
   // Allow Next.js to transpile the workspace database package (TypeScript sources)
   transpilePackages: ["@the-forum/database"],
   images: {
