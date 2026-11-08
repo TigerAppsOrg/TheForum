@@ -149,44 +149,14 @@ test.skipIf(!url)("cold start, location boosts, semantic profiles and pinned his
   expect(personalized.events.findIndex((e) => e.id === highId)).toBeLessThan(
     personalized.events.findIndex((e) => e.id === lowId),
   );
-  // Syncing an ended imported event must preserve its contribution to the profile.
-  const { syncEvents } = await import("../../../database/src/sync-inbox-engine");
-  const engineId = crypto.randomUUID();
+  // Published past saves/RSVPs inform the profile without reappearing in the feed.
+  expect(personalized.events.map((e) => e.id)).not.toContain(historyId);
+  // The sync lifecycle is covered in apps/database/src/sync-inbox-engine.db.test.ts.
+  // Here, test the feed's response to unpublication without importing the sync CLI.
   await m.db
     .update(m.events)
-    .set({ sourceMessageId: `ie:${engineId}` })
+    .set({ status: "draft", isPublic: false })
     .where(m.eq(m.events.id, historyId));
-  const ended = new Date(now.getTime() - 86400_000).toISOString();
-  const engineEvent = {
-    id: engineId,
-    status: "active",
-    publishable: true,
-    startsAt: ended,
-    endsAt: ended,
-    updatedAt: now.toISOString(),
-    announcements: { emails: 0, firstAnnouncedAt: null },
-    series: { id: "ended-series", size: 3 },
-    title: "History",
-    summary: "Fixture",
-    location: { id: neutralLocationId },
-    host: null,
-    source: { kind: "listserv", url: null },
-    tags: ["visual arts"],
-  };
-  const client = {
-    eventChanges: async (cursor: number) => ({
-      changes: cursor === 0 ? [engineEvent] : [],
-      next: 1,
-    }),
-  } as unknown as Parameters<typeof syncEvents>[0];
-  await syncEvents(client);
-  expect((await load(userId, query)).events.map((e) => e.id)).toEqual(
-    personalized.events.map((e) => e.id),
-  );
-  expect((await load(userId, query)).events.map((e) => e.id)).not.toContain(historyId);
-  // Withdrawals remove that profile signal; legitimate drafts stay excluded.
-  engineEvent.status = "withdrawn";
-  await syncEvents(client);
   expect((await load(userId, query)).events[0]?.id).toBe(placeId);
   await m.db
     .update(m.events)

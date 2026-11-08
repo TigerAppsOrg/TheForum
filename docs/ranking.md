@@ -377,3 +377,9 @@ with that test URL set. The sync suite supplies a fake InboxEngine client, never
 the upstream engine. Lifecycle regressions cover expiration, series limits, withdrawals,
 duplicates, quality failures, idempotence, and preserving saves/RSVPs. Semantic retrieval
 tuning constants live in `event-similarity.ts`.
+
+Keep sync CLI imports in the database suite: it requires the private InboxEngine
+submodule. The web suite tests ranking and profile visibility directly against database
+fixtures, so web typechecking and default CI tests do not require that submodule or its
+credentials. Skipping a database test at runtime does not exclude its imports from
+TypeScript's dependency graph.
