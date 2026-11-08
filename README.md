@@ -93,7 +93,7 @@ Make sure **Docker Desktop is running**, then from the repo root:
 bun run dev
 ```
 
-This starts Postgres 17 in Docker (container: `the-forum-db`, host port **5434**),
+This starts Postgres 17 in Docker (container: `<compose-project>-db`, host port **5434**),
 waits until it is healthy, pushes the Drizzle schema, and runs the `apps/web` dev
 script from the repo root. Open <http://localhost:3000>.
 
@@ -112,7 +112,7 @@ up to date; Docker preserves existing data between restarts.
 Sanity checks:
 
 ```bash
-docker compose ps   # the-forum-db should show "Up (healthy)"
+docker compose ps   # the postgres service should show "Up (healthy)"
 bun run db:logs     # tail the Postgres logs if something looks wrong
 ```
 
@@ -244,6 +244,17 @@ uses the wrong port — the Docker database listens on **5434**, not 5432.
 
 **Port 5434 already in use**
 Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` in that file to match.
+
+**Multiple Git worktrees**
+
+Compose uses the worktree directory name as its default project name. Each project
+gets its own database container (`forum-1-db`, `forum-2-db`, etc.) and data volume.
+Use a different `POSTGRES_PORT` in each worktree's root `.env` when running them
+simultaneously, and match that port in its `DATABASE_URL` (for example, port 5435
+in `forum-2`). The database name inside each container can remain `the_forum`.
+You can override the project name with `COMPOSE_PROJECT_NAME` or Compose's `-p`
+flag. Keep the project name stable to continue using the same data volume;
+renaming a container does not move it or its data into another project.
 
 **`type "vector" does not exist` on an existing database**
 

@@ -1,7 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: the-forum-db
+    container_name: ${COMPOSE_PROJECT_NAME}-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-forum}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forum_password}
