@@ -47,17 +47,25 @@ bun install   # installs every workspace package + sets up Husky pre-commit hook
 
 ### 2. Environment variables
 
-Copy the example files:
+Copy the single root example file:
 
 ```bash
-cp .env.example .env                                  # root — used by docker-compose
-cp apps/web/.env.local.example apps/web/.env.local    # Next.js app
-cp apps/database/.env.example apps/database/.env      # drizzle-kit CLI
+cp .env.example .env
 ```
 
-Then fill in `apps/web/.env.local`. Env vars are validated at startup by
+Then fill in the root `.env`. Docker, the web app, and database commands share this
+file. Env vars are validated at startup by
 [`apps/web/src/env.ts`](apps/web/src/env.ts) — the app won't boot if a required
 one is missing, and that file is the source of truth for what's required.
+
+Workspace package scripts explicitly load the root `.env`, so commands work from
+the repo root or their app directory. Deployment can continue supplying variables
+through the process environment without a local file. Existing checkouts can keep
+using `apps/web/.env.local` and `apps/database/.env` as legacy fallbacks. Exported
+environment variables take priority over the root `.env`, which takes priority
+over duplicate legacy values. To migrate to one file, move your app-specific
+values into the root `.env`, then remove the legacy files.
+Restart the dev server after editing the root `.env`.
 
 > **Can't obtain a value yourself? Ask Ibraheem.** He is the contact for all
 > credentials that aren't self-serve (Mapbox tokens, AWS, etc.).
@@ -77,19 +85,34 @@ Clicking "Log in" goes to `/api/auth/cas/login`, which redirects to
 `fed.princeton.edu/cas`; CAS sends you back to `/api/auth/cas/callback`, where the
 ticket is validated server-side and your user row is created from your NetID.
 
-### 3. Start the database
+### 3. Start the database and app
 
 Make sure **Docker Desktop is running**, then from the repo root:
 
 ```bash
-bun run db:up      # starts Postgres 17 in Docker (container: the-forum-db, host port 5434)
-bun run db:push    # push the Drizzle schema into the fresh database
+bun run dev
 ```
+
+This starts Postgres 17 in Docker (container: `<compose-project>-db`, host port **5434**),
+waits until it is healthy, pushes the Drizzle schema, and runs the `apps/web` dev
+script from the repo root. Open <http://localhost:3000>.
+
+On a fresh database volume, Docker enables the `vector` extension before reporting
+Postgres ready. You can also run `bun run db:up` followed by `bun run db:push`
+separately. Before comparing schemas, `db:push` also ensures the `vector` extension
+exists in its target database, including existing volumes. This requires a database
+role allowed to enable extensions. Drizzle compares the live schema on each run
+and applies only differences; it does not recreate unchanged tables.
+In Turbo's terminal UI, select the database task and press `i` to
+interact with Drizzle's confirmation menu, then use the arrow keys and Enter.
+
+Use the same command on every startup. It runs `db:push` to keep the local schema
+up to date; Docker preserves existing data between restarts.
 
 Sanity checks:
 
 ```bash
-docker compose ps   # the-forum-db should show "Up (healthy)"
+docker compose ps   # the postgres service should show "Up (healthy)"
 bun run db:logs     # tail the Postgres logs if something looks wrong
 ```
 
@@ -102,21 +125,19 @@ Optionally fill the database with realistic demo data:
 bun run db:seed
 ```
 
-### 4. Run the app
+To start only the web app, use `bun run --cwd apps/web dev` from the repo root.
 
-```bash
-cd apps/web && bun run dev
-```
-
-Open <http://localhost:3000>. You're set up.
-
-To run the dev server through Turborepo from the repo root: `bun run dev`.
+Local development uses Turbopack. Its persistent development cache is disabled to
+avoid a recurring hot-reload panic (`Next.js package not found`) observed with
+Bun workspace dependencies on Windows. Compilation is still reused in memory
+during a running session; restarting the dev server starts with a cold cache.
 
 ---
 
 ## Everyday commands
 
 ```bash
+bun run dev          # start Postgres, wait for health, push schema, and start apps/web
 bun run check        # Biome lint + format with auto-fix (run before pushing)
 bun run format       # format only
 bun run build        # build all packages
@@ -135,7 +156,7 @@ if your commit fails, read the Biome output, fix, and re-commit.
 ### Conventions
 
 - **Env vars in `apps/web`:** always `import { env } from "~/env"` — never `process.env.*` directly.
-  New vars get added to `apps/web/src/env.ts` *and* the `.env.example` files.
+  New vars get added to `apps/web/src/env.ts` *and* the root `.env.example`.
 - **UI components:** use [shadcn/ui](https://ui.shadcn.com). Add new ones from `apps/web`:
   `bunx shadcn@latest add <component>`.
 - **Linting:** Biome only (no ESLint/Prettier).
@@ -151,7 +172,7 @@ It ingests MyPrincetonU's official events feed and residential/FreeFood listserv
 resolves the hosting organization, extracts time and place, and exposes a revisioned change feed.
 
 ```bash
-# apps/database/.env
+# Root .env
 INBOX_ENGINE_URL=https://inbox-engine.tigerapps.org
 INBOX_ENGINE_TOKEN=…            # ask a TigerApps admin
 
@@ -195,24 +216,59 @@ To change runtime configuration, update the SSM parameter and redeploy (or re-ru
 `main` is protected — you cannot push to it directly, and pull requests into `main`
 are only accepted from `staging`.
 
-1. Branch off `main`: `git checkout -b feat/my-feature origin/main`
+1. Branch off the latest `staging`: `git fetch origin`, then
+   `git checkout -b alex_11-07_TIG-123-update-feed origin/staging`.
 2. Open a PR **into `staging`** and merge it there
 3. When `staging` is ready to ship, open a PR from `staging` into `main`
+
+Name branches `<first-name>_<mm-dd>_<ticket-id>[-optional-descriptors]`, using
+the branch creation date. Linear's generated Git branch name is also acceptable.
+Without a Linear issue, replace the ticket ID with a description, for example
+`alex_11-07_local-startup`. Read the relevant Linear issue and project guidance
+before starting when access is available.
+
+Agent instructions live in `AGENTS.md` and `CLAUDE.md`; keep these files identical
+when updating either one.
 
 ---
 
 ## Troubleshooting
 
 **The app crashes on startup with "Invalid environment variables"**
-A required var in `apps/web/.env.local` is missing or malformed — compare against
-`apps/web/.env.local.example` and the table above.
+A required var in the root `.env` is missing or malformed — compare against
+the root `.env.example` and the table above.
 
 **`ECONNREFUSED` / `DATABASE_URL` errors**
 The database container isn't running (`bun run db:up`), or your `DATABASE_URL`
 uses the wrong port — the Docker database listens on **5434**, not 5432.
 
 **Port 5434 already in use**
-Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` everywhere to match.
+Change `POSTGRES_PORT` in the root `.env` and update `DATABASE_URL` in that file to match.
+
+**Multiple Git worktrees**
+
+Compose uses the worktree directory name as its default project name. Each project
+gets its own database container (`forum-1-db`, `forum-2-db`, etc.) and data volume.
+Use a different `POSTGRES_PORT` in each worktree's root `.env` when running them
+simultaneously, and match that port in its `DATABASE_URL` (for example, port 5435
+in `forum-2`). The database name inside each container can remain `the_forum`.
+You can override the project name with `COMPOSE_PROJECT_NAME` or Compose's `-p`
+flag. Keep the project name stable to continue using the same data volume;
+renaming a container does not move it or its data into another project.
+
+**`type "vector" does not exist` on an existing database**
+
+First-time Docker initialization scripts only run for an empty data volume.
+`bun run db:push` now enables the extension for existing databases too. If the
+configured database role lacks permission, have an administrator enable it:
+
+```bash
+docker compose exec postgres psql -U forum -d the_forum -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+Replace the user and database if you customized `POSTGRES_USER` or `POSTGRES_DB`,
+then retry `bun run db:push`. For a hosted database, enable the extension in the
+database referenced by `DATABASE_URL` instead.
 
 **Husky hooks not running**
 Re-run `bun install` from the repo root (the `prepare` script reinstalls hooks).

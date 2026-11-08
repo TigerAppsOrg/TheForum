@@ -6,14 +6,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "db:seed": "bun run src/seed.ts",
+    "db:generate": "bun --env-file=../../.env run drizzle-kit generate",
+    "db:migrate": "bun --env-file=../../.env run drizzle-kit migrate",
+    "db:push": "bun --env-file=../../.env run src/ensure-extensions.ts && bun --env-file=../../.env run drizzle-kit push",
+    "db:studio": "bun --env-file=../../.env run drizzle-kit studio",
+    "db:seed": "bun --env-file=../../.env run src/seed.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
-    "db:sync-engine": "bun run src/sync-inbox-engine.ts"
+    "db:sync-engine": "bun --env-file=../../.env run src/sync-inbox-engine.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
