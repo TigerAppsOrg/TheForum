@@ -2,6 +2,7 @@
 
 import {
   events,
+  type OrganizationSort,
   and,
   campusLocations,
   db,
@@ -10,6 +11,7 @@ import {
   eventTags,
   ilike,
   inArray,
+  loadOrganizationPage,
   or,
   orgBlocks,
   orgFollowers,
@@ -38,6 +40,8 @@ export interface OrgListItem {
   logoUrl: string | null;
   category: string;
   followerCount: number;
+  /** Imported membership count; independent of Forum followers. */
+  memberCount?: number | null;
   isFollowing: boolean;
   /** The viewer hid this org's events from their feed. */
   isHidden: boolean;
@@ -95,47 +99,49 @@ export interface OrgDetail {
 const getOrgsSchema = z.object({
   search: z.string().trim().max(100).optional(),
   category: z.union([orgCategorySchema, z.literal("")]).optional(),
+  sort: z.enum(["name", "members", "newest"]).default("name"),
+  order: z.enum(["asc", "desc"]).optional(),
+  cursor: z
+    .object({
+      id: idSchema,
+      direction: z.enum(["next", "previous"]),
+      value: z.union([z.string().max(255), z.number().finite()]),
+    })
+    .optional(),
 });
+
+export interface OrgCursor {
+  id: string;
+  value: string | number;
+  direction: "next" | "previous";
+}
+
+export interface OrgPage {
+  items: OrgListItem[];
+  total: number;
+  rangeStart: number;
+  rangeEnd: number;
+  previousCursor: OrgCursor | null;
+  nextCursor: OrgCursor | null;
+  hasCursor: boolean;
+}
 
 export async function getOrgs(params?: {
   search?: string;
   category?: string;
-}): Promise<OrgListItem[]> {
+  sort?: OrganizationSort;
+  order?: "asc" | "desc";
+  cursor?: OrgCursor;
+}): Promise<OrgPage> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
-
   const userId = session.user.id;
   const input = parseInput(getOrgsSchema, params ?? {});
-  const conditions = [];
+  const page = await loadOrganizationPage({ ...input, category: input.category || undefined });
+  if (page.items.length === 0) return { ...page, items: [] };
 
-  if (input.search) {
-    const pattern = containsPattern(input.search);
-    conditions.push(
-      or(ilike(organizations.name, pattern), ilike(organizations.description, pattern)),
-    );
-  }
-
-  if (input.category) {
-    conditions.push(eq(organizations.category, input.category));
-  }
-
-  const orgs = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      description: organizations.description,
-      logoUrl: organizations.logoUrl,
-      category: organizations.category,
-    })
-    .from(organizations)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(organizations.name);
-
-  if (orgs.length === 0) return [];
-
-  // Follower counts + the viewer's follow state: two grouped queries for the
-  // whole list, instead of two queries per org.
-  const orgIds = orgs.map((o) => o.id);
+  // Enrich only the rows on this page, never the full directory.
+  const orgIds = page.items.map((o) => o.id);
   const [countRows, myFollows, myHidden] = await Promise.all([
     db
       .select({ orgId: orgFollowers.orgId, count: sql<number>`count(*)::int` })
@@ -146,18 +152,23 @@ export async function getOrgs(params?: {
       .select({ orgId: orgFollowers.orgId })
       .from(orgFollowers)
       .where(and(eq(orgFollowers.userId, userId), inArray(orgFollowers.orgId, orgIds))),
-    db.select({ orgId: orgBlocks.orgId }).from(orgBlocks).where(eq(orgBlocks.userId, userId)),
+    db
+      .select({ orgId: orgBlocks.orgId })
+      .from(orgBlocks)
+      .where(and(eq(orgBlocks.userId, userId), inArray(orgBlocks.orgId, orgIds))),
   ]);
   const countByOrg = new Map(countRows.map((r) => [r.orgId, r.count]));
   const followed = new Set(myFollows.map((r) => r.orgId));
   const hidden = new Set(myHidden.map((r) => r.orgId));
-
-  return orgs.map((org) => ({
-    ...org,
-    followerCount: countByOrg.get(org.id) ?? 0,
-    isFollowing: followed.has(org.id),
-    isHidden: hidden.has(org.id),
-  }));
+  return {
+    ...page,
+    items: page.items.map((org) => ({
+      ...org,
+      followerCount: countByOrg.get(org.id) ?? 0,
+      isFollowing: followed.has(org.id),
+      isHidden: hidden.has(org.id),
+    })),
+  };
 }
 
 export async function getOrg(orgId: string): Promise<OrgDetail | null> {

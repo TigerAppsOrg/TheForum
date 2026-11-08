@@ -20,7 +20,7 @@ if (Bun.argv.includes("--dry-run")) {
     offices: reviewOrganizations.filter((org) => org.groupType === "University Office").length,
     users: 24,
     events: 12,
-    pagesAt20: Math.ceil(reviewOrganizations.length / 20),
+    pagesAt15: Math.ceil(reviewOrganizations.length / 15),
   });
   process.exit(0);
 }

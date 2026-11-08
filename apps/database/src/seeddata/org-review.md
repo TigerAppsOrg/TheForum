@@ -3,7 +3,10 @@
 TIG-308 requests a Figma redesign for overlooked suggestions, the long organization
 list, inconsistent row heights and description truncation, zero-follower noise,
 small logos, mixed offices and clubs, and inconsistent category labels.
-This command supplies review data; it does not implement pagination or the redesign.
+This command supplies review data. The directory now supports keyset pagination
+with 15 rows per page, Name/Member count/Date created sorts, and an independent
+Ascending/Descending control. The remaining
+redesign work is separate.
 
 Set `DATABASE_URL` in the root `.env` to your local database, following the root
 `.env.example`. From the repository root, with the database running and schema applied:
@@ -22,7 +25,7 @@ There is no need to reset the database. Additional existing orgs increase the to
 
 | Review case | Fixture / action |
 | --- | --- |
-| Many pages, shortened page controls | 312 demo organizations: 16 pages at the proposed size of 20, including a partial last page. Names span A–Z. The current UI still uses its existing list behavior. |
+| Many pages | 312 demo organizations: 21 pages at the fixed size of 15, including a partial last page. Names span A–Z. First/Previous/Next are grouped on the right. The result range reads 1–15, 16–30, 31–45, etc. Sort, direction, filters, and keyset cursors are kept in the URL for Back and shared links. |
 | Description heights and clipping | 52 null descriptions, 52 empty strings, short descriptions, and 52 long paragraphs. |
 | Logo readability and fallback | 104 each with no logo, a simple logo, and a dense logo. Assets are local and work offline. |
 | Zero and nonzero followers | Most start at zero; other rows have 1, 3, 8, or 24 followers. Counts come from actual follow records, independently of imported member counts. |
@@ -33,7 +36,36 @@ There is no need to reset the database. Additional existing orgs increase the to
 | Activity and event counts | First 12 orgs each have one event, with past and upcoming dates; remaining demo orgs have none. |
 | Single page | Search `Research Computing` (one demo match), or `Collective 300` (one generated demo match). |
 | No results | Search `tig308-no-match-xyz`. Clear the search to restore results. |
-| Loading, mobile, URL/back behavior | Use browser network throttling, narrow the viewport, and navigate once the relevant UI is implemented. Data alone cannot create these behaviors. |
+| Loading, mobile, URL/back behavior | Use browser network throttling, narrow the viewport, and navigate between pages. Search/category/sort/direction changes reset pagination. Name sorts by `(name, id)`; Member count by `(coalesce(member_count, -2147483649), id)`; Date created by `(created_at, id)`. Each supports ascending or descending order, including the ID tie-breaker. Unknown member counts come last descending and first ascending. Member counts differ from Forum follower counts. |
 | No suggestions / wholly empty directory | Requires a separate clean database or a viewer with no eligible suggestions; this seed intentionally populates the directory and does not delete existing data. |
 
 The dry run reports fixture coverage without requiring a database connection.
+
+Pagination indexes are defined in the Drizzle schema and migration
+`0007_organization_keyset_indexes.sql`: one tuple index per sort, plus
+category-prefixed versions for filtered lists. There are no offset queries or
+numbered page jumps. Cursors contain the boundary values, so a deleted boundary
+row still works. Changing an organization's sort value can move it between pages;
+the directory shows live data rather than a frozen snapshot.
+Ranges are computed from the count of matching rows before the first displayed
+row, so they remain accurate on refreshed links and after inserts/deletes. This
+adds a count query; the rows themselves are still fetched by tuple seek without
+an offset. Existing indexes also support reverse scans for the opposite direction.
+
+Pagination URLs use ordinary query parameters rather than encoded JSON:
+`direction=next&after_id=<uuid>` plus `after_name`, `after_member_count`, or
+`after_created_at`, according to the selected sort. The timestamp uses `T` between
+date and time and retains all six fractional digits when present. The server
+validates the tuple and queries directly, without looking up the boundary row.
+Changing a filter, sort, or order removes all boundary parameters.
+
+Run the database pagination tests against a migrated local database:
+
+```powershell
+$env:ORG_TEST_DATABASE_URL = 'postgresql://forum:forum_password@localhost:5434/the_forum'
+bun test apps/database/src/organization-page.test.ts
+```
+
+Tests insert temporary data in transactions and roll it back. They cover all
+sorts, tied values, timestamp microseconds, unknown counts, filters, invalid
+cursors, reverse navigation, concurrent inserts/deletes, and index query plans.

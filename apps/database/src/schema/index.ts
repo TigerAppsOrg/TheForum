@@ -150,33 +150,56 @@ export const campusLocations = pgTable("campus_locations", {
   category: locationCategoryEnum("category").notNull(),
 });
 
-export const organizations = pgTable("organizations", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull().unique(),
-  description: text("description"),
-  logoUrl: text("logo_url"),
-  category: orgCategoryEnum("category").notNull(),
-  /** Null for organizations imported from MyPrincetonU (no Forum user created them). */
-  creatorId: uuid("creator_id").references(() => users.id),
-  /** 'myprincetonu' (synced from InboxEngine) or 'manual' (created in The Forum). */
-  source: varchar("source", { length: 20 }).default("manual").notNull(),
-  /** Stable InboxEngine organization ID, e.g. "mpu:52941" for MyPrincetonU group 52941. */
-  externalId: varchar("external_id", { length: 64 }).unique(),
-  acronym: varchar("acronym", { length: 40 }),
-  tagline: text("tagline"),
-  groupType: varchar("group_type", { length: 120 }),
-  /** The organization's MyPrincetonU group page. */
-  groupUrl: text("group_url"),
-  website: text("website"),
-  contactEmail: varchar("contact_email", { length: 255 }),
-  /** { instagram?, facebook?, linkedin?, twitter?, youtube? } → URLs */
-  socials: jsonb("socials").$type<Record<string, string>>().default({}).notNull(),
-  /** Member count reported by MyPrincetonU (not Forum users). */
-  memberCount: integer("member_count"),
-  syncedAt: timestamp("synced_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 255 }).notNull().unique(),
+    description: text("description"),
+    logoUrl: text("logo_url"),
+    category: orgCategoryEnum("category").notNull(),
+    /** Null for organizations imported from MyPrincetonU (no Forum user created them). */
+    creatorId: uuid("creator_id").references(() => users.id),
+    /** 'myprincetonu' (synced from InboxEngine) or 'manual' (created in The Forum). */
+    source: varchar("source", { length: 20 }).default("manual").notNull(),
+    /** Stable InboxEngine organization ID, e.g. "mpu:52941" for MyPrincetonU group 52941. */
+    externalId: varchar("external_id", { length: 64 }).unique(),
+    acronym: varchar("acronym", { length: 40 }),
+    tagline: text("tagline"),
+    groupType: varchar("group_type", { length: 120 }),
+    /** The organization's MyPrincetonU group page. */
+    groupUrl: text("group_url"),
+    website: text("website"),
+    contactEmail: varchar("contact_email", { length: 255 }),
+    /** { instagram?, facebook?, linkedin?, twitter?, youtube? } → URLs */
+    socials: jsonb("socials").$type<Record<string, string>>().default({}).notNull(),
+    /** Member count reported by MyPrincetonU (not Forum users). */
+    memberCount: integer("member_count"),
+    syncedAt: timestamp("synced_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("organizations_name_id_idx").on(t.name, t.id),
+    index("organizations_members_id_idx").on(
+      sql`coalesce(${t.memberCount}, '-2147483649'::bigint) desc nulls last`,
+      t.id.desc(),
+    ),
+    index("organizations_created_at_id_idx").on(t.createdAt.desc(), t.id.desc()),
+    // Category-filtered pages can seek without scanning unrelated categories.
+    index("organizations_category_name_id_idx").on(t.category, t.name, t.id),
+    index("organizations_category_members_id_idx").on(
+      t.category,
+      sql`coalesce(${t.memberCount}, '-2147483649'::bigint) desc nulls last`,
+      t.id.desc(),
+    ),
+    index("organizations_category_created_at_id_idx").on(
+      t.category,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+  ],
+);
 
 export const orgMembers = pgTable(
   "org_members",

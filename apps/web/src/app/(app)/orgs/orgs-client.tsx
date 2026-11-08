@@ -2,12 +2,14 @@
 
 import { Check, Eye, EyeOff, Plus, Users } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   type HiddenOrg,
+  type OrgCursor,
   type OrgListItem,
-  getOrgs,
+  type OrgPage,
   toggleFollowOrg,
   unblockOrg,
 } from "~/actions/orgs";
@@ -16,6 +18,13 @@ import { OrgAvatar } from "~/components/common/org-avatar";
 import { SearchInput } from "~/components/common/search-input";
 import { EmptyState } from "~/components/common/states";
 import { Button } from "~/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { formatTimeAgo } from "~/lib/date-format";
 import { cn } from "~/lib/utils";
 
@@ -37,7 +46,11 @@ const ORG_CATEGORIES = [
 const HIDDEN = "hidden";
 
 interface OrgsClientProps {
-  initialOrgs: OrgListItem[];
+  initialOrgs: OrgPage;
+  initialSearch: string;
+  initialCategory: string;
+  initialSort: "name" | "members" | "newest";
+  initialOrder: "asc" | "desc";
   recommendedOrgs: OrgListItem[];
   /** Orgs the viewer hid, most recent first. */
   initialHidden: HiddenOrg[];
@@ -47,16 +60,21 @@ interface OrgsClientProps {
 
 export function OrgsClient({
   initialOrgs,
+  initialSearch,
+  initialCategory,
+  initialSort,
+  initialOrder,
   recommendedOrgs,
   initialHidden,
   showHidden = false,
 }: OrgsClientProps) {
   const [isPending, startTransition] = useTransition();
-  const [orgs, setOrgs] = useState(initialOrgs);
+  const router = useRouter();
+  const [orgs, setOrgs] = useState(initialOrgs.items);
   const [hidden, setHidden] = useState(initialHidden);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [activeCategory, setActiveCategory] = useState(
-    showHidden && initialHidden.length > 0 ? HIDDEN : "all",
+    showHidden ? HIDDEN : initialCategory || "all",
   );
   const viewingHidden = activeCategory === HIDDEN;
   const hiddenChipRef = useRef<HTMLButtonElement>(null);
@@ -70,33 +88,75 @@ export function OrgsClient({
     if (showHidden && row) row.scrollLeft = row.scrollWidth;
   }, [showHidden]);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const resultsRef = useRef<HTMLOutputElement>(null);
+  const movingPage = useRef(false);
 
-  const refreshOrgs = useCallback((search?: string, category?: string) => {
-    startTransition(async () => {
-      const result = await getOrgs({
-        search: search || undefined,
-        category: category === "all" ? undefined : category,
-      });
-      setOrgs(result);
+  useEffect(() => {
+    setOrgs(initialOrgs.items);
+    setHidden(initialHidden);
+    setActiveCategory(showHidden ? HIDDEN : initialCategory || "all");
+    // Preserve newer typing while a debounced search is still waiting to submit.
+    if (!searchTimeout.current) setSearchQuery(initialSearch);
+    if (movingPage.current) {
+      resultsRef.current?.focus({ preventScroll: true });
+      resultsRef.current?.scrollIntoView({ block: "start" });
+      movingPage.current = false;
+    }
+  }, [initialOrgs, initialHidden, initialCategory, initialSearch, showHidden]);
+
+  useEffect(
+    () => () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    },
+    [],
+  );
+
+  const navigate = (
+    search: string,
+    category: string,
+    sort = initialSort,
+    cursor?: OrgCursor,
+    order = initialOrder,
+  ) => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = null;
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("search", search.trim());
+    if (category === HIDDEN) params.set("view", HIDDEN);
+    else if (category !== "all") params.set("category", category);
+    if (sort !== "name") params.set("sort", sort);
+    params.set("order", order);
+    if (cursor) {
+      params.set("direction", cursor.direction);
+      params.set("after_id", cursor.id);
+      const valueParam =
+        sort === "name"
+          ? "after_name"
+          : sort === "members"
+            ? "after_member_count"
+            : "after_created_at";
+      params.set(
+        valueParam,
+        sort === "newest" ? String(cursor.value).replace(" ", "T") : String(cursor.value),
+      );
+    }
+    movingPage.current = Boolean(cursor);
+    startTransition(() => {
+      router.push(`/orgs${params.size ? `?${params}` : ""}`, { scroll: false });
     });
-  }, []);
+  };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    // Searching always searches every org — leave the Hidden list for it.
     const category = viewingHidden ? "all" : activeCategory;
     if (viewingHidden) setActiveCategory("all");
-    searchTimeout.current = setTimeout(() => {
-      refreshOrgs(query, category);
-    }, 300);
+    searchTimeout.current = setTimeout(() => navigate(query, category), 300);
   };
 
-  const handleCategoryChange = (cat: string) => {
-    setActiveCategory(cat);
-    if (cat !== HIDDEN) refreshOrgs(searchQuery, cat);
+  const handleCategoryChange = (category: string) => {
+    navigate(searchQuery, category);
   };
-
   const handleUnhide = (org: HiddenOrg) => {
     setHidden((prev) => prev.filter((o) => o.id !== org.id));
     setOrgs((prev) => prev.map((o) => (o.id === org.id ? { ...o, isHidden: false } : o)));
@@ -150,6 +210,7 @@ export function OrgsClient({
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1"
+          maxLength={100}
         />
         <Button asChild variant="cerulean" size="sm" className="h-11 rounded-full px-4">
           <Link href="/orgs/create">
@@ -188,27 +249,81 @@ export function OrgsClient({
         <HiddenOrgList orgs={hidden} onUnhide={handleUnhide} />
       ) : (
         <>
-          {recommendedOrgs.length > 0 && (
-            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-dm-sans text-[12px] text-forum-light-gray">
-              <span className="font-semibold uppercase tracking-[0.08em] text-[11px]">
-                Suggested
-              </span>
-              {recommendedOrgs.map((org, i) => (
-                <span key={org.id}>
-                  <Link
-                    href={`/orgs/${org.id}`}
-                    className="font-medium text-forum-cerulean hover:underline"
-                  >
-                    {org.name}
-                  </Link>
-                  {i < recommendedOrgs.length - 1 && <span aria-hidden> · </span>}
+          {!initialOrgs.previousCursor &&
+            orgs.length > 0 &&
+            !initialSearch &&
+            !initialCategory &&
+            recommendedOrgs.length > 0 && (
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-dm-sans text-[12px] text-forum-light-gray">
+                <span className="font-semibold uppercase tracking-[0.08em] text-[11px]">
+                  Suggested
                 </span>
-              ))}
-            </p>
-          )}
+                {recommendedOrgs.map((org, i) => (
+                  <span key={org.id}>
+                    <Link
+                      href={`/orgs/${org.id}`}
+                      className="font-medium text-forum-cerulean hover:underline"
+                    >
+                      {org.name}
+                    </Link>
+                    {i < recommendedOrgs.length - 1 && <span aria-hidden> · </span>}
+                  </span>
+                ))}
+              </p>
+            )}
 
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <output
+              ref={resultsRef}
+              tabIndex={-1}
+              className="order-last ml-auto text-right text-sm text-forum-light-gray scroll-mt-4"
+              aria-live="polite"
+            >
+              {isPending
+                ? "Loading organizations…"
+                : `${initialOrgs.rangeStart}–${initialOrgs.rangeEnd} of ${initialOrgs.total} organizations`}
+            </output>
+            <Select
+              value={initialSort}
+              onValueChange={(value) =>
+                navigate(searchQuery, activeCategory, value as typeof initialSort)
+              }
+              disabled={isPending}
+            >
+              <SelectTrigger aria-label="Sort organizations">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="members">Member count</SelectItem>
+                <SelectItem value="newest">Date created</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={initialOrder}
+              disabled={isPending}
+              onValueChange={(value) =>
+                navigate(
+                  searchQuery,
+                  activeCategory,
+                  initialSort,
+                  undefined,
+                  value as typeof initialOrder,
+                )
+              }
+            >
+              <SelectTrigger aria-label="Sort direction">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Ascending</SelectItem>
+                <SelectItem value="desc">Descending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {orgs.length > 0 ? (
             <ul
+              aria-busy={isPending}
               className={cn(
                 "divide-y divide-forum-border overflow-hidden rounded-[20px] border border-forum-border bg-white",
                 isPending && "opacity-70 transition-opacity",
@@ -232,8 +347,12 @@ export function OrgsClient({
                         {org.isHidden && (
                           <span className="font-medium text-forum-dark-gray">Hidden · </span>
                         )}
-                        <span className="capitalize">{org.category}</span> · {org.followerCount}{" "}
-                        {org.followerCount === 1 ? "follower" : "followers"}
+                        <span className="capitalize">{org.category}</span> ·{" "}
+                        {initialSort === "members"
+                          ? org.memberCount == null
+                            ? "Members unknown"
+                            : `${org.memberCount} ${org.memberCount === 1 ? "member" : "members"}`
+                          : `${org.followerCount} ${org.followerCount === 1 ? "follower" : "followers"}`}
                         {org.description && (
                           <span className="hidden sm:inline"> · {org.description}</span>
                         )}
@@ -267,6 +386,55 @@ export function OrgsClient({
                   : "Be the first to create one!"
               }
             />
+          )}
+          <nav aria-label="Organization pages" className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              disabled={
+                isPending || searchQuery.trim() !== initialSearch || !initialOrgs.previousCursor
+              }
+              onClick={() => navigate(initialSearch, activeCategory)}
+            >
+              First
+            </Button>
+            <Button
+              variant="outline"
+              disabled={
+                isPending || searchQuery.trim() !== initialSearch || !initialOrgs.previousCursor
+              }
+              onClick={() =>
+                navigate(
+                  initialSearch,
+                  activeCategory,
+                  initialSort,
+                  initialOrgs.previousCursor ?? undefined,
+                )
+              }
+            >
+              Previous
+            </Button>
+
+            <Button
+              variant="outline"
+              disabled={
+                isPending || searchQuery.trim() !== initialSearch || !initialOrgs.nextCursor
+              }
+              onClick={() =>
+                navigate(
+                  initialSearch,
+                  activeCategory,
+                  initialSort,
+                  initialOrgs.nextCursor ?? undefined,
+                )
+              }
+            >
+              Next
+            </Button>
+          </nav>
+          {(initialSearch || initialCategory) && (
+            <Button variant="ghost" onClick={() => navigate("", "all")} disabled={isPending}>
+              Clear search and filters
+            </Button>
           )}
         </>
       )}
