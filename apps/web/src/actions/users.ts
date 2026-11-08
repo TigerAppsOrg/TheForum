@@ -13,7 +13,8 @@ import { campusRegionSchema, eventTagSchema, parseInput, uniqueEnumArray } from 
 const profileFieldsSchema = z.object({
   classYear: z.string().trim().max(10),
   major: z.string().trim().max(255),
-  isOrgLeader: z.boolean(),
+  // Optional
+  isOrgLeader: z.boolean().optional(),
   interests: uniqueEnumArray(eventTagSchema),
   regions: uniqueEnumArray(campusRegionSchema),
   // Optional everywhere: omitted means "leave the stored name alone".
@@ -21,7 +22,7 @@ const profileFieldsSchema = z.object({
 });
 
 const onboardingSchema = profileFieldsSchema;
-const updateProfileSchema = profileFieldsSchema.partial();
+const updateProfileSchema = profileFieldsSchema.partial({ isOrgLeader: true });
 
 type InterestTag = z.output<typeof eventTagSchema>;
 type CampusRegion = z.output<typeof campusRegionSchema>;
@@ -53,7 +54,7 @@ export async function completeOnboarding(data: {
   classYear: string;
   major: string;
   regions: string[];
-  isOrgLeader: boolean;
+  isOrgLeader?: boolean;
   displayName?: string;
 }) {
   const session = await auth();

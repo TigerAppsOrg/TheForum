@@ -101,7 +101,6 @@ Requirements:
 
 * **P0:** Collect interest tags (multi-select)  
 * **P0:** Demographic inputs (class year, major, frequented campus regions)  
-* **P0:** Organization leadership status  
 * **P0:** Store selected interests in user profile  
 * **P0:** Feed ranking should incorporate interest match
 

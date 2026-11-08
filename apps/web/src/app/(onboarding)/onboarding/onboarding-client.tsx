@@ -13,24 +13,6 @@ import {
 } from "~/lib/profile-options";
 import { cn } from "~/lib/utils";
 
-const ORG_ROLES = [
-  {
-    value: "leader",
-    label: "Yes, I lead or manage an organization/club",
-    desc: "I can create events, manage an org page, and post announcements to members.",
-  },
-  {
-    value: "member",
-    label: "I'm a member but not a leader",
-    desc: "I'll follow organizations and get notified when they post new events.",
-  },
-  {
-    value: "explorer",
-    label: "I'm just here to discover events",
-    desc: "Browse the feed, RSVP, and coordinate with friends.",
-  },
-];
-
 const CARD = "bg-white rounded-[10px] shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)] p-6 sm:p-[40px]";
 const STEP_LABEL =
   "mb-3 text-right text-[15px] font-dm-sans font-light text-black sm:absolute sm:top-[18px] sm:right-[30px] sm:mb-0";
@@ -63,10 +45,7 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
   // Step 3: Interests (event_tag enum values)
   const [interests, setInterests] = useState<string[]>([]);
 
-  // Step 4: Org role
-  const [orgRole, setOrgRole] = useState("");
-
-  const totalSteps = 5;
+  const totalSteps = 4;
   const classYearOptions = useMemo(() => getClassYearOptions(), []);
   const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
@@ -88,8 +67,6 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
         return classYear !== "";
       case 2:
         return interests.length >= 1;
-      case 3:
-        return orgRole !== "";
       default:
         return true;
     }
@@ -111,7 +88,7 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
           regions,
           isOrgLeader: orgRole === "leader",
         });
-        setStep(4);
+        setStep(3);
       } catch {
         toast.error("Couldn't save your profile. Please try again.");
       }
@@ -356,68 +333,6 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
             {interests.length} {interests.length === 1 ? "interest" : "interests"} selected
           </p>
 
-          <div className="flex justify-between mt-[20px]">
-            <button type="button" onClick={handleBack} className={BACK_BUTTON}>
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={!canProceed()}
-              className={CONTINUE_BUTTON}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Org Leader */}
-      {step === 3 && (
-        <div className={cn(CARD, "relative")}>
-          <p className={STEP_LABEL}>
-            Step <span className="font-bold">4</span> of {totalSteps - 1}
-          </p>
-          <h1 className="font-serif text-[32px] sm:text-[40px] text-black leading-tight">
-            Are you a <span className="text-forum-orange">club/org. leader</span>?
-          </h1>
-          <p className="text-[17px] sm:text-[20px] font-dm-sans font-medium text-forum-dark-gray mt-[8px] mb-[24px]">
-            If you run or manage a student organization, we&apos;ll unlock tools to create and
-            publish events on Forum.
-          </p>
-
-          <div className="flex flex-col gap-[10px]">
-            {ORG_ROLES.map(({ value, label, desc }) => {
-              const selected = orgRole === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setOrgRole(value)}
-                  className={cn(
-                    "min-h-[63px] py-2 rounded-[14px] border text-left px-[21px] flex items-center justify-between transition-colors",
-                    selected
-                      ? "border-forum-orange bg-forum-orange/5"
-                      : "border-forum-medium-gray hover:border-forum-dark-gray",
-                  )}
-                >
-                  <div>
-                    <p className="text-[15px] font-bold font-dm-sans text-black">{label}</p>
-                    <p className="text-[11px] font-bold font-dm-sans text-[#817d79]">{desc}</p>
-                  </div>
-                  <div
-                    aria-hidden
-                    className={cn(
-                      "w-[13px] h-[13px] rounded-full border-2 transition-colors flex-shrink-0 ml-3",
-                      selected ? "bg-forum-orange border-forum-orange" : "border-forum-medium-gray",
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </div>
-
           <div className="flex justify-between mt-[30px]">
             <button type="button" onClick={handleBack} disabled={isPending} className={BACK_BUTTON}>
               Back
@@ -434,8 +349,8 @@ export function OnboardingClient({ displayName, netId, email }: OnboardingClient
         </div>
       )}
 
-      {/* Step 5: Completion — only reached after the save succeeded */}
-      {step === 4 && (
+      {/* Step 4: Completion — only reached after the save succeeded */}
+      {step === 3 && (
         <div className={cn(CARD, "text-center")}>
           <h1 className="font-serif text-[32px] sm:text-[40px] text-black leading-tight">
             {/* Same rule as Home's greeting: no real name, no name at all. */}
