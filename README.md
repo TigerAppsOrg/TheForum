@@ -60,9 +60,11 @@ one is missing, and that file is the source of truth for what's required.
 
 Workspace package scripts explicitly load the root `.env`, so commands work from
 the repo root or their app directory. Deployment can continue supplying variables
-through the process environment without a local file. For existing checkouts, move
-your values from `apps/web/.env.local` and `apps/database/.env` into the root `.env`,
-then remove those old files so Next.js and Bun cannot load stale overrides.
+through the process environment without a local file. Existing checkouts can keep
+using `apps/web/.env.local` and `apps/database/.env` as legacy fallbacks. Exported
+environment variables take priority over the root `.env`, which takes priority
+over duplicate legacy values. To migrate to one file, move your app-specific
+values into the root `.env`, then remove the legacy files.
 Restart the dev server after editing the root `.env`.
 
 > **Can't obtain a value yourself? Ask Ibraheem.** He is the contact for all
