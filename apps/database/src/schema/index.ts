@@ -177,7 +177,7 @@ export const organizations = pgTable("organizations", {
   category: orgCategoryEnum("category").notNull(),
   /** Null for organizations imported from MyPrincetonU (no Forum user created them). */
   creatorId: uuid("creator_id").references(() => users.id),
-  /** 'myprincetonu' (synced from InboxEngine) or 'manual' (legacy organizations created in The Forum). */
+  /** 'myprincetonu' (synced from InboxEngine) or 'manual' (created in The Forum). */
   source: varchar("source", { length: 20 }).default("manual").notNull(),
   /** Stable InboxEngine organization ID, e.g. "mpu:52941" for MyPrincetonU group 52941. */
   externalId: varchar("external_id", { length: 64 }).unique(),
