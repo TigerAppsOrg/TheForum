@@ -12,7 +12,8 @@
  * - Venues: InboxEngine's campus gazetteer, upserted into campus_locations.
  * - Events: the whole revisioned feed. Official MyPrincetonU events and publishable listserv
  *   extractions become published Forum events owned by the InboxEngine bot user; withdrawn or
- *   duplicate ones are unpublished (never deleted, so RSVPs survive). Recurring series (daily
+ *   duplicate ones are unpublished (never deleted, so RSVPs survive). Naturally ended published
+ *   events remain published for saved/RSVP history. Recurring series (daily
  *   prayer, weekly office hours) show only their next SERIES_WINDOW occurrences, so each run
  *   re-reads the full feed to advance that window.
  */
@@ -21,7 +22,8 @@ import {
   type EngineEvent,
   type EngineOrganization,
   InboxEngineClient,
-} from "../../../packages/inbox-engine/src/client/index.ts";
+} from "../../../packages/inbox-engine/src/client";
+import { campusAreaForLocation } from "./campus-regions";
 import { db } from "./db";
 import {
   events,
@@ -145,11 +147,12 @@ export async function syncLocations(client = engineClient()) {
   for (const row of rows)
     await db
       .insert(campusLocations)
-      .values(row)
+      .values({ ...row, area: campusAreaForLocation(row) })
       .onConflictDoUpdate({
         target: campusLocations.id,
         set: {
           name: row.name,
+          area: campusAreaForLocation(row),
           latitude: row.latitude,
           longitude: row.longitude,
           category: row.category,
@@ -162,20 +165,27 @@ function describe(e: EngineEvent): string {
   return (e.summary || e.title).slice(0, 5000);
 }
 
-/** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
-function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
+/** Expiration preserves published history; withdrawals and quality failures still unpublish. */
+function shouldPublish(
+  e: EngineEvent,
+  seriesRank: Map<string, number>,
+  wasPublished: boolean,
+  now: number,
+): boolean {
   if (e.status !== "active" || !e.publishable) return false;
   const end = new Date(e.endsAt ?? e.startsAt).getTime();
-  if (end <= Date.now() - 6 * 3600_000) return false;
+  // Do not import historical events or resurrect drafts with an unknown history.
+  // Date filters keep retained events off upcoming discovery surfaces.
+  if (end <= now - 6 * 3600_000) return wasPublished;
   if (e.series && e.series.size > 2)
     return (seriesRank.get(e.id) ?? Number.POSITIVE_INFINITY) < SERIES_WINDOW;
   return true;
 }
 
 /** Rank each upcoming occurrence within its series by start time (0 = next). */
-function rankSeries(all: EngineEvent[]): Map<string, number> {
+function rankSeries(all: EngineEvent[], asOf: number): Map<string, number> {
   const bySeries = new Map<string, EngineEvent[]>();
-  const now = Date.now() - 6 * 3600_000;
+  const now = asOf - 6 * 3600_000;
   for (const e of all) {
     if (!e.series || e.status !== "active") continue;
     if (new Date(e.endsAt ?? e.startsAt).getTime() <= now) continue;
@@ -203,7 +213,8 @@ export async function syncEvents(client = engineClient()) {
     cursor = next;
   }
   const all = [...latest.values()];
-  const seriesRank = rankSeries(all);
+  const now = Date.now();
+  const seriesRank = rankSeries(all, now);
   const knownLocations = new Set(
     (await db.select({ id: campusLocations.id }).from(campusLocations)).map((l) => l.id),
   );
@@ -234,8 +245,8 @@ export async function syncEvents(client = engineClient()) {
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
-      const publish = shouldPublish(e, seriesRank);
       const isPublished = existing?.status === "published" && existing.isPublic;
+      const publish = shouldPublish(e, seriesRank, isPublished, now);
       const announcementCount = e.announcements.emails;
       const announcedAt = e.announcements.firstAnnouncedAt
         ? new Date(e.announcements.firstAnnouncedAt)

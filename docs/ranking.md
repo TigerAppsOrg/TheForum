@@ -14,8 +14,9 @@ Home/Explore has a sort control next to the Cards/List toggle, persisted in the 
 | Soonest | `soonest` | Start time ascending, then id |
 | Recently posted | `recent` | `coalesce(announced_at, created_at)` descending, then soonest, then id |
 
-Every sort orders the **same candidate set** — same filters (tags, search, …), same horizon,
-hidden orgs excluded — so switching sort never changes the count, only the order. "Posted" is
+Every sort uses the same filters (tags, search, …), horizon, and hidden-org exclusions.
+Below the candidate cap, switching sort changes only ordering. At the cap, For you adds
+a bounded personalized candidate pass, so counts can differ. "Posted" is
 when the event was first announced on a campus listserv (`events.announced_at`, from
 InboxEngine), else when it entered The Forum (created here, or first synced from
 MyPrincetonU). Soonest and Recently posted are deliberately plain sorts: no diversity cap, no
@@ -23,12 +24,14 @@ soon quota — if you ask for chronological, you get chronological.
 
 ## The formula, in plain English
 
-For "For you", every upcoming event gets a score built from eight signals, each roughly between
+For "For you", every upcoming event gets a score built from ten signals, each roughly between
 0 and 1 (source quality: −0.3 to 1), multiplied by a weight:
 
 | Signal | Weight | What it measures |
 |---|---|---|
 | Interest relevance | 3.0 | What fraction of this event's tags match your onboarding interests |
+| Preferred area | 1.5 | Whether the venue belongs to an area selected in settings |
+| My Events similarity | 3.0 | Cosine similarity to the profile derived from saved/RSVP’d events |
 | Time proximity | 2.0 | How soon the event is — decays smoothly the further out it is |
 | Friend RSVPs | 4.0 | How many of your friends are going (caps out at 3+) |
 | Org affinity | 4.0 | Whether you follow/belong to the hosting org, or have RSVP'd to it before |
@@ -39,6 +42,8 @@ For "For you", every upcoming event gets a score built from eight signals, each 
 
 ```
 score = 3.0 × interest_relevance
+      + 1.5 × preferred_area_match
+      + 3.0 × my_events_similarity
       + 2.0 × time_proximity
       + 4.0 × friend_rsvp_score
       + 4.0 × org_affinity
@@ -58,6 +63,58 @@ feed, they don't dominate it.
 `matched tags / total tags on the event`. No interests set yet? Everyone gets a neutral 0.5
 instead of 0, so a user with no interests still sees a normal feed, not everything at the
 bottom.
+
+### Preferred areas (places frequented)
+
+`preferred_area_match` is 1 when `campus_locations.area` matches a selected
+`user_regions.region`, otherwise 0. This is an additive weighted boost, not a
+multiplication of the entire score. Missing venue/area or no selected areas is neutral.
+
+The legacy enum values represent the **existing settings labels**, not literal compass
+quadrants: `central` = Central Campus, `east` = Science Area, `south` = Prospect Ave,
+`west` = Residential Colleges, `north` = Arts Corridor, `off-campus` = Athletics Area.
+`apps/database/src/campus-regions.ts` rejects placeholders/invalid coordinates, then
+matches stable venue IDs, normalized venue names, and finally ordered coordinate bands
+within a campus bounding box. Name normalization handles punctuation, whitespace and
+`&` versus `and`. Known science buildings, eating clubs and playing fields override
+overlapping geographic bands; the Prospect Ave fallback is bounded on both axes.
+These are approximate product zones,
+not official campus boundaries; review its named venues and boundary tests when tuning.
+Unknown/TBA, invalid coordinates and locations outside the box stay null, including
+actual off-campus events (the legacy `off-campus` preference means athletics).
+
+Sync computes the area on both inserts and updates, so an event inherits its venue's
+area through `location_id`. Seed and the existing-data backfill use the same helper.
+
+### Similarity to My Events (V1)
+
+For an event with available tag embeddings `t1 … tn`, its vector is the arithmetic
+mean `E = (t1 + … + tn) / n`. A user's profile is the arithmetic mean of those event
+vectors over distinct currently saved or RSVP'd events, past or upcoming. Each event
+has equal weight, even if both saved and RSVP'd or tagged more heavily. Only published
+events visible to the viewer contribute; created-only events do not contribute.
+
+Forum's sync keeps an already published imported event published after it naturally
+ends (using the existing six-hour end-time grace period). Its saves, RSVPs and tags
+continue to inform the profile; the feed's upcoming-date filter excludes the ended
+event itself. Withdrawn, duplicate or no-longer-publishable upstream events still
+become drafts and stop contributing. Ended recurring occurrences are retained even
+after leaving the upcoming series window. Historical events never imported remain
+unimported, and existing drafts are not resurrected merely because they are old.
+No InboxEngine changes or new schema fields are required.
+
+`my_events_similarity = clamp(dot(E, P) / (norm(E) × norm(P)), 0, 1)`.
+No profile, no usable tags, missing embeddings, malformed vectors, or zero norms
+contribute zero. Missing tags are omitted from averages; events without any usable
+embedding are omitted from the profile. The loader accepts only finite 1536-dimensional
+tag embeddings. No external calls, event-vector storage, or preference-vector writes
+are needed. Identical tag sets have identical vectors; this V1 does not compare event
+text. Math helpers live in `apps/web/src/lib/event-similarity.ts`.
+
+The weights (location 1.5, similarity 3.0) are initial tuning values. Large cosine
+values among related tag embeddings can reduce the effective spread of similarity
+scores; use representative feed examples when tuning rather than interpreting cosine
+as a probability of interest.
 
 ### Time proximity — smooth decay
 
@@ -273,3 +330,56 @@ All tunable constants (`CANDIDATE_HORIZON_DAYS`, `CANDIDATE_POOL_CAP`, `PERSONAL
 None of these throw or produce an empty feed — a brand-new user with zero signals still gets
 a full feed, ranked by time proximity, source quality, recency, popularity, and the random
 nudge alone.
+
+## Recommendation data deployment and verification
+
+1. Run `bun run db:migrate` before deploying code that selects `campus_locations.area`.
+   The nullable column preserves existing rows and requires no default region.
+2. Run `bun run db:setup-recommendations`. This idempotent transaction loads all checked-in
+   tag embeddings and backfills all existing location areas. It creates no demo users or
+   events. Re-run it after changing mapping rules or the checked-in embeddings.
+3. Deploy the web/sync changes. Future location syncs update areas automatically.
+
+Before applying an area backfill, run `bun run db:setup-recommendations --dry-run`.
+It validates embeddings and prints proposed location IDs, names, old areas and new
+areas without writing locations or embeddings. The ordinary command applies the backfill.
+The next normal `bun run db:sync-engine` preserves eligible published history going
+forward. Already-demoted imported drafts remain unchanged: the database does not record
+whether expiration or a withdrawal caused their unpublication. Restoring those requires
+separate reconciliation with evidence of prior eligibility; do not bulk-publish old drafts.
+
+Only For you loads the profile and embeddings (three batched queries; no per-event
+queries). Its saturated second candidate pass additionally retrieves matching areas and
+semantic tags: up to five tags with profile cosine at least 0.5, ties by tag name.
+This is a bounded retrieval heuristic, not an exhaustive vector nearest-neighbor search;
+the existing 1000/500 caps and discovery filters still apply. Below the cap all sorts
+share candidates; at saturation the personalized expansion applies only to For you.
+
+Historical saves and RSVPs must exist by `asOf`, preventing newly added actions from
+changing later pages. Removing actions, editing historical tags/areas/embeddings, or
+changing region settings can still change the ranking during pagination; this follows
+the existing best-effort snapshot behavior, not a persisted feed snapshot. Refresh to
+apply preference changes consistently. With no preferences/history, both new terms
+are zero and the original formula (including neutral 0.5 interest for no interests)
+continues unchanged.
+
+Run pure tests with `bun test apps/web/src/lib/feed-ranking.test.ts
+apps/web/src/lib/event-similarity.test.ts apps/database/src/campus-regions.test.ts`.
+The dedicated recommendation DB tests require `FEED_RECOMMENDATIONS_TEST_DATABASE_URL`
+pointing at a migrated, disposable database whose name starts with
+`forum_recommendations_test`; they create dense candidate fixtures and synthetic tag
+vectors and must not target application data. Run them separately from the existing
+feed-controls DB tests, which use their own auth mock and require synced upcoming events.
+
+Run the isolated DB suites with
+`bun test apps/web/src/lib/feed-recommendations.db.test.ts apps/database/src/campus-regions.db.test.ts apps/database/src/sync-inbox-engine.db.test.ts`
+with that test URL set. The sync suite supplies a fake InboxEngine client, never contacting
+the upstream engine. Lifecycle regressions cover expiration, series limits, withdrawals,
+duplicates, quality failures, idempotence, and preserving saves/RSVPs. Semantic retrieval
+tuning constants live in `event-similarity.ts`.
+
+Keep sync CLI imports in the database suite: it requires the private InboxEngine
+submodule. The web suite tests ranking and profile visibility directly against database
+fixtures, so web typechecking and default CI tests do not require that submodule or its
+credentials. Skipping a database test at runtime does not exclude its imports from
+TypeScript's dependency graph.
