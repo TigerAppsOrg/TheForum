@@ -176,7 +176,7 @@ export default function LandingPage() {
           {/* Bottom — description + button */}
           <div className="flex flex-col gap-6 pt-30 items-end">
             <p className="text-small font-medium text-forum-black leading-relaxed text-right max-w-7/8">
-              Create your organization&apos;s page, publish events in minutes, and{" "}
+              Publish events in minutes, connect with campus organizations, and{" "}
               <span className="text-forum-coral font-bold">
                 reach students whose interests actually align with what you&apos;re building.
               </span>

@@ -220,7 +220,7 @@ Users must be able to:
 
 ### **Clubs**
 
-Hub to search for, follow, and create student organizations.
+Hub to search for and follow student organizations supplied by InboxEngine.
 
 Requirements:
 
@@ -229,10 +229,6 @@ Requirements:
   * Organization description  
   * Officer contacts  
   * Follow button to receive notifications for new events  
-* “Create Organization” button  
-  * Only visible to people who indicated being an organization leader  
-  * Textboxes \+ image upload to edit profile  
-  * Only organization creator can edit profile and transfer ownership  
 * Organization search bar with category filters  
 * Organization recommendation feed
 
