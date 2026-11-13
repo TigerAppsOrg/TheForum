@@ -1033,17 +1033,7 @@ export async function getFriendsEvents(): Promise<FriendsEvent[]> {
         notFromHiddenOrg(userId),
       ),
     )
-    .groupBy(
-      events.id,
-      events.title,
-      events.datetime,
-      events.flyerUrl,
-      events.locationId,
-      events.locationText,
-      events.orgId,
-      campusLocations.name,
-      organizations.name,
-    )
+    .groupBy(events.id, campusLocations.id, organizations.id)
     .orderBy(desc(sql`friend_count`), events.datetime)
     .limit(20);
 
