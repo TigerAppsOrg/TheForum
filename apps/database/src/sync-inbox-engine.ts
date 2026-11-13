@@ -55,6 +55,15 @@ const orgCategories = new Set<string>(orgCategoryEnum.enumValues);
 const locationCategories = new Set<string>(locationCategoryEnum.enumValues);
 const eventTagValues = new Set<string>(eventTagEnum.enumValues);
 
+function recordUnresolvedLocation(
+  texts: Map<string, number>,
+  locationResolution: string,
+  locationText: string | null,
+) {
+  if (locationResolution !== "unresolved" || !locationText) return;
+  texts.set(locationText, (texts.get(locationText) ?? 0) + 1);
+}
+
 function engineClient() {
   const url = process.env.INBOX_ENGINE_URL;
   const token = process.env.INBOX_ENGINE_TOKEN;
@@ -282,6 +291,11 @@ export async function syncEvents(client = engineClient()) {
         existing?.locationResolution === "unresolved" && isUpcoming(e);
       // Unchanged upstream and no pending location retry: nothing to write.
       if (existing && unchangedUpstream && !retryUnresolvedLocation) {
+        recordUnresolvedLocation(
+          unresolvedLocationTexts,
+          existing.locationResolution,
+          existing.locationText,
+        );
         stats.skipped++;
         continue;
       }
@@ -304,17 +318,16 @@ export async function syncEvents(client = engineClient()) {
         }),
         sourceMessageId: key,
       };
+      recordUnresolvedLocation(
+        unresolvedLocationTexts,
+        values.locationResolution,
+        values.locationText,
+      );
       // Retry unresolved upcoming events so newly-added aliases or gazetteer
       // entries can resolve them, but do not rewrite identical results.
       if (existing && unchangedUpstream && !locationChanged(existing, values)) {
         stats.skipped++;
         continue;
-      }
-      if (values.locationResolution === "unresolved" && values.locationText) {
-        unresolvedLocationTexts.set(
-          values.locationText,
-          (unresolvedLocationTexts.get(values.locationText) ?? 0) + 1,
-        );
       }
       let eventId = existing?.id;
       if (eventId) await db.update(events).set(values).where(eq(events.id, eventId));
