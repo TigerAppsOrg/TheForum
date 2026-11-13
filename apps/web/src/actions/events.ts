@@ -672,6 +672,7 @@ export async function createEvent(data: {
 
 const updateEventSchema = eventFieldsSchema
   .extend({
+    locationSelected: z.boolean().optional(),
     // Checked against the event's current flyer below: an unchanged flyer is
     // always accepted (it may predate uploads, e.g. listserv-ingested events);
     // a new one must be one of our uploads.
@@ -692,6 +693,7 @@ export async function updateEvent(
     datetime: string;
     endDatetime?: string;
     locationId: string;
+    locationSelected?: boolean;
     tags: string[];
     flyerUrl?: string;
     externalLink?: string;
@@ -710,6 +712,7 @@ export async function updateEvent(
     .select({
       flyerUrl: events.flyerUrl,
       locationId: events.locationId,
+      locationDetail: events.locationDetail,
       sourceMessageId: events.sourceMessageId,
     })
     .from(events)
@@ -721,7 +724,8 @@ export async function updateEvent(
   }
 
   const settingSyncedLocation =
-    event.sourceMessageId?.startsWith("ie:") && input.locationId !== event.locationId;
+    event.sourceMessageId?.startsWith("ie:") &&
+    (input.locationSelected || input.locationId !== event.locationId);
 
   if (
     input.flyerUrl !== null &&
@@ -740,6 +744,9 @@ export async function updateEvent(
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
+        ...(input.locationId !== event.locationId
+          ? { locationDetail: event.locationDetail?.match(/^Room\s+\S+/i)?.[0] ?? null }
+          : {}),
         ...(settingSyncedLocation ? { locationResolution: "manual" as const } : {}),
         flyerUrl: input.flyerUrl,
         externalLink: input.externalLink,

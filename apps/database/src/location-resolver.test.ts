@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
+import venues from "../../../packages/inbox-engine/src/events/data/campus-locations.json";
 import {
   type LocationResolverContext,
   normalizeLocationText,
   resolveEventLocation,
 } from "./location-resolver";
+import gazetteer from "./seeddata/location-gazetteer.json";
 
 const context = (overrides: Partial<LocationResolverContext> = {}): LocationResolverContext => ({
   campusLocations: [
@@ -85,6 +87,34 @@ describe("resolveEventLocation", () => {
         }),
       ),
     ).toEqual({ locationId: "frist", room: null, resolution: "gazetteer" });
+  });
+
+  test("resolves real departments and named rooms using committed source data", () => {
+    const ctx = { campusLocations: venues.locations, locationAliases: [], gazetteer };
+    for (const [text, id] of [
+      ["Department of Economics", "julis-romo-rabinowitz"],
+      ["Food Gallery at Frist", "frist-campus-center"],
+      ["Princeton University Art Museum", "princeton-university-art-museum"],
+    ]) {
+      expect(resolveEventLocation({ text }, ctx)).toMatchObject({
+        locationId: id,
+        resolution: "gazetteer",
+      });
+    }
+  });
+
+  test("does not guess when a short venue name matches more than one location", () => {
+    expect(
+      resolveEventLocation(
+        { text: "Smith" },
+        context({
+          campusLocations: [
+            { id: "a", name: "Smith Hall" },
+            { id: "b", name: "Smith Building" },
+          ],
+        }),
+      ).resolution,
+    ).toBe("unresolved");
   });
 
   test("parses a room from text when InboxEngine did not provide one", () => {

@@ -73,7 +73,7 @@ export function mapEngineEvent(event: MappableEngineEvent, ctx: MapEngineEventCo
       ? {
           locationId: ctx.existingLocation.locationId,
           locationDetail: ctx.existingLocation.locationDetail,
-          locationText: ctx.existingLocation.locationText,
+          locationText: ctx.existingLocation.locationText ?? generatedLocation.locationText,
           locationResolution: ctx.existingLocation.locationResolution,
         }
       : generatedLocation;
@@ -96,8 +96,7 @@ export function mapEngineEvent(event: MappableEngineEvent, ctx: MapEngineEventCo
     announcedAt: event.announcements.firstAnnouncedAt
       ? new Date(event.announcements.firstAnnouncedAt)
       : null,
-    // Keep the source timestamp so a local location re-resolution cannot make
-    // a later InboxEngine update appear stale.
+    sourceUpdatedAt: new Date(event.updatedAt),
     updatedAt: new Date(event.updatedAt),
   };
 }

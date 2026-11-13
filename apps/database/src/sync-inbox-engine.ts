@@ -13,7 +13,7 @@
  * - Events: the whole revisioned feed. Official MyPrincetonU events and publishable listserv
  *   extractions become published Forum events owned by the InboxEngine bot user; withdrawn or
  *   duplicate ones are unpublished (never deleted, so RSVPs survive). Recurring series (daily
- *   prayer, weekly office hours) show only their next SERIES_WINDOW occurrences, so each run
+ *   prayer, weekly office hours) show only their next two occurrences, so each run
  *   re-reads the full feed to advance that window.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -38,13 +38,12 @@ import {
   users,
 } from "./schema";
 import gazetteer from "./seeddata/location-gazetteer.json";
+import { shouldPublishEvent } from "./should-publish-event";
 
 const TBA_LOCATION = { id: "tba", name: "Location TBA", latitude: 0, longitude: 0 } as const;
 const ONLINE_LOCATION = { id: "online", name: "Online", latitude: 0, longitude: 0 } as const;
 const BOT = { netId: "_inboxengine", email: "inboxengine@tigerapps.org", displayName: "The Forum" };
 const CURSOR_KEY = "inbox-engine:events";
-/** Upcoming occurrences shown per recurring series. */
-const SERIES_WINDOW = 2;
 const PUBLISH_LOCATIONLESS_EVENTS = process.env.PUBLISH_LOCATIONLESS_EVENTS === "true";
 
 type OrgCategory = (typeof orgCategoryEnum.enumValues)[number];
@@ -174,24 +173,6 @@ export async function syncLocations(client = engineClient()) {
   return { locations: rows.length };
 }
 
-/** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
-function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
-  const admitsLocationless =
-    PUBLISH_LOCATIONLESS_EVENTS &&
-    e.status === "active" &&
-    !e.publishable &&
-    e.timePrecision === "exact" &&
-    (e.confidence ?? 0) >= 0.7 &&
-    !e.location.text &&
-    !e.location.online;
-  if (e.status !== "active" || (!e.publishable && !admitsLocationless)) return false;
-  const end = new Date(e.endsAt ?? e.startsAt).getTime();
-  if (end <= Date.now() - 6 * 3600_000) return false;
-  if (e.series && e.series.size > 2)
-    return (seriesRank.get(e.id) ?? Number.POSITIVE_INFINITY) < SERIES_WINDOW;
-  return true;
-}
-
 function isUpcoming(e: EngineEvent): boolean {
   return new Date(e.endsAt ?? e.startsAt).getTime() > Date.now() - 6 * 3600_000;
 }
@@ -262,7 +243,7 @@ export async function syncEvents(client = engineClient()) {
           id: events.id,
           status: events.status,
           isPublic: events.isPublic,
-          updatedAt: events.updatedAt,
+          sourceUpdatedAt: events.sourceUpdatedAt,
           announcementCount: events.announcementCount,
           announcedAt: events.announcedAt,
           locationId: events.locationId,
@@ -272,7 +253,7 @@ export async function syncEvents(client = engineClient()) {
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
-      const publish = shouldPublish(e, seriesRank);
+      const publish = shouldPublishEvent(e, seriesRank, PUBLISH_LOCATIONLESS_EVENTS);
       const isPublished = existing?.status === "published" && existing.isPublic;
       const announcementCount = e.announcements.emails;
       const announcedAt = e.announcements.firstAnnouncedAt
@@ -284,7 +265,8 @@ export async function syncEvents(client = engineClient()) {
         existing?.announcementCount === announcementCount &&
         (existing.announcedAt?.getTime() ?? null) === (announcedAt?.getTime() ?? null);
       const upstreamCurrent =
-        existing && existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime();
+        existing?.sourceUpdatedAt &&
+        existing.sourceUpdatedAt.getTime() >= new Date(e.updatedAt).getTime();
       const unchangedUpstream =
         publish === isPublished && upstreamCurrent && (!publish || announcementsCurrent);
       const retryUnresolvedLocation =
@@ -330,8 +312,28 @@ export async function syncEvents(client = engineClient()) {
         continue;
       }
       let eventId = existing?.id;
-      if (eventId) await db.update(events).set(values).where(eq(events.id, eventId));
-      else {
+      if (existing && eventId) {
+        // A concurrent editor or alias repair may have changed the location
+        // since the read above. Retry the event on the next sync instead of
+        // replacing that newer correction with stale values.
+        const updated = await db
+          .update(events)
+          .set(values)
+          .where(
+            and(
+              eq(events.id, eventId),
+              eq(events.locationId, existing.locationId),
+              eq(events.locationResolution, existing.locationResolution),
+              sql`${events.locationDetail} IS NOT DISTINCT FROM ${existing.locationDetail}`,
+              sql`${events.locationText} IS NOT DISTINCT FROM ${existing.locationText}`,
+            ),
+          )
+          .returning({ id: events.id });
+        if (!updated.length) {
+          stats.skipped++;
+          continue;
+        }
+      } else {
         const [row] = await db.insert(events).values(values).returning({ id: events.id });
         eventId = row?.id;
       }

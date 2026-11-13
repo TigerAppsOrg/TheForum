@@ -277,6 +277,8 @@ export const events = pgTable(
     source: varchar("source", { length: 20 }).default("manual").notNull(),
     /** For imported events: "ie:<InboxEngine event id>". */
     sourceMessageId: varchar("source_message_id", { length: 255 }).unique(),
+    /** Last InboxEngine revision applied, independent of local edits. */
+    sourceUpdatedAt: timestamp("source_updated_at"),
     /** Where an imported event came from (MyPrincetonU page or the source email). */
     sourceUrl: text("source_url"),
     /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */

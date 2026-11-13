@@ -10,7 +10,7 @@ ALTER TABLE "events" ADD COLUMN "location_text" varchar(300);--> statement-break
 ALTER TABLE "events" ADD COLUMN "locationResolution" "location_resolution";--> statement-breakpoint
 UPDATE "events"
 SET "locationResolution" = CASE
-  WHEN "source_message_id" LIKE 'ie:%' THEN 'unresolved'::"location_resolution"
+  WHEN "source_message_id" LIKE 'ie:%' AND "location_id" = 'tba' THEN 'unresolved'::"location_resolution"
   ELSE 'manual'::"location_resolution"
 END;--> statement-breakpoint
 ALTER TABLE "events" ALTER COLUMN "locationResolution" SET NOT NULL;--> statement-breakpoint

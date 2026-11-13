@@ -84,6 +84,7 @@ export interface OrgDetail {
     title: string;
     datetime: string;
     locationName: string;
+    locationText: string | null;
     flyerUrl: string | null;
     tags: string[];
     /** Only owners/officers (and creators) ever receive drafts or private events here. */
@@ -264,6 +265,7 @@ export async function getOrg(orgId: string): Promise<OrgDetail | null> {
     title: e.title,
     datetime: formatEventDateTime(e.datetime),
     locationName: formatEventLocation(e),
+    locationText: e.locationText,
     flyerUrl: e.flyerUrl,
     tags: tagsByEvent.get(e.id) ?? [],
     status: e.status,

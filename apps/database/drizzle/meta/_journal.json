@@ -71,6 +71,13 @@
       "when": 1794600000001,
       "tag": "0009_rename_location_resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794600000002,
+      "tag": "0010_spicy_masque",
+      "breakpoints": true
     }
   ]
 }

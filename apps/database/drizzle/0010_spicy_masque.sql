@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "source_updated_at" timestamp;

@@ -4,7 +4,7 @@
  *   bun run db:resolve-locations --report
  *   bun run db:resolve-locations --alias "Frist lawn tent" frist
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { closeDb, db } from "./db";
 import {
@@ -100,14 +100,15 @@ async function addAlias(text: string, locationId: string) {
       locationResolution: resolved.resolution,
     };
     if (!locationChanged(event, nextLocation)) continue;
-    await db
+    const rows = await db
       .update(events)
       .set({
         ...nextLocation,
         updatedAt: new Date(),
       })
-      .where(eq(events.id, event.id));
-    updated++;
+      .where(and(eq(events.id, event.id), eq(events.locationResolution, "unresolved")))
+      .returning({ id: events.id });
+    updated += rows.length;
   }
   console.log(
     `Alias "${normalized}" now points to ${locationId}; re-resolved ${updated} event(s).`,

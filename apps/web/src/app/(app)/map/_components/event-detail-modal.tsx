@@ -119,6 +119,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
              */
             datetime={formatEventDateTime(event.datetime)}
             location={formatEventLocation(event)}
+            locationText={event.locationText}
             description={event.description}
             tags={event.tags}
             rsvpCount={event.rsvpCount}
@@ -133,7 +134,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
               description: event.description,
               datetime: event.datetime,
               endDatetime: event.endDatetime,
-              locationName: event.locationName,
+              locationName: formatEventLocation(event),
             })}
             onSaveToggle={handleSave}
             onRsvpToggle={handleRsvp}

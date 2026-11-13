@@ -227,7 +227,13 @@ updates matching events without waiting for another InboxEngine change.
 ### Manual overrides and locationless events
 
 When an editor changes the venue of an InboxEngine-synced event in The Forum, its resolution
-becomes `manual`. The five-minute sync preserves all location fields on manual events.
+becomes `manual`. The five-minute sync preserves the selected venue and detail on manual events;
+it also fills in missing original text for older events when available.
+
+Before this feature, synced events did not record whether a venue was selected by an editor.
+The migration conservatively marks existing non-TBA synced venues as `manual` to protect
+possible corrections; future InboxEngine venue changes will not replace those venues. Existing
+TBA events remain eligible for automatic resolution.
 
 `PUBLISH_LOCATIONLESS_EVENTS` is off by default. Set it to `true` in the sync environment only
 to publish active, high-confidence, exact-time InboxEngine events whose sole missing requirement

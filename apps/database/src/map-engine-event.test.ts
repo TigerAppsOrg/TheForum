@@ -66,5 +66,26 @@ describe("mapEngineEvent", () => {
     expect(mapEngineEvent(event({ text: "McCosh Hall" }), context).updatedAt).toEqual(
       new Date("2026-11-01T12:00:00.000Z"),
     );
+    expect(mapEngineEvent(event({ text: "McCosh Hall" }), context).sourceUpdatedAt).toEqual(
+      new Date("2026-11-01T12:00:00.000Z"),
+    );
+  });
+
+  test("backfills missing source text without changing a legacy manual venue", () => {
+    expect(
+      mapEngineEvent(event({ text: "McCosh Hall" }), {
+        ...context,
+        existingLocation: {
+          locationId: "manual-location",
+          locationDetail: null,
+          locationText: null,
+          locationResolution: "manual",
+        },
+      }),
+    ).toMatchObject({
+      locationId: "manual-location",
+      locationText: "McCosh Hall",
+      locationResolution: "manual",
+    });
   });
 });

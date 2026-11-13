@@ -380,6 +380,11 @@ export function EventCard({
               </>
             )}
           </p>
+          {showOriginalLocation && (
+            <p className="truncate font-dm-sans text-[11px] text-forum-light-gray">
+              {locationText}
+            </p>
+          )}
           {(friendsAttending.length > 0 || tags.length > 0) && (
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-dm-sans text-[11px]">
               {friendsAttending.length > 0 && (
@@ -637,6 +642,11 @@ export function EventCard({
                 <span className="flex items-center gap-1.5 font-dm-sans text-[13px] text-forum-dark-gray">
                   <MapPin size={12} aria-hidden className="shrink-0 text-forum-light-gray" />
                   {location}
+                </span>
+              )}
+              {showOriginalLocation && (
+                <span className="ml-[18px] font-dm-sans text-[11px] text-forum-light-gray">
+                  {locationText}
                 </span>
               )}
               <span className="flex items-center gap-1.5 font-dm-sans text-[13px] text-forum-dark-gray">
