@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { type MappableEngineEvent, mapEngineEvent } from "./map-engine-event";
+import { type MappableEngineEvent, locationChanged, mapEngineEvent } from "./map-engine-event";
 
 const event = (location: MappableEngineEvent["location"]): MappableEngineEvent => ({
   title: "Office hours",
   summary: null,
   startsAt: "2026-11-02T15:00:00.000Z",
+  updatedAt: "2026-11-01T12:00:00.000Z",
   location,
   source: { kind: "listserv", url: "https://example.com/event" },
   announcements: { emails: 1 },
@@ -48,5 +49,22 @@ describe("mapEngineEvent", () => {
       locationText: "Hand-corrected location",
       locationResolution: "manual",
     });
+  });
+
+  test("identifies only meaningful location-result changes", () => {
+    const existing = {
+      locationId: "mccosh",
+      locationDetail: "Room 50",
+      locationText: "McCosh Hall, Room 50",
+      locationResolution: "fuzzy" as const,
+    };
+    expect(locationChanged(existing, existing)).toBe(false);
+    expect(locationChanged(existing, { ...existing, locationResolution: "alias" })).toBe(true);
+  });
+
+  test("uses the InboxEngine update timestamp", () => {
+    expect(mapEngineEvent(event({ text: "McCosh Hall" }), context).updatedAt).toEqual(
+      new Date("2026-11-01T12:00:00.000Z"),
+    );
   });
 });

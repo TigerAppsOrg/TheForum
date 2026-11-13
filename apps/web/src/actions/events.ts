@@ -740,9 +740,7 @@ export async function updateEvent(
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
-        ...(settingSyncedLocation
-          ? { locationDetail: null, locationResolution: "manual" as const }
-          : {}),
+        ...(settingSyncedLocation ? { locationResolution: "manual" as const } : {}),
         flyerUrl: input.flyerUrl,
         externalLink: input.externalLink,
         isPublic: input.isPublic,

@@ -48,18 +48,29 @@ describe("resolveEventLocation", () => {
     ).toEqual({ locationId: "frist", room: null, resolution: "alias" });
   });
 
-  test("does not resolve an ambiguous short alias", () => {
+  test("uses a room-specific alias before its building-level alias", () => {
     expect(
       resolveEventLocation(
-        { text: "ARC" },
+        { text: "McCosh 50" },
         context({
           locationAliases: [
-            { aliasNormalized: "arc", locationId: "frist" },
-            { aliasNormalized: "arc", locationId: "mccosh" },
+            { aliasNormalized: "mccosh 50", locationId: "frist" },
+            { aliasNormalized: "mccosh", locationId: "mccosh" },
           ],
         }),
       ),
-    ).toEqual({ locationId: "tba", room: null, resolution: "unresolved" });
+    ).toEqual({ locationId: "frist", room: "50", resolution: "alias" });
+  });
+
+  test("uses a building-level alias when no room-specific alias exists", () => {
+    expect(
+      resolveEventLocation(
+        { text: "McCosh 50" },
+        context({
+          locationAliases: [{ aliasNormalized: "mccosh", locationId: "mccosh" }],
+        }),
+      ),
+    ).toEqual({ locationId: "mccosh", room: "50", resolution: "alias" });
   });
 
   test("walks numeric gazetteer POI IDs up to a canonical Forum location", () => {

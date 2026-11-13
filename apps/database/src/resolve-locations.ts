@@ -6,13 +6,15 @@
  */
 import { eq } from "drizzle-orm";
 
-import { db } from "./db";
+import { closeDb, db } from "./db";
 import {
   type GazetteerPlace,
   type LocationResolverContext,
+  locationAliasKeys,
   normalizeLocationText,
   resolveEventLocation,
 } from "./location-resolver";
+import { locationChanged } from "./map-engine-event";
 import { events, campusLocations, locationAliases } from "./schema";
 import gazetteer from "./seeddata/location-gazetteer.json";
 
@@ -33,7 +35,13 @@ async function locationContext(): Promise<LocationResolverContext> {
 
 async function unresolvedEvents() {
   return db
-    .select({ id: events.id, locationText: events.locationText })
+    .select({
+      id: events.id,
+      locationId: events.locationId,
+      locationDetail: events.locationDetail,
+      locationText: events.locationText,
+      locationResolution: events.locationResolution,
+    })
     .from(events)
     .where(eq(events.locationResolution, "unresolved"));
 }
@@ -74,7 +82,8 @@ async function addAlias(text: string, locationId: string) {
   const ctx = await locationContext();
   let updated = 0;
   for (const event of await unresolvedEvents()) {
-    if (!event.locationText || normalizeLocationText(event.locationText) !== normalized) continue;
+    if (!event.locationText || !locationAliasKeys(event.locationText).includes(normalized))
+      continue;
     const resolved = resolveEventLocation({ text: event.locationText }, ctx);
     const locationDetail =
       [
@@ -84,12 +93,17 @@ async function addAlias(text: string, locationId: string) {
         .filter(Boolean)
         .join(" · ")
         .slice(0, 200) || null;
+    const nextLocation = {
+      locationId: resolved.locationId,
+      locationDetail,
+      locationText: event.locationText,
+      locationResolution: resolved.resolution,
+    };
+    if (!locationChanged(event, nextLocation)) continue;
     await db
       .update(events)
       .set({
-        locationId: resolved.locationId,
-        locationDetail,
-        locationResolution: resolved.resolution,
+        ...nextLocation,
         updatedAt: new Date(),
       })
       .where(eq(events.id, event.id));
@@ -101,12 +115,16 @@ async function addAlias(text: string, locationId: string) {
 }
 
 const args = Bun.argv.slice(2);
-if (args[0] === "--report" && args.length === 1) {
-  await report();
-} else if (args[0] === "--alias" && args.length === 3) {
-  await addAlias(args[1] ?? "", args[2] ?? "");
-} else {
-  throw new Error(
-    'Usage: bun run db:resolve-locations --report | bun run db:resolve-locations --alias "<text>" <locationId>',
-  );
+try {
+  if (args[0] === "--report" && args.length === 1) {
+    await report();
+  } else if (args[0] === "--alias" && args.length === 3) {
+    await addAlias(args[1] ?? "", args[2] ?? "");
+  } else {
+    throw new Error(
+      'Usage: bun run db:resolve-locations --report | bun run db:resolve-locations --alias "<text>" <locationId>',
+    );
+  }
+} finally {
+  await closeDb();
 }

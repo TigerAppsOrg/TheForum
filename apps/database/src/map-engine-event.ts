@@ -10,6 +10,7 @@ export type MappableEngineEvent = {
   summary?: string | null;
   startsAt: string;
   endsAt?: string | null;
+  updatedAt: string;
   location: EventLocation;
   host?: { id: string } | null;
   imageUrl?: string | null;
@@ -31,6 +32,21 @@ type MapEngineEventContext = {
   locationContext: LocationResolverContext;
   existingLocation?: ExistingEventLocation;
 };
+
+export function locationChanged(
+  existing: ExistingEventLocation,
+  next: Pick<
+    ExistingEventLocation,
+    "locationId" | "locationDetail" | "locationText" | "locationResolution"
+  >,
+): boolean {
+  return (
+    existing.locationId !== next.locationId ||
+    existing.locationDetail !== next.locationDetail ||
+    existing.locationText !== next.locationText ||
+    existing.locationResolution !== next.locationResolution
+  );
+}
 
 /**
  * Converts an InboxEngine event into Forum event values without performing I/O.
@@ -80,6 +96,8 @@ export function mapEngineEvent(event: MappableEngineEvent, ctx: MapEngineEventCo
     announcedAt: event.announcements.firstAnnouncedAt
       ? new Date(event.announcements.firstAnnouncedAt)
       : null,
-    updatedAt: new Date(),
+    // Keep the source timestamp so a local location re-resolution cannot make
+    // a later InboxEngine update appear stale.
+    updatedAt: new Date(event.updatedAt),
   };
 }

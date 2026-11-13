@@ -94,6 +94,13 @@ function textWithoutRoom(text: string): string {
     .trim();
 }
 
+/** Exact alias keys, ordered from the most specific to the building-level form. */
+export function locationAliasKeys(text: string): string[] {
+  return [
+    ...new Set([normalizeLocationText(text), normalizeLocationText(textWithoutRoom(text))]),
+  ].filter(Boolean);
+}
+
 function placeParentId(place: GazetteerPlace): string | undefined {
   const parent = place.parent_id;
   return parent === undefined || parent === null ? undefined : String(parent);
@@ -143,12 +150,16 @@ export function resolveEventLocation(
   const normalized = normalizeLocationText(venueText);
   if (!normalized) return unresolved();
 
-  // An alias is exact, and the primary key in location_aliases guarantees it
-  // cannot silently be ambiguous.
-  const aliases = ctx.locationAliases.filter(
-    (alias) => alias.aliasNormalized === normalized && byId.has(alias.locationId),
-  );
-  if (aliases.length === 1) return { locationId: aliases[0].locationId, room, resolution: "alias" };
+  // Check a room-specific alias before the room-free building alias. The
+  // primary key in location_aliases prevents ambiguity in stored data.
+  for (const aliasKey of locationAliasKeys(sourceText)) {
+    const aliases = ctx.locationAliases.filter(
+      (alias) => alias.aliasNormalized === aliasKey && byId.has(alias.locationId),
+    );
+    if (aliases.length > 1) return unresolved();
+    const [alias] = aliases;
+    if (alias) return { locationId: alias.locationId, room, resolution: "alias" };
+  }
 
   const places = ctx.gazetteer ?? [];
   const placesById = new Map(places.map((place) => [String(place.id), place]));

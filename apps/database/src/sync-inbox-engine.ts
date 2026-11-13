@@ -24,7 +24,7 @@ import {
 } from "../../../packages/inbox-engine/src/client/index.ts";
 import { db } from "./db";
 import type { GazetteerPlace, LocationResolverContext } from "./location-resolver";
-import { mapEngineEvent } from "./map-engine-event";
+import { locationChanged, mapEngineEvent } from "./map-engine-event";
 import {
   events,
   campusLocations,
@@ -167,13 +167,12 @@ export async function syncLocations(client = engineClient()) {
 
 /** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
 function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
-  const locationless = e as EngineEvent & { timePrecision?: string; confidence?: number };
   const admitsLocationless =
     PUBLISH_LOCATIONLESS_EVENTS &&
     e.status === "active" &&
     !e.publishable &&
-    locationless.timePrecision === "exact" &&
-    (locationless.confidence ?? 0) >= 0.7 &&
+    e.timePrecision === "exact" &&
+    (e.confidence ?? 0) >= 0.7 &&
     !e.location.text &&
     !e.location.online;
   if (e.status !== "active" || (!e.publishable && !admitsLocationless)) return false;
@@ -275,14 +274,14 @@ export async function syncEvents(client = engineClient()) {
       const announcementsCurrent =
         existing?.announcementCount === announcementCount &&
         (existing.announcedAt?.getTime() ?? null) === (announcedAt?.getTime() ?? null);
-      // Unchanged upstream and already in the desired state: nothing to write.
-      if (
-        existing &&
-        publish === isPublished &&
-        existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime() &&
-        (!publish || announcementsCurrent) &&
-        !(existing.locationResolution === "unresolved" && isUpcoming(e))
-      ) {
+      const upstreamCurrent =
+        existing && existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime();
+      const unchangedUpstream =
+        publish === isPublished && upstreamCurrent && (!publish || announcementsCurrent);
+      const retryUnresolvedLocation =
+        existing?.locationResolution === "unresolved" && isUpcoming(e);
+      // Unchanged upstream and no pending location retry: nothing to write.
+      if (existing && unchangedUpstream && !retryUnresolvedLocation) {
         stats.skipped++;
         continue;
       }
@@ -305,6 +304,12 @@ export async function syncEvents(client = engineClient()) {
         }),
         sourceMessageId: key,
       };
+      // Retry unresolved upcoming events so newly-added aliases or gazetteer
+      // entries can resolve them, but do not rewrite identical results.
+      if (existing && unchangedUpstream && !locationChanged(existing, values)) {
+        stats.skipped++;
+        continue;
+      }
       if (values.locationResolution === "unresolved" && values.locationText) {
         unresolvedLocationTexts.set(
           values.locationText,
