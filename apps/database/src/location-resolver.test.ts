@@ -62,18 +62,18 @@ describe("resolveEventLocation", () => {
     ).toEqual({ locationId: "tba", room: null, resolution: "unresolved" });
   });
 
-  test("walks a matching gazetteer room up to a canonical building", () => {
+  test("walks numeric gazetteer POI IDs up to a canonical Forum location", () => {
     expect(
       resolveEventLocation(
-        { text: "McCosh 50" },
+        { text: "Food Gallery at Frist" },
         context({
           gazetteer: [
-            { id: "mccosh-50", name: "McCosh 50", parent_id: "mccosh" },
-            { id: "mccosh", name: "McCosh Hall", parent_id: null },
+            { id: 742, name: "Food Gallery at Frist", parent_id: 193 },
+            { id: 193, name: "Frist Campus Center", parent_id: null },
           ],
         }),
       ),
-    ).toEqual({ locationId: "mccosh", room: "50", resolution: "gazetteer" });
+    ).toEqual({ locationId: "frist", room: null, resolution: "gazetteer" });
   });
 
   test("parses a room from text when InboxEngine did not provide one", () => {
@@ -84,11 +84,34 @@ describe("resolveEventLocation", () => {
     });
   });
 
-  test("conservatively resolves a partial venue phrase", () => {
-    expect(resolveEventLocation({ text: "Frist lawn tent" }, context())).toEqual({
-      locationId: "frist",
+  test("does not fuzzy-match a venue mentioned within a more specific place", () => {
+    expect(resolveEventLocation({ text: "Smith Lounge in Frist" }, context())).toEqual({
+      locationId: "tba",
       room: null,
-      resolution: "fuzzy",
+      resolution: "unresolved",
+    });
+    expect(resolveEventLocation({ text: "Frist lawn tent" }, context())).toEqual({
+      locationId: "tba",
+      room: null,
+      resolution: "unresolved",
+    });
+  });
+
+  test("does not fuzzy-match special locations", () => {
+    expect(
+      resolveEventLocation(
+        { text: "Location TBA" },
+        context({
+          campusLocations: [
+            { id: "tba", name: "Location TBA" },
+            { id: "online", name: "Online" },
+          ],
+        }),
+      ),
+    ).toEqual({
+      locationId: "tba",
+      room: null,
+      resolution: "unresolved",
     });
   });
 

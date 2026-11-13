@@ -39,4 +39,24 @@ describe("formatEventLocation", () => {
       }),
     ).toBe(true);
   });
+
+  test("keeps source wording visible when it only partly overlaps the venue", () => {
+    expect(
+      originalLocationDiffers({
+        locationId: "frist",
+        locationName: "Frist Campus Center",
+        locationText: "Smith Lounge in Frist",
+      }),
+    ).toBe(true);
+  });
+
+  test("hides source wording only when it matches the canonical venue", () => {
+    expect(
+      originalLocationDiffers({
+        locationId: "frist",
+        locationName: "Frist Campus Center",
+        locationText: "frist campus center",
+      }),
+    ).toBe(false);
+  });
 });

@@ -62,9 +62,6 @@ const NOISE_WORDS = new Set([
   "campus",
   "room",
   "rm",
-  "lawn",
-  "tent",
-  "outside",
 ]);
 
 /** Normalization deliberately mirrors the value stored in `alias_normalized`. */
@@ -155,6 +152,14 @@ export function resolveEventLocation(
 
   const places = ctx.gazetteer ?? [];
   const placesById = new Map(places.map((place) => [String(place.id), place]));
+  const locationIdsByName = new Map<string, Set<string>>();
+  for (const location of ctx.campusLocations) {
+    const name = normalizeLocationText(location.name);
+    if (!name) continue;
+    const locationIds = locationIdsByName.get(name) ?? new Set<string>();
+    locationIds.add(location.id);
+    locationIdsByName.set(name, locationIds);
+  }
   // Try the complete text too: named rooms ("McCosh 50") live in the
   // gazetteer and lead to their parent building, while aliases are building
   // names and therefore use the room-free text above.
@@ -169,11 +174,18 @@ export function resolveEventLocation(
     while (current && !seen.has(String(current.id))) {
       const id = String(current.id);
       seen.add(id);
-      if (byId.has(id)) {
-        gazetteerTargets.add(id);
+      const parent = placesById.get(placeParentId(current) ?? "");
+      if (!parent) {
+        // Princeton map POIs use numeric IDs, whereas Forum locations use
+        // slugs. Once we reach the top-level POI, translate its canonical
+        // name to a Forum location instead of comparing those unrelated IDs.
+        for (const name of placeNames(current)) {
+          for (const locationId of locationIdsByName.get(name) ?? [])
+            gazetteerTargets.add(locationId);
+        }
         break;
       }
-      current = placesById.get(placeParentId(current) ?? "");
+      current = parent;
     }
   }
   if (gazetteerTargets.size === 1) {
@@ -184,11 +196,12 @@ export function resolveEventLocation(
   const phraseWords = fuzzyWords(venueText);
   if (!phraseWords.length) return unresolved();
   const candidates = ctx.campusLocations.filter((location) => {
+    if (location.id === TBA_LOCATION_ID || location.id === ONLINE_LOCATION_ID) return false;
     const nameWords = fuzzyWords(location.name);
-    if (!nameWords.length || nameWords.length > phraseWords.length) return false;
-    // Every meaningful word in the Forum venue must occur in the supplied
-    // phrase. This allows "Frist lawn tent" but rejects loose one-word hints.
-    return nameWords.every((word) => phraseWords.includes(word));
+    if (!nameWords.length || !nameWords.every((word) => phraseWords.includes(word))) return false;
+    // A venue name appearing somewhere in a longer phrase is not enough: it
+    // must explain most of the supplied location wording.
+    return nameWords.length / phraseWords.length >= 0.75;
   });
   if (candidates.length === 1) return { locationId: candidates[0].id, room, resolution: "fuzzy" };
 

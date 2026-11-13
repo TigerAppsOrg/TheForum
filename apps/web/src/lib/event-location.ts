@@ -5,14 +5,12 @@ type EventLocationInput = {
   locationText?: string | null;
 };
 
-const ignoredWords = new Set(["the", "hall", "building", "center", "centre", "campus"]);
-
-function meaningfulWords(value: string): string[] {
+function normalizeLocationText(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
-    .filter((word) => word && !ignoredWords.has(word));
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 /** The one display string used for event locations across the app. */
@@ -36,7 +34,5 @@ export function originalLocationDiffers({
 }: EventLocationInput) {
   if (!locationName || !locationText || locationId === "online" || locationId === "tba")
     return false;
-  const venueWords = meaningfulWords(locationName);
-  const sourceWords = meaningfulWords(locationText);
-  return sourceWords.length > 0 && !sourceWords.some((word) => venueWords.includes(word));
+  return normalizeLocationText(locationText) !== normalizeLocationText(locationName);
 }
