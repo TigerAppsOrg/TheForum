@@ -126,6 +126,7 @@ bun run db:push      # push schema (dev)     db:generate generate SQL migrations
 bun run db:migrate   # apply migrations      db:studio   visual DB browser
 bun run db:seed      # seed demo data (safe to re-run; refuses non-local DBs unless ALLOW_REMOTE_SEED=1)
 bun run db:sync-engine  # import orgs, venues and events from InboxEngine (needs INBOX_ENGINE_URL/TOKEN)
+bun run db:resolve-locations --report  # report source location text that still needs a venue
 (cd apps/web && bun test)   # unit tests
 ```
 
@@ -171,6 +172,72 @@ deleted) when InboxEngine withdraws them. Production runs the sync every five mi
 
 To update the engine version: `cd packages/inbox-engine && git pull origin main`, then commit
 the new submodule pointer.
+
+---
+
+## Locations
+
+InboxEngine supplies an event's original location text, but The Forum resolves it against its
+own canonical `campus_locations` list before saving the event. The original text is retained as
+`locationText`, and `locationResolution` records how the final venue was chosen.
+
+### Resolution pipeline
+
+`resolveEventLocation()` tries these steps in order and stops at the first unambiguous result:
+
+1. **Engine** — use InboxEngine's `location.id` when it exists in `campus_locations`.
+2. **Online** — use the `online` venue when InboxEngine marks `location.online` true.
+3. **Alias** — exactly match normalized source text against `location_aliases`.
+4. **Gazetteer** — look up a named room, office, or department in the compact map gazetteer,
+   then follow its `parent_id` to a canonical campus location.
+5. **Fuzzy** — conservatively compare meaningful words, ignoring room numbers, `the`, and
+   building suffixes such as `Hall` and `Building`.
+6. **Unresolved** — use `tba` while preserving the original source text.
+
+The possible `locationResolution` values are:
+
+| Value | Meaning |
+|---|---|
+| `engine` | InboxEngine supplied a current canonical venue ID. |
+| `online` | InboxEngine marked the event as online. |
+| `alias` | A team-maintained exact alias matched the source text. |
+| `gazetteer` | A map POI resolved through its parent building. |
+| `fuzzy` | Conservative word matching found one venue. |
+| `manual` | An editor selected the location in The Forum. |
+| `unresolved` | No safe venue match was found; the event uses TBA. |
+
+### Fixing unmatched locations
+
+First, list unresolved source text and its event count:
+
+```bash
+bun run db:resolve-locations --report
+```
+
+Find the intended `locationId` in `campus_locations` with `bun run db:studio`, then add an
+alias and immediately re-resolve matching unresolved events:
+
+```bash
+bun run db:resolve-locations --alias "Smith Lounge" <locationId>
+```
+
+Aliases use normalized exact text, so include the wording reported by `--report`. The command
+updates matching events without waiting for another InboxEngine change.
+
+### Manual overrides and locationless events
+
+When an editor changes the venue of an InboxEngine-synced event in The Forum, its resolution
+becomes `manual`. The five-minute sync preserves the selected venue and detail on manual events;
+it also fills in missing original text for older events when available.
+
+Before this feature, synced events did not record whether a venue was selected by an editor.
+The migration conservatively marks existing non-TBA synced venues as `manual` to protect
+possible corrections; future InboxEngine venue changes will not replace those venues. Existing
+TBA events remain eligible for automatic resolution.
+
+`PUBLISH_LOCATIONLESS_EVENTS` is off by default. Set it to `true` in the sync environment only
+to publish active, high-confidence, exact-time InboxEngine events whose sole missing requirement
+is a location. They are shown as `Location TBA` until a venue is supplied.
 
 ---
 

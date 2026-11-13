@@ -13,7 +13,8 @@
     "db:seed": "bun run src/seed.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
-    "db:sync-engine": "bun run src/sync-inbox-engine.ts"
+    "db:sync-engine": "bun run src/sync-inbox-engine.ts",
+    "db:resolve-locations": "bun run src/resolve-locations.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

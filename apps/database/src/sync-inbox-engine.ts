@@ -13,7 +13,7 @@
  * - Events: the whole revisioned feed. Official MyPrincetonU events and publishable listserv
  *   extractions become published Forum events owned by the InboxEngine bot user; withdrawn or
  *   duplicate ones are unpublished (never deleted, so RSVPs survive). Recurring series (daily
- *   prayer, weekly office hours) show only their next SERIES_WINDOW occurrences, so each run
+ *   prayer, weekly office hours) show only their next two occurrences, so each run
  *   re-reads the full feed to advance that window.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -23,23 +23,28 @@ import {
   InboxEngineClient,
 } from "../../../packages/inbox-engine/src/client/index.ts";
 import { db } from "./db";
+import type { GazetteerPlace, LocationResolverContext } from "./location-resolver";
+import { locationChanged, mapEngineEvent } from "./map-engine-event";
 import {
   events,
   campusLocations,
   eventTagEnum,
   eventTags,
+  locationAliases,
   locationCategoryEnum,
   orgCategoryEnum,
   organizations,
   syncState,
   users,
 } from "./schema";
+import gazetteer from "./seeddata/location-gazetteer.json";
+import { shouldPublishEvent } from "./should-publish-event";
 
 const TBA_LOCATION = { id: "tba", name: "Location TBA", latitude: 0, longitude: 0 } as const;
+const ONLINE_LOCATION = { id: "online", name: "Online", latitude: 0, longitude: 0 } as const;
 const BOT = { netId: "_inboxengine", email: "inboxengine@tigerapps.org", displayName: "The Forum" };
 const CURSOR_KEY = "inbox-engine:events";
-/** Upcoming occurrences shown per recurring series. */
-const SERIES_WINDOW = 2;
+const PUBLISH_LOCATIONLESS_EVENTS = process.env.PUBLISH_LOCATIONLESS_EVENTS === "true";
 
 type OrgCategory = (typeof orgCategoryEnum.enumValues)[number];
 type LocationCategory = (typeof locationCategoryEnum.enumValues)[number];
@@ -48,6 +53,15 @@ type EventTag = (typeof eventTagEnum.enumValues)[number];
 const orgCategories = new Set<string>(orgCategoryEnum.enumValues);
 const locationCategories = new Set<string>(locationCategoryEnum.enumValues);
 const eventTagValues = new Set<string>(eventTagEnum.enumValues);
+
+function recordUnresolvedLocation(
+  texts: Map<string, number>,
+  locationResolution: string,
+  locationText: string | null,
+) {
+  if (locationResolution !== "unresolved" || !locationText) return;
+  texts.set(locationText, (texts.get(locationText) ?? 0) + 1);
+}
 
 function engineClient() {
   const url = process.env.INBOX_ENGINE_URL;
@@ -141,6 +155,7 @@ export async function syncLocations(client = engineClient()) {
       category: (locationCategories.has(l.category) ? l.category : "other") as LocationCategory,
     })),
     { ...TBA_LOCATION, category: "other" as LocationCategory },
+    { ...ONLINE_LOCATION, category: "other" as LocationCategory },
   ];
   for (const row of rows)
     await db
@@ -158,18 +173,8 @@ export async function syncLocations(client = engineClient()) {
   return { locations: rows.length };
 }
 
-function describe(e: EngineEvent): string {
-  return (e.summary || e.title).slice(0, 5000);
-}
-
-/** Events worth showing in The Forum: complete, not over, and (for series) coming up next. */
-function shouldPublish(e: EngineEvent, seriesRank: Map<string, number>): boolean {
-  if (e.status !== "active" || !e.publishable) return false;
-  const end = new Date(e.endsAt ?? e.startsAt).getTime();
-  if (end <= Date.now() - 6 * 3600_000) return false;
-  if (e.series && e.series.size > 2)
-    return (seriesRank.get(e.id) ?? Number.POSITIVE_INFINITY) < SERIES_WINDOW;
-  return true;
+function isUpcoming(e: EngineEvent): boolean {
+  return new Date(e.endsAt ?? e.startsAt).getTime() > Date.now() - 6 * 3600_000;
 }
 
 /** Rank each upcoming occurrence within its series by start time (0 = next). */
@@ -204,9 +209,18 @@ export async function syncEvents(client = engineClient()) {
   }
   const all = [...latest.values()];
   const seriesRank = rankSeries(all);
-  const knownLocations = new Set(
-    (await db.select({ id: campusLocations.id }).from(campusLocations)).map((l) => l.id),
-  );
+  const locationContext: LocationResolverContext = {
+    campusLocations: await db
+      .select({ id: campusLocations.id, name: campusLocations.name })
+      .from(campusLocations),
+    locationAliases: await db
+      .select({
+        aliasNormalized: locationAliases.aliasNormalized,
+        locationId: locationAliases.locationId,
+      })
+      .from(locationAliases),
+    gazetteer: gazetteer as GazetteerPlace[],
+  };
   const orgByExternal = new Map(
     (
       await db
@@ -217,6 +231,7 @@ export async function syncEvents(client = engineClient()) {
       .map((o) => [o.externalId as string, o.id]),
   );
   const stats = { seen: 0, published: 0, unpublished: 0, skipped: 0 };
+  const unresolvedLocationTexts = new Map<string, number>();
 
   {
     const changes = all;
@@ -228,13 +243,17 @@ export async function syncEvents(client = engineClient()) {
           id: events.id,
           status: events.status,
           isPublic: events.isPublic,
-          updatedAt: events.updatedAt,
+          sourceUpdatedAt: events.sourceUpdatedAt,
           announcementCount: events.announcementCount,
           announcedAt: events.announcedAt,
+          locationId: events.locationId,
+          locationDetail: events.locationDetail,
+          locationText: events.locationText,
+          locationResolution: events.locationResolution,
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
-      const publish = shouldPublish(e, seriesRank);
+      const publish = shouldPublishEvent(e, seriesRank, PUBLISH_LOCATIONLESS_EVENTS);
       const isPublished = existing?.status === "published" && existing.isPublic;
       const announcementCount = e.announcements.emails;
       const announcedAt = e.announcements.firstAnnouncedAt
@@ -245,13 +264,20 @@ export async function syncEvents(client = engineClient()) {
       const announcementsCurrent =
         existing?.announcementCount === announcementCount &&
         (existing.announcedAt?.getTime() ?? null) === (announcedAt?.getTime() ?? null);
-      // Unchanged upstream and already in the desired state: nothing to write.
-      if (
-        existing &&
-        publish === isPublished &&
-        existing.updatedAt.getTime() >= new Date(e.updatedAt).getTime() &&
-        (!publish || announcementsCurrent)
-      ) {
+      const upstreamCurrent =
+        existing?.sourceUpdatedAt &&
+        existing.sourceUpdatedAt.getTime() >= new Date(e.updatedAt).getTime();
+      const unchangedUpstream =
+        publish === isPublished && upstreamCurrent && (!publish || announcementsCurrent);
+      const retryUnresolvedLocation =
+        existing?.locationResolution === "unresolved" && isUpcoming(e);
+      // Unchanged upstream and no pending location retry: nothing to write.
+      if (existing && unchangedUpstream && !retryUnresolvedLocation) {
+        recordUnresolvedLocation(
+          unresolvedLocationTexts,
+          existing.locationResolution,
+          existing.locationText,
+        );
         stats.skipped++;
         continue;
       }
@@ -265,38 +291,49 @@ export async function syncEvents(client = engineClient()) {
         } else stats.skipped++;
         continue;
       }
-      const locationId =
-        e.location.id && knownLocations.has(e.location.id) ? e.location.id : TBA_LOCATION.id;
-      const detail =
-        [
-          e.location.room ? `Room ${e.location.room}` : null,
-          locationId === "tba" ? e.location.text : null,
-        ]
-          .filter(Boolean)
-          .join(" · ") || null;
       const values = {
-        title: e.title.slice(0, 200),
-        description: describe(e),
-        datetime: new Date(e.startsAt),
-        endDatetime: e.endsAt ? new Date(e.endsAt) : null,
-        locationId,
-        locationDetail: detail?.slice(0, 200) ?? null,
-        orgId: e.host ? (orgByExternal.get(e.host.id) ?? null) : null,
-        creatorId: bot,
-        flyerUrl: e.imageUrl,
-        externalLink: e.rsvpUrl,
-        sourceUrl: e.source.url,
-        isPublic: true,
-        status: "published" as const,
-        source: e.source.kind,
+        ...mapEngineEvent(e, {
+          botId: bot,
+          orgByExternal,
+          locationContext,
+          existingLocation: existing,
+        }),
         sourceMessageId: key,
-        announcementCount,
-        announcedAt,
-        updatedAt: new Date(),
       };
+      recordUnresolvedLocation(
+        unresolvedLocationTexts,
+        values.locationResolution,
+        values.locationText,
+      );
+      // Retry unresolved upcoming events so newly-added aliases or gazetteer
+      // entries can resolve them, but do not rewrite identical results.
+      if (existing && unchangedUpstream && !locationChanged(existing, values)) {
+        stats.skipped++;
+        continue;
+      }
       let eventId = existing?.id;
-      if (eventId) await db.update(events).set(values).where(eq(events.id, eventId));
-      else {
+      if (existing && eventId) {
+        // A concurrent editor or alias repair may have changed the location
+        // since the read above. Retry the event on the next sync instead of
+        // replacing that newer correction with stale values.
+        const updated = await db
+          .update(events)
+          .set(values)
+          .where(
+            and(
+              eq(events.id, eventId),
+              eq(events.locationId, existing.locationId),
+              eq(events.locationResolution, existing.locationResolution),
+              sql`${events.locationDetail} IS NOT DISTINCT FROM ${existing.locationDetail}`,
+              sql`${events.locationText} IS NOT DISTINCT FROM ${existing.locationText}`,
+            ),
+          )
+          .returning({ id: events.id });
+        if (!updated.length) {
+          stats.skipped++;
+          continue;
+        }
+      } else {
         const [row] = await db.insert(events).values(values).returning({ id: events.id });
         eventId = row?.id;
       }
@@ -318,6 +355,14 @@ export async function syncEvents(client = engineClient()) {
       target: syncState.key,
       set: { value: String(cursor), updatedAt: sql`now()` },
     });
+  const commonUnresolved = [...unresolvedLocationTexts.entries()]
+    .sort(
+      ([leftText, leftCount], [rightText, rightCount]) =>
+        rightCount - leftCount || leftText.localeCompare(rightText),
+    )
+    .slice(0, 20)
+    .map(([text, count]) => ({ count, text }));
+  console.table(commonUnresolved);
   return { ...stats, cursor };
 }
 

@@ -46,6 +46,7 @@ import {
 } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
 import { formatLongDate, formatTime } from "~/lib/date-format";
+import { formatEventLocation, originalLocationDiffers } from "~/lib/event-location";
 import { eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
 
@@ -184,6 +185,8 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
   const when = `${formatTime(event.datetime)}${
     event.endDatetime ? ` – ${formatTime(event.endDatetime)}` : ""
   } ET`;
+  const location = formatEventLocation(event);
+  const showOriginalLocation = originalLocationDiffers(event);
 
   return (
     <PageShell width="content">
@@ -243,9 +246,9 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
               <span className="sr-only">Location</span>
             </dt>
             <dd>
-              {event.locationName}
-              {event.locationDetail && (
-                <span className="text-forum-light-gray"> · {event.locationDetail}</span>
+              {location}
+              {showOriginalLocation && (
+                <span className="block text-forum-light-gray">{event.locationText}</span>
               )}
             </dd>
             {event.externalLink && (
