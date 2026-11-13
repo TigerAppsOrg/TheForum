@@ -25,6 +25,16 @@ describe("formatEventLocation", () => {
     ).toBe("Smith Lounge");
   });
 
+  test("uses legacy location detail for unresolved locations without source text", () => {
+    expect(
+      formatEventLocation({
+        locationId: "tba",
+        locationName: "Location TBA",
+        locationDetail: "Smith Lounge",
+      }),
+    ).toBe("Smith Lounge");
+  });
+
   test("uses Online and Location TBA special labels", () => {
     expect(formatEventLocation({ locationId: "online" })).toBe("Online");
     expect(formatEventLocation({ locationId: "tba" })).toBe("Location TBA");

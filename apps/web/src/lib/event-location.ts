@@ -21,7 +21,7 @@ export function formatEventLocation({
   locationText,
 }: EventLocationInput): string {
   if (locationId === "online") return "Online";
-  if (locationId === "tba") return locationText?.trim() || "Location TBA";
+  if (locationId === "tba") return locationText?.trim() || locationDetail?.trim() || "Location TBA";
   if (locationName) return locationDetail ? `${locationName} · ${locationDetail}` : locationName;
   return locationText?.trim() || "Location TBA";
 }

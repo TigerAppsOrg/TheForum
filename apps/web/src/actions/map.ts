@@ -19,6 +19,7 @@ import {
 import { z } from "zod";
 import { auth } from "~/auth";
 import { formatTime } from "~/lib/date-format";
+import { formatEventLocation } from "~/lib/event-location";
 import { eventDiscoverableBy, notFromHiddenOrg } from "~/lib/event-visibility";
 import { loadFriendIds } from "~/lib/social-graph";
 import { dateInputSchema, parseInput } from "~/lib/validation";
@@ -73,6 +74,8 @@ export async function getMapEvents(opts?: {
       flyerUrl: events.flyerUrl,
       locationId: campusLocations.id,
       locationName: campusLocations.name,
+      locationDetail: events.locationDetail,
+      locationText: events.locationText,
       latitude: campusLocations.latitude,
       longitude: campusLocations.longitude,
     })
@@ -140,7 +143,7 @@ export async function getMapEvents(opts?: {
     ...r,
     friendsAttending: friendsByEvent.get(r.id) ?? [],
     locationId: r.locationId ?? "",
-    locationName: r.locationName ?? "TBD",
+    locationName: formatEventLocation(r),
     rawDatetime: r.datetime.toISOString(),
     datetime: formatTime(r.datetime),
     tags: tagsByEvent.get(r.id) ?? [],

@@ -364,7 +364,6 @@ export function CalendarView() {
                       <p className="flex items-center gap-1 truncate text-[12px] text-forum-light-gray">
                         <MapPin size={11} aria-hidden />
                         {e.location}
-                        {e.locationDetail && ` · ${e.locationDetail}`}
                       </p>
                     )}
                   </div>

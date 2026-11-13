@@ -282,7 +282,7 @@ export const events = pgTable(
     /** Room or free-text place beyond the campus location ("Room 104", "Zoom"). */
     locationDetail: varchar("location_detail", { length: 200 }),
     locationText: varchar("location_text", { length: 300 }),
-    locationResolution: locationResolutionEnum().notNull(),
+    locationResolution: locationResolutionEnum("location_resolution").notNull(),
     /**
      * How many campus listserv emails announced this event (its own source
      * email plus folded-in reminders), from InboxEngine. 0 for unannounced

@@ -256,7 +256,7 @@
           "notNull": false
         },
         "locationResolution": {
-          "name": "locationResolution",
+          "name": "location_resolution",
           "type": "location_resolution",
           "typeSchema": "public",
           "primaryKey": false,
