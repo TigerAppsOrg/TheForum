@@ -82,6 +82,8 @@ compelling; it doesn't climb further past that.
   (`ORG_PAST_INTERACTION_AFFINITY` in `lib/feed-ranking.ts`) — a weaker signal of interest.
 - **0** otherwise, or if the event has no org.
 
+Any user can post under any org, so this affinity also applies to events posted by non-members.
+
 Following is an explicit "show me more of this", so it is weighted like friend RSVPs: +4.0
 equals the whole time-proximity range (2.0) and the gap between an announced and an
 unannounced listing (2.0) combined, so a followed org's event two or three weeks out still
