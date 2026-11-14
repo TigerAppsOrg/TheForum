@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCampusLocations, getEvent } from "~/actions/events";
+import { getOrgOptions } from "~/actions/orgs";
 import { EditEventForm } from "./edit-event-form";
 
 export const metadata: Metadata = { title: "Edit Event" };
@@ -11,11 +12,15 @@ export default async function EditEventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [event, locations] = await Promise.all([getEvent(id), getCampusLocations()]);
+  const [event, locations, orgs] = await Promise.all([
+    getEvent(id),
+    getCampusLocations(),
+    getOrgOptions(),
+  ]);
 
   if (!event) notFound();
   // Creator, or an owner/officer of the event's org.
   if (!event.canEdit) redirect(`/events/${id}`);
 
-  return <EditEventForm event={event} locations={locations} />;
+  return <EditEventForm event={event} locations={locations} orgs={orgs} />;
 }

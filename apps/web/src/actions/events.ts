@@ -14,7 +14,6 @@ import {
   notifications,
   or,
   orgFollowers,
-  orgMembers,
   organizations,
   rsvps,
   savedEvents,
@@ -332,6 +331,7 @@ export interface EventDetail {
   creatorId: string;
   creatorName: string;
   flyerUrl: string | null;
+  coverPreset: string | null;
   externalLink: string | null;
   isPublic: boolean;
   /** 'manual', or where an imported event came from: 'myprincetonu' | 'listserv'. */
@@ -379,6 +379,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
       creatorId: events.creatorId,
       creatorName: users.displayName,
       flyerUrl: events.flyerUrl,
+      coverPreset: events.coverPreset,
       externalLink: events.externalLink,
       isPublic: events.isPublic,
       source: events.source,
@@ -417,6 +418,7 @@ export async function getEvent(eventId: string): Promise<EventDetail | null> {
     creatorId: event.creatorId,
     creatorName: event.creatorName,
     flyerUrl: event.flyerUrl,
+    coverPreset: event.coverPreset,
     externalLink: event.externalLink,
     isPublic: event.isPublic,
     source: event.source,
@@ -552,15 +554,27 @@ const END_BEFORE_START = {
   path: ["endDatetime"],
 };
 
+const coverPresetSchema = z
+  .string()
+  .max(50)
+  .regex(/^[a-z0-9-]+$/)
+  .nullish();
+
+async function assertOrgExists(orgId: string) {
+  const [org] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+
+  if (!org) throw new Error("Organization not found");
+}
+
 const createEventSchema = eventFieldsSchema
   .extend({
-    orgId: idSchema.nullish(),
+    orgId: idSchema,
     flyerUrl: uploadedImageUrlSchema("event-flyers"),
-    coverPreset: z
-      .string()
-      .max(50)
-      .regex(/^[a-z0-9-]+$/)
-      .nullish(),
+    coverPreset: coverPresetSchema,
     status: eventStatusSchema.default("published"),
   })
   .refine(endNotBeforeStart, END_BEFORE_START);
@@ -571,7 +585,7 @@ export async function createEvent(data: {
   datetime: string;
   endDatetime?: string;
   locationId: string;
-  orgId?: string;
+  orgId: string;
   tags: string[];
   flyerUrl?: string;
   coverPreset?: string;
@@ -586,23 +600,7 @@ export async function createEvent(data: {
   const input = parseInput(createEventSchema, data);
   enforceRateLimit("createEvent", creatorId);
 
-  if (input.orgId) {
-    const [membership] = await db
-      .select({ orgId: orgMembers.orgId })
-      .from(orgMembers)
-      .where(
-        and(
-          eq(orgMembers.orgId, input.orgId),
-          eq(orgMembers.userId, creatorId),
-          inArray(orgMembers.role, ["owner", "officer"]),
-        ),
-      )
-      .limit(1);
-
-    if (!membership) {
-      throw new Error("Not authorized to create events for this organization");
-    }
-  }
+  await assertOrgExists(input.orgId);
 
   // Event + tags commit together, so a failure can't leave an untagged event.
   const eventId = await db.transaction(async (tx) => {
@@ -614,7 +612,7 @@ export async function createEvent(data: {
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
-        orgId: input.orgId ?? null,
+        orgId: input.orgId,
         creatorId,
         flyerUrl: input.flyerUrl,
         coverPreset: input.coverPreset ?? null,
@@ -637,7 +635,7 @@ export async function createEvent(data: {
 
   // Notify org followers about new event (exclude creator) — only for events
   // followers can actually open: published AND public.
-  if (input.orgId && input.status === "published" && input.isPublic) {
+  if (input.status === "published" && input.isPublic) {
     const followers = await db
       .select({ userId: orgFollowers.userId })
       .from(orgFollowers)
@@ -662,6 +660,8 @@ export async function createEvent(data: {
 
 const updateEventSchema = eventFieldsSchema
   .extend({
+    orgId: idSchema,
+    coverPreset: coverPresetSchema,
     // Checked against the event's current flyer below: an unchanged flyer is
     // always accepted (it may predate uploads, e.g. listserv-ingested events);
     // a new one must be one of our uploads.
@@ -682,8 +682,10 @@ export async function updateEvent(
     datetime: string;
     endDatetime?: string;
     locationId: string;
+    orgId: string;
     tags: string[];
     flyerUrl?: string;
+    coverPreset?: string | null;
     externalLink?: string;
     isPublic?: boolean;
   },
@@ -697,7 +699,7 @@ export async function updateEvent(
 
   // Creator, or owner/officer of the event's org.
   const [event] = await db
-    .select({ flyerUrl: events.flyerUrl })
+    .select({ flyerUrl: events.flyerUrl, orgId: events.orgId })
     .from(events)
     .where(and(eq(events.id, id), eventEditableBy(userId)))
     .limit(1);
@@ -705,6 +707,8 @@ export async function updateEvent(
   if (!event) {
     throw new Error("Not authorized to edit this event");
   }
+
+  await assertOrgExists(input.orgId);
 
   if (
     input.flyerUrl !== null &&
@@ -723,7 +727,9 @@ export async function updateEvent(
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
+        orgId: input.orgId,
         flyerUrl: input.flyerUrl,
+        coverPreset: input.coverPreset ?? null,
         externalLink: input.externalLink,
         isPublic: input.isPublic,
         updatedAt: new Date(),
@@ -743,6 +749,8 @@ export async function updateEvent(
   revalidatePath(`/events/${id}`);
   revalidatePath("/explore");
   revalidatePath("/events");
+  revalidatePath(`/orgs/${input.orgId}`);
+  if (event.orgId && event.orgId !== input.orgId) revalidatePath(`/orgs/${event.orgId}`);
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {

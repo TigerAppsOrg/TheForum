@@ -90,7 +90,7 @@ export function EventPreviewModal({
 
           {orgName && (
             <p className="mb-[12px] font-dm-sans text-[13px] text-forum-dark-gray">
-              <span className="font-medium">from </span>
+              <span className="font-medium">Hosted by </span>
               <span className="font-bold">{orgName}</span>
             </p>
           )}
