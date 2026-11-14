@@ -163,6 +163,9 @@ officers are managed on MyPrincetonU. Imported events are owned by the `_inboxen
 carry `source` (`myprincetonu` or `listserv`) and a `source_url`, and are unpublished (never
 deleted) when InboxEngine withdraws them. Production runs the sync every five minutes.
 
+Events created in the Forum always have a host organization, chosen by the creator. The host
+isn't verified: any user can post under any organization.
+
 To update the engine version: `cd packages/inbox-engine && git pull origin main`, then commit
 the new submodule pointer.
 

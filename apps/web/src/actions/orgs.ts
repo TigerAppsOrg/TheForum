@@ -538,20 +538,14 @@ export async function removeOfficer(orgId: string, userId: string): Promise<void
   revalidatePath(`/orgs/${input.orgId}`);
 }
 
-export async function getUserOrgs(): Promise<{ id: string; name: string }[]> {
+export async function getOrgOptions(): Promise<{ id: string; name: string }[]> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
-  const memberships = await db
-    .select({ orgId: orgMembers.orgId, name: organizations.name })
-    .from(orgMembers)
-    .innerJoin(organizations, eq(orgMembers.orgId, organizations.id))
-    .where(
-      and(eq(orgMembers.userId, session.user.id), inArray(orgMembers.role, ["owner", "officer"])),
-    )
+  return db
+    .select({ id: organizations.id, name: organizations.name })
+    .from(organizations)
     .orderBy(organizations.name);
-
-  return memberships.map((m) => ({ id: m.orgId, name: m.name }));
 }
 
 export async function getRecommendedOrgs(): Promise<OrgListItem[]> {

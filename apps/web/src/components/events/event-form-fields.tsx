@@ -325,6 +325,117 @@ export function LocationPicker({
   );
 }
 
+/** The sync can load thousands of orgs; search reaches any past this cap. */
+const MAX_ORG_OPTIONS_SHOWN = 100;
+
+export function OrgPicker({
+  orgs,
+  value,
+  onChange,
+  error,
+}: {
+  orgs: { id: string; name: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  error?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const filtered = orgs
+    .filter((org) => !search || org.name.toLowerCase().includes(search.toLowerCase()))
+    .slice(0, MAX_ORG_OPTIONS_SHOWN);
+  const selectedName = orgs.find((org) => org.id === value)?.name ?? "";
+
+  const pick = (id: string) => {
+    onChange(id);
+    setSearch("");
+    setOpen(false);
+  };
+
+  return (
+    <div>
+      <label htmlFor="event-org" className={FORM_LABEL}>
+        Host Organization *
+      </label>
+      <Popover open={open} onOpenChange={setOpen}>
+        {/* An anchor, not a trigger — see LocationPicker. */}
+        <PopoverAnchor asChild>
+          <div ref={anchorRef} className="relative">
+            <Search
+              size={14}
+              aria-hidden
+              className="absolute left-[12px] top-1/2 -translate-y-1/2 text-forum-placeholder"
+            />
+            <input
+              id="event-org"
+              type="text"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls="event-org-list"
+              aria-invalid={error ? true : undefined}
+              autoComplete="off"
+              value={open ? search : selectedName}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onClick={() => setOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setOpen(true);
+                  listRef.current?.querySelector("button")?.focus();
+                }
+              }}
+              placeholder="Search organizations"
+              className={cn(
+                "w-full h-[40px] pl-[34px] pr-[14px] border border-forum-medium-gray rounded-[8px] text-[13px] font-dm-sans outline-none focus:border-forum-cerulean",
+                error && "border-forum-coral",
+              )}
+            />
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          ref={listRef}
+          id="event-org-list"
+          className="w-[var(--radix-popover-trigger-width)] min-w-[240px] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (anchorRef.current?.contains(e.target as Node)) e.preventDefault();
+          }}
+        >
+          <div className="max-h-60 overflow-y-auto p-1">
+            {filtered.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                onClick={() => pick(org.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                  value === org.id
+                    ? "bg-forum-turquoise/20 text-black"
+                    : "text-forum-dark-gray hover:bg-forum-turquoise/10",
+                )}
+              >
+                {org.name}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-sm text-forum-light-gray">No organizations match.</p>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {error && <p className={FORM_ERROR}>{error}</p>}
+    </div>
+  );
+}
+
 /**
  * Tags are the fixed event_tag set the feed ranks on. The old free-text box
  * silently dropped anything outside that set on save; offering only the real
@@ -354,36 +465,5 @@ export function TagPicker({
         ))}
       </div>
     </fieldset>
-  );
-}
-
-/** Accessible on/off switch for the public/private setting. */
-export function VisibilityToggle({
-  isPublic,
-  onChange,
-}: {
-  isPublic: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isPublic}
-      aria-label="Public event"
-      onClick={() => onChange(!isPublic)}
-      className={cn(
-        "relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forum-cerulean",
-        isPublic ? "bg-forum-cerulean" : "bg-forum-medium-gray",
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "absolute top-0.5 left-0 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-          isPublic ? "translate-x-5.5" : "translate-x-0.5",
-        )}
-      />
-    </button>
   );
 }

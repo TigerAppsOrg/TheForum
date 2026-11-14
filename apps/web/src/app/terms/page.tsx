@@ -35,8 +35,8 @@ export default function TermsPage() {
             event if it changes or is cancelled.
           </li>
           <li>
-            Only post for an organization if you&apos;re allowed to speak for it, and only upload
-            images you have the right to share.
+            Choose the organization actually hosting the event, and only upload images you have the
+            right to share.
           </li>
           <li>
             No spam, harassment, hateful or explicit content, or anything that breaks the law or
