@@ -335,16 +335,28 @@ nudge alone.
 
 ## Recommendation data deployment and verification
 
-1. Run `bun run db:migrate` before deploying code that selects `campus_locations.area`.
-   The nullable column preserves existing rows and requires no default region.
-2. Run `bun run db:setup-recommendations`. This idempotent transaction loads all checked-in
-   tag embeddings and backfills all existing location areas. It creates no demo users or
-   events. Re-run it after changing mapping rules or the checked-in embeddings.
-3. Deploy the web/sync changes. Future location syncs update areas automatically.
+Staging and production deployments automatically prepare recommendation data on every
+release; no manual setup command is required:
 
-Before applying an area backfill, run `bun run db:setup-recommendations --dry-run`.
-It validates embeddings and prints proposed location IDs, names, old areas and new
-areas without writing locations or embeddings. The ordinary command applies the backfill.
+1. `deploy/build-release.sh` bundles `tools/setup-recommendations.js` alongside the migration
+   and sync tools, and copies its runtime JSON to `tools/seeddata/eventTags_embeddings.json`.
+2. `deploy/run-release.sh` applies migrations, including the nullable venue `area` column,
+   then runs the bundled recommendation setup using the same `shared/environment` file.
+   The idempotent transaction loads all checked-in tag embeddings and backfills existing
+   venue areas without creating demo users or events.
+3. Only after both steps succeed does the deploy switch the `current` release and restart
+   the web service. Setup failure aborts the deploy while the current release keeps serving;
+   already-applied migrations are not rolled back. Subsequent venue syncs assign areas to
+   new and updated locations.
+
+For local development or troubleshooting, `bun run db:setup-recommendations --dry-run`
+validates embeddings and prints proposed location IDs, names, old areas and new areas
+without writing data. `bun run db:setup-recommendations` applies the setup manually.
+For release verification, build the web app and run `deploy/build-release.sh`, extract
+the tarball, and run its `tools/setup-recommendations.js` from another working directory
+against a migrated disposable database. Check exit code 0, embedding contents and venue
+areas, then repeat to verify idempotence and the runtime JSON path.
+
 The next normal `bun run db:sync-engine` preserves eligible published history going
 forward. Already-demoted imported drafts remain unchanged: the database does not record
 whether expiration or a withdrawal caused their unpublication. Restoring those requires
