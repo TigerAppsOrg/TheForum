@@ -1,5 +1,5 @@
 {
-  "id": "93c2e17d-2111-464a-97b7-83dc784199c6",
+  "id": "8197fe6e-e2a2-46cf-b92f-c50e738dd484",
   "prevId": "2cd6094f-33e0-4aa1-a700-002ee53f3861",
   "version": "7",
   "dialect": "postgresql",
@@ -8,6 +8,13 @@
       "name": "campus_locations",
       "schema": "",
       "columns": {
+        "area": {
+          "name": "area",
+          "type": "campus_region",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "id": {
           "name": "id",
           "type": "varchar(100)",
@@ -248,19 +255,6 @@
           "type": "varchar(200)",
           "primaryKey": false,
           "notNull": false
-        },
-        "location_text": {
-          "name": "location_text",
-          "type": "varchar(300)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "locationResolution": {
-          "name": "location_resolution",
-          "type": "location_resolution",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
         },
         "announcement_count": {
           "name": "announcement_count",
@@ -833,71 +827,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.location_aliases": {
-      "name": "location_aliases",
-      "schema": "",
-      "columns": {
-        "alias_normalized": {
-          "name": "alias_normalized",
-          "type": "varchar(250)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "location_id": {
-          "name": "location_id",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "location_aliases_location_id_campus_locations_id_fk": {
-          "name": "location_aliases_location_id_campus_locations_id_fk",
-          "tableFrom": "location_aliases",
-          "tableTo": "campus_locations",
-          "columnsFrom": [
-            "location_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "location_aliases_created_by_users_id_fk": {
-          "name": "location_aliases_created_by_users_id_fk",
-          "tableFrom": "location_aliases",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2044,19 +1973,6 @@
         "library",
         "dining",
         "other"
-      ]
-    },
-    "public.location_resolution": {
-      "name": "location_resolution",
-      "schema": "public",
-      "values": [
-        "engine",
-        "online",
-        "alias",
-        "gazetteer",
-        "fuzzy",
-        "manual",
-        "unresolved"
       ]
     },
     "public.notification_type": {

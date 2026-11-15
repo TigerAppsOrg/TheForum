@@ -159,11 +159,14 @@ Large, visible button to encourage clicks.
 Users must be able to:
 
 * **P0:** Input title, description  
+* **P0:** Select a host organization (required) — any user can post under any organization  
 * **P0:** Select date/time  
 * **P0:** Select campus location  
 * **P0:** Add tags  
 * **P0:** Upload flyer image  
 * **P1:** Add external registration link
+
+The Edit Event form shows the same fields as Create Event, in the same order.
 
 Users can edit/delete their own events.
 

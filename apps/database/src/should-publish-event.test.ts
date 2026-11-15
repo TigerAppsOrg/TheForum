@@ -15,7 +15,7 @@ const event = {
 } as EngineEvent;
 const now = new Date("2026-11-13T12:00:00Z").getTime();
 const allowed = (value: EngineEvent, flag: boolean) =>
-  shouldPublishEvent(value, new Map(), flag, now);
+  shouldPublishEvent(value, new Map(), flag, false, now);
 
 describe("locationless publication", () => {
   test("only admits qualifying events when enabled", () => {
@@ -29,5 +29,11 @@ describe("locationless publication", () => {
     );
     expect(allowed({ ...event, location: { ...event.location, online: true } }, true)).toBe(false);
     expect(allowed({ ...event, publishable: true }, false)).toBe(true);
+  });
+
+  test("keeps an ended event published only when it already was", () => {
+    const ended = { ...event, publishable: true, startsAt: "2026-11-10T12:00:00Z" };
+    expect(shouldPublishEvent(ended, new Map(), false, true, now)).toBe(true);
+    expect(shouldPublishEvent(ended, new Map(), false, false, now)).toBe(false);
   });
 });

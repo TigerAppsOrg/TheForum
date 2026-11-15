@@ -1,6 +1,6 @@
 {
-  "id": "b2ff0428-e5c1-4116-906e-0559f50e65b5",
-  "prevId": "93c2e17d-2111-464a-97b7-83dc784199c6",
+  "id": "7ee6f932-228f-429c-8e1e-0db3acdc1a0a",
+  "prevId": "8197fe6e-e2a2-46cf-b92f-c50e738dd484",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8,6 +8,13 @@
       "name": "campus_locations",
       "schema": "",
       "columns": {
+        "area": {
+          "name": "area",
+          "type": "campus_region",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "id": {
           "name": "id",
           "type": "varchar(100)",
@@ -237,6 +244,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_updated_at": {
+          "name": "source_updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "source_url": {
           "name": "source_url",
           "type": "text",
@@ -255,7 +268,7 @@
           "primaryKey": false,
           "notNull": false
         },
-        "locationResolution": {
+        "location_resolution": {
           "name": "location_resolution",
           "type": "location_resolution",
           "typeSchema": "public",

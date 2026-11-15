@@ -170,6 +170,9 @@ officers are managed on MyPrincetonU. Imported events are owned by the `_inboxen
 carry `source` (`myprincetonu` or `listserv`) and a `source_url`, and are unpublished (never
 deleted) when InboxEngine withdraws them. Production runs the sync every five minutes.
 
+Events created in the Forum always have a host organization, chosen by the creator. The host
+isn't verified: any user can post under any organization.
+
 To update the engine version: `cd packages/inbox-engine && git pull origin main`, then commit
 the new submodule pointer.
 
@@ -251,13 +254,16 @@ is a location. They are shown as `Location TBA` until a venue is supplied.
 Every push to `staging` or `main` runs CI, then `.github/workflows/deploy.yml`:
 
 1. Builds a Next.js standalone server with the public map tokens (repo variables) and the
-   environment's `NEXT_PUBLIC_SITE_URL`, and bundles `tools/migrate.js` and `tools/sync.js` with Bun
-   (`deploy/build-release.sh`).
+   environment's `NEXT_PUBLIC_SITE_URL`, and bundles `tools/migrate.js`, `tools/sync.js` and
+   `tools/setup-recommendations.js` with Bun (`deploy/build-release.sh`). The release includes
+   `tools/seeddata/eventTags_embeddings.json` for recommendation setup.
 2. Uploads the checksummed tarball to S3 through GitHub OIDC (`TheForumGitHubDeployRole`).
 3. Runs the `TheForumDeploy` SSM document on the instance, which executes `deploy/run-release.sh`:
-   fetch the SecureString `/theforum/<env>/environment`, run migrations, switch the `current`
-   symlink, restart systemd, health-check with automatic rollback, install the nginx site, and
-   enable the five-minute InboxEngine sync timer.
+   fetch the SecureString `/theforum/<env>/environment`, run migrations and recommendation data
+   setup, switch the `current` symlink, restart systemd, health-check with automatic rollback,
+   install the nginx site, and enable the five-minute InboxEngine sync timer. Recommendation
+   setup loads tag embeddings and backfills venue areas on every deploy; a failure stops the
+   deploy before switching releases. Already-applied migrations are not rolled back.
 
 nginx serves each host on :80 behind Cloudflare (TLS at the edge); `theforumdev.tigerapps.org`
 redirects to `forumdev`. InboxEngine runs on the same host (`inbox-engine.service`, :8300).

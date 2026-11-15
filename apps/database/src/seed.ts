@@ -5,6 +5,7 @@
  */
 
 import { eq, sql } from "drizzle-orm";
+import { campusAreaForLocation } from "./campus-regions";
 import { db } from "./db";
 import {
   events,
@@ -265,7 +266,12 @@ async function seed() {
     },
   ];
 
-  await db.insert(campusLocations).values(locationData).onConflictDoNothing();
+  await db
+    .insert(campusLocations)
+    .values(
+      locationData.map((location) => ({ ...location, area: campusAreaForLocation(location) })),
+    )
+    .onConflictDoUpdate({ target: campusLocations.id, set: { area: sql`excluded.area` } });
   console.log(`  Locations: ${locationData.length}`);
 
   /* ═══ 2. Users ═══ */

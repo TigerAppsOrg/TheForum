@@ -12,7 +12,8 @@
  * - Venues: InboxEngine's campus gazetteer, upserted into campus_locations.
  * - Events: the whole revisioned feed. Official MyPrincetonU events and publishable listserv
  *   extractions become published Forum events owned by the InboxEngine bot user; withdrawn or
- *   duplicate ones are unpublished (never deleted, so RSVPs survive). Recurring series (daily
+ *   duplicate ones are unpublished (never deleted, so RSVPs survive). Naturally ended published
+ *   events remain published for saved/RSVP history. Recurring series (daily
  *   prayer, weekly office hours) show only their next two occurrences, so each run
  *   re-reads the full feed to advance that window.
  */
@@ -21,7 +22,8 @@ import {
   type EngineEvent,
   type EngineOrganization,
   InboxEngineClient,
-} from "../../../packages/inbox-engine/src/client/index.ts";
+} from "../../../packages/inbox-engine/src/client";
+import { campusAreaForLocation } from "./campus-regions";
 import { db } from "./db";
 import type { GazetteerPlace, LocationResolverContext } from "./location-resolver";
 import { locationChanged, mapEngineEvent } from "./map-engine-event";
@@ -160,11 +162,12 @@ export async function syncLocations(client = engineClient()) {
   for (const row of rows)
     await db
       .insert(campusLocations)
-      .values(row)
+      .values({ ...row, area: campusAreaForLocation(row) })
       .onConflictDoUpdate({
         target: campusLocations.id,
         set: {
           name: row.name,
+          area: campusAreaForLocation(row),
           latitude: row.latitude,
           longitude: row.longitude,
           category: row.category,
@@ -178,9 +181,9 @@ function isUpcoming(e: EngineEvent): boolean {
 }
 
 /** Rank each upcoming occurrence within its series by start time (0 = next). */
-function rankSeries(all: EngineEvent[]): Map<string, number> {
+function rankSeries(all: EngineEvent[], asOf: number): Map<string, number> {
   const bySeries = new Map<string, EngineEvent[]>();
-  const now = Date.now() - 6 * 3600_000;
+  const now = asOf - 6 * 3600_000;
   for (const e of all) {
     if (!e.series || e.status !== "active") continue;
     if (new Date(e.endsAt ?? e.startsAt).getTime() <= now) continue;
@@ -208,7 +211,8 @@ export async function syncEvents(client = engineClient()) {
     cursor = next;
   }
   const all = [...latest.values()];
-  const seriesRank = rankSeries(all);
+  const now = Date.now();
+  const seriesRank = rankSeries(all, now);
   const locationContext: LocationResolverContext = {
     campusLocations: await db
       .select({ id: campusLocations.id, name: campusLocations.name })
@@ -253,8 +257,14 @@ export async function syncEvents(client = engineClient()) {
         })
         .from(events)
         .where(eq(events.sourceMessageId, key));
-      const publish = shouldPublishEvent(e, seriesRank, PUBLISH_LOCATIONLESS_EVENTS);
       const isPublished = existing?.status === "published" && existing.isPublic;
+      const publish = shouldPublishEvent(
+        e,
+        seriesRank,
+        PUBLISH_LOCATIONLESS_EVENTS,
+        isPublished,
+        now,
+      );
       const announcementCount = e.announcements.emails;
       const announcedAt = e.announcements.firstAnnouncedAt
         ? new Date(e.announcements.firstAnnouncedAt)

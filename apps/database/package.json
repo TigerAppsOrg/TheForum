@@ -10,6 +10,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:setup-recommendations": "bun run src/setup-recommendations.ts",
     "db:seed": "bun run src/seed.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
