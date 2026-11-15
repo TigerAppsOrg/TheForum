@@ -144,6 +144,12 @@ if your commit fails, read the Biome output, fix, and re-commit.
 
 ## Organizations and events from InboxEngine
 
+InboxEngine is the only source of new organizations in the application. Users can no
+longer create organizations. Existing `source = 'manual'` organizations are retained,
+including their owners, officers, logos and event-posting permissions; new manual
+organizations are no longer created through the app. The seed script still provides
+local development organizations.
+
 Official organizations (all MyPrincetonU groups, with logos, descriptions, social links and
 MyPrincetonU page links), campus venues and events come from
 [InboxEngine](https://github.com/TigerAppsOrg/InboxEngine), which also powers TigerInbox.
@@ -162,6 +168,9 @@ Imported orgs have `source = 'myprincetonu'` and `external_id = 'mpu:<group id>'
 officers are managed on MyPrincetonU. Imported events are owned by the `_inboxengine` bot user,
 carry `source` (`myprincetonu` or `listserv`) and a `source_url`, and are unpublished (never
 deleted) when InboxEngine withdraws them. Production runs the sync every five minutes.
+
+Events created in the Forum always have a host organization, chosen by the creator. The host
+isn't verified: any user can post under any organization.
 
 To update the engine version: `cd packages/inbox-engine && git pull origin main`, then commit
 the new submodule pointer.

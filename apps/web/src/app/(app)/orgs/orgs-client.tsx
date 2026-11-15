@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Eye, EyeOff, Plus, Users } from "lucide-react";
+import { Check, Eye, EyeOff, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -151,13 +151,6 @@ export function OrgsClient({
           onChange={(e) => handleSearch(e.target.value)}
           className="flex-1"
         />
-        <Button asChild variant="cerulean" size="sm" className="h-11 rounded-full px-4">
-          <Link href="/orgs/create">
-            <Plus />
-            <span className="hidden sm:inline">New organization</span>
-            <span className="sm:hidden">New</span>
-          </Link>
-        </Button>
       </div>
 
       <FilterChipGroup label="Filter organizations by category" className="gap-1.5">
@@ -264,7 +257,7 @@ export function OrgsClient({
               description={
                 searchQuery || activeCategory !== "all"
                   ? "Try adjusting your search or filters."
-                  : "Be the first to create one!"
+                  : "Campus organizations will appear here as they are synced."
               }
             />
           )}

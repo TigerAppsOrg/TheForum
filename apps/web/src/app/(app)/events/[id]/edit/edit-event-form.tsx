@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowUp, Eye, Globe, Link2, Lock, Pencil, Upload, X } from "lucide-react";
+import { ArrowUp, Eye, Link2, Pencil, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type EventDetail, updateEvent } from "~/actions/events";
+import { CoverPresetsPicker } from "~/components/events/cover-presets";
 import {
   type CampusLocation,
   type EventWhen,
@@ -13,8 +14,8 @@ import {
   FORM_LABEL,
   LocationPicker,
   OTHER_LOCATION_ID,
+  OrgPicker,
   TagPicker,
-  VisibilityToggle,
   type WhenErrors,
   describeEventWhen,
   normalizeExternalLink,
@@ -32,17 +33,19 @@ import { cn } from "~/lib/utils";
 interface EditEventFormProps {
   event: EventDetail;
   locations: CampusLocation[];
+  orgs: { id: string; name: string }[];
 }
 
 type FormErrors = WhenErrors &
-  Partial<Record<"title" | "description" | "location" | "link", string>>;
+  Partial<Record<"title" | "org" | "description" | "location" | "link", string>>;
 
-export function EditEventForm({ event, locations }: EditEventFormProps) {
+export function EditEventForm({ event, locations, orgs }: EditEventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState(event.title);
+  const [selectedOrgId, setSelectedOrgId] = useState(event.orgId ?? "");
   const [description, setDescription] = useState(event.description);
   // Seeded from the stored instant, read back as Princeton wall-clock time.
   const [when, setWhen] = useState<EventWhen>(() => ({
@@ -56,7 +59,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
   const [flyerPreview, setFlyerPreview] = useState<string | null>(event.flyerUrl);
   const [isUploading, setIsUploading] = useState(false);
   const [externalLink, setExternalLink] = useState(event.externalLink ?? "");
-  const [isPublic, setIsPublic] = useState(event.isPublic);
+  const [coverPreset, setCoverPreset] = useState<string | null>(event.coverPreset);
   const [showPreview, setShowPreview] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -98,6 +101,7 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
   const handleSubmit = () => {
     const nextErrors: FormErrors = {};
     if (!title.trim()) nextErrors.title = "Title is required";
+    if (!selectedOrgId) nextErrors.org = "Choose a host organization";
     if (!description.trim()) nextErrors.description = "Description is required";
     if (!locationId) nextErrors.location = "Choose a location, or “Other / off-campus / TBA”";
     const link = normalizeExternalLink(externalLink);
@@ -123,10 +127,13 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
           datetime: resolved.datetime.toISOString(),
           endDatetime: resolved.endDatetime?.toISOString(),
           locationId,
+          orgId: selectedOrgId,
           tags,
           flyerUrl: flyerUrl ?? undefined,
+          coverPreset: flyerUrl ? null : coverPreset,
           externalLink: link || undefined,
-          isPublic,
+          // The server defaults a missing value to true, which would publicize private events.
+          isPublic: event.isPublic,
         });
         toast.success("Changes saved");
         router.push(`/events/${event.id}`);
@@ -216,6 +223,18 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
             />
           </div>
 
+          {/* Cover presets — optional, folded away so the form stays short */}
+          {!flyerPreview && (
+            <details className="mb-4 font-dm-sans" open={Boolean(coverPreset)}>
+              <summary className="cursor-pointer text-[12px] font-medium text-forum-cerulean hover:underline">
+                {coverPreset ? "Preset cover selected — change" : "No flyer? Pick a preset cover"}
+              </summary>
+              <div className="mt-2">
+                <CoverPresetsPicker selected={coverPreset} onSelect={(id) => setCoverPreset(id)} />
+              </div>
+            </details>
+          )}
+
           {/* Event Title */}
           <div className="mb-5">
             <label htmlFor="event-title" className={FORM_LABEL}>
@@ -241,6 +260,19 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
               <Pencil size={16} aria-hidden className="text-forum-cerulean flex-shrink-0 ml-2" />
             </div>
             {errors.title && <p className={FORM_ERROR}>{errors.title}</p>}
+          </div>
+
+          {/* Host Organization */}
+          <div className="mb-5">
+            <OrgPicker
+              orgs={orgs}
+              value={selectedOrgId}
+              onChange={(id) => {
+                setSelectedOrgId(id);
+                clearError("org");
+              }}
+              error={errors.org}
+            />
           </div>
 
           {/* Event Description */}
@@ -294,26 +326,6 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
               }}
               error={errors.location}
             />
-          </div>
-
-          {/* Visibility */}
-          <div className="flex items-center justify-between gap-4 mb-5">
-            <div className="flex items-center gap-[10px]">
-              {isPublic ? (
-                <Globe size={16} aria-hidden className="text-forum-cerulean" />
-              ) : (
-                <Lock size={16} aria-hidden className="text-forum-orange" />
-              )}
-              <div>
-                <p className="text-[13px] font-bold font-dm-sans text-black">
-                  {isPublic ? "Public Event" : "Private Event"}
-                </p>
-                <p className="text-[11px] font-dm-sans text-forum-light-gray">
-                  {isPublic ? "Anyone on campus can discover this" : "Only people with the link"}
-                </p>
-              </div>
-            </div>
-            <VisibilityToggle isPublic={isPublic} onChange={setIsPublic} />
           </div>
 
           {/* Tags */}
@@ -383,8 +395,9 @@ export function EditEventForm({ event, locations }: EditEventFormProps) {
             : (locations.find((l) => l.id === locationId)?.name ?? "")
         }
         tags={tags}
-        orgName={event.orgName ?? undefined}
+        orgName={orgs.find((o) => o.id === selectedOrgId)?.name}
         flyerPreview={flyerPreview}
+        coverPreset={coverPreset}
       />
     </PageShell>
   );
