@@ -715,7 +715,6 @@ export async function updateEvent(
       flyerUrl: events.flyerUrl,
       orgId: events.orgId,
       locationId: events.locationId,
-      locationDetail: events.locationDetail,
       sourceMessageId: events.sourceMessageId,
     })
     .from(events)
@@ -748,9 +747,9 @@ export async function updateEvent(
         datetime: input.datetime,
         endDatetime: input.endDatetime ?? null,
         locationId: input.locationId,
-        ...(input.locationId !== event.locationId
-          ? { locationDetail: event.locationDetail?.match(/^Room\s+\S+/i)?.[0] ?? null }
-          : {}),
+        // The room or detail belonged to the old venue, and this form has no
+        // field to re-enter it, so drop it rather than show it at the new venue.
+        ...(input.locationId !== event.locationId ? { locationDetail: null } : {}),
         ...(settingSyncedLocation ? { locationResolution: "manual" as const } : {}),
         orgId: input.orgId,
         flyerUrl: input.flyerUrl,
