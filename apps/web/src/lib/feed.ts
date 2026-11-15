@@ -5,6 +5,7 @@ import {
   db,
   desc,
   eq,
+  eventTagEmbeddings,
   eventTags,
   gt,
   gte,
@@ -21,10 +22,18 @@ import {
   savedEvents,
   sql,
   userInterests,
+  userRegions,
   users,
 } from "@the-forum/database";
 import type { FeedEvent } from "~/actions/events";
 import { formatEventDateTime } from "~/lib/date-format";
+import {
+  TAG_EMBEDDING_DIMENSIONS,
+  eventVector,
+  profileVector,
+  similarProfileTags,
+  validVector,
+} from "~/lib/event-similarity";
 import { eventDiscoverableBy, hiddenOrgIdsQuery, notFromHiddenOrg } from "~/lib/event-visibility";
 import {
   CANDIDATE_HORIZON_DAYS,
@@ -171,6 +180,16 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
   const isVisible = (item: { orgId: string | null }) =>
     !item.orgId || !hiddenOrgIds.has(item.orgId);
 
+  // New recommendation data is needed only for the personalized sort.
+  const recommendations =
+    sort === "foryou"
+      ? await loadRecommendations(userId, nowDate)
+      : { areas: [], embeddings: new Map<string, readonly number[]>(), profile: null };
+  const semanticTags = similarProfileTags(
+    recommendations.profile,
+    recommendations.embeddings,
+  ) as EventTag[];
+
   // ── Candidate generation ────────────────────────────────
   const conditions = [
     gt(events.datetime, nowDate),
@@ -220,6 +239,7 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
     datetime: events.datetime,
     flyerUrl: events.flyerUrl,
     locationName: campusLocations.name,
+    area: campusLocations.area,
     orgId: events.orgId,
     orgName: organizations.name,
     orgLogoUrl: organizations.logoUrl,
@@ -257,6 +277,18 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
       sort !== "foryou"
         ? []
         : [
+            recommendations.areas.length > 0
+              ? inArray(campusLocations.area, recommendations.areas)
+              : undefined,
+            semanticTags.length > 0
+              ? inArray(
+                  events.id,
+                  db
+                    .select({ eventId: eventTags.eventId })
+                    .from(eventTags)
+                    .where(inArray(eventTags.tag, semanticTags)),
+                )
+              : undefined,
             myOrgIds.size > 0 ? inArray(events.orgId, [...myOrgIds]) : undefined,
             friendIds.length > 0
               ? inArray(
@@ -328,6 +360,8 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
       friendIds,
     );
     const ctx: ScoringContext = {
+      preferredAreas: new Set(recommendations.areas),
+      profileVector: recommendations.profile,
       userId,
       now,
       interestTags: new Set(interestTags),
@@ -338,6 +372,8 @@ export async function loadRankedFeed(userId: string, query: FeedQuery): Promise<
       ...item,
       score: scoreEvent(
         {
+          area: item.event.area,
+          vector: eventVector(signals.tags.get(item.id) ?? [], recommendations.embeddings),
           id: item.id,
           orgId: item.orgId,
           startsAt: item.startsAt,
@@ -518,4 +554,58 @@ function groupBy<R, V>(rows: readonly R[], key: (row: R) => string, value: (row:
     else map.set(k, [value(row)]);
   }
   return map;
+}
+
+/** Current saves/RSVPs, bounded by the ranking instant, in a constant number of queries. */
+async function loadRecommendations(userId: string, asOf: Date) {
+  const [areas, embeddingRows, tags] = await Promise.all([
+    db.select({ area: userRegions.region }).from(userRegions).where(eq(userRegions.userId, userId)),
+    db.select().from(eventTagEmbeddings),
+    // Subqueries keep long histories out of SQL parameter lists.
+    db
+      .select({ eventId: eventTags.eventId, tag: eventTags.tag })
+      .from(eventTags)
+      .innerJoin(events, eq(eventTags.eventId, events.id))
+      .where(
+        and(
+          eventDiscoverableBy(userId),
+          or(
+            inArray(
+              events.id,
+              db
+                .select({ eventId: savedEvents.eventId })
+                .from(savedEvents)
+                .where(and(eq(savedEvents.userId, userId), lte(savedEvents.createdAt, asOf))),
+            ),
+            inArray(
+              events.id,
+              db
+                .select({ eventId: rsvps.eventId })
+                .from(rsvps)
+                .where(and(eq(rsvps.userId, userId), lte(rsvps.createdAt, asOf))),
+            ),
+          ),
+        ),
+      ),
+  ]);
+  const embeddings = new Map<string, readonly number[]>(
+    embeddingRows
+      .filter(
+        (row) => validVector(row.embedding) && row.embedding.length === TAG_EMBEDDING_DIMENSIONS,
+      )
+      .map((row) => [row.tagName, row.embedding]),
+  );
+  const tagsByEvent = groupBy(
+    tags,
+    (row) => row.eventId,
+    (row) => row.tag,
+  );
+  const vectors = new Map(
+    [...tagsByEvent].map(([id, eventTags]) => [id, eventVector(eventTags, embeddings)]),
+  );
+  return {
+    areas: areas.map((row) => row.area),
+    embeddings,
+    profile: profileVector([...vectors.keys()], vectors),
+  };
 }

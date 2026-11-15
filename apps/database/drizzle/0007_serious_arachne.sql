@@ -1,0 +1,1 @@
+ALTER TABLE "campus_locations" ADD COLUMN "area" "campus_region";

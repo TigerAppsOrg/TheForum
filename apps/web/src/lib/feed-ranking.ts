@@ -1,3 +1,5 @@
+import { cosineSimilarity } from "./event-similarity";
+
 /**
  * Pure ranking logic for the Explore feed — no DB, no auth, so it can be
  * unit-tested and reasoned about in isolation. The data loading lives in
@@ -46,6 +48,8 @@ export const DEFAULT_FEED_SORT: FeedSort = "foryou";
 
 export const WEIGHTS = {
   interest: 3.0,
+  location: 1.5,
+  similarity: 3.0,
   time: 2.0,
   friends: 4.0,
   org: 4.0,
@@ -108,6 +112,8 @@ export function seededRandom(seed: string): number {
 }
 
 export interface ScoringContext {
+  preferredAreas: ReadonlySet<string>;
+  profileVector: readonly number[] | null;
   userId: string;
   /** The instant the ranking is computed for (see `asOf` in docs/ranking.md). */
   now: number;
@@ -119,6 +125,8 @@ export interface ScoringContext {
 }
 
 export interface ScoringInput {
+  area: string | null;
+  vector: readonly number[] | null;
   id: string;
   orgId: string | null;
   startsAt: number;
@@ -186,6 +194,8 @@ export function scoreEvent(event: ScoringInput, ctx: ScoringContext): number {
   const randomNudge = seededRandom(`${ctx.userId}:${day}:${event.id}`);
 
   return (
+    WEIGHTS.location * (event.area && ctx.preferredAreas.has(event.area) ? 1 : 0) +
+    WEIGHTS.similarity * cosineSimilarity(event.vector, ctx.profileVector) +
     WEIGHTS.interest * interestRelevance +
     WEIGHTS.time * timeProximity +
     WEIGHTS.friends * friendRsvpScore +
