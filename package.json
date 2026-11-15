@@ -17,7 +17,8 @@
     "db:setup-recommendations": "bun run --cwd apps/database db:setup-recommendations",
     "db:seed": "turbo db:seed",
     "prepare": "husky",
-    "db:sync-engine": "turbo db:sync-engine"
+    "db:sync-engine": "turbo db:sync-engine",
+    "db:resolve-locations": "cd apps/database && bun run db:resolve-locations"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -54,6 +54,7 @@ export function EditEventForm({ event, locations, orgs }: EditEventFormProps) {
     endTime: event.endDatetime ? toZonedTimeValue(event.endDatetime) : "",
   }));
   const [locationId, setLocationId] = useState(event.locationId);
+  const [locationSelected, setLocationSelected] = useState(false);
   const [tags, setTags] = useState<string[]>(event.tags.filter(isInterestValue));
   const [flyerUrl, setFlyerUrl] = useState<string | null>(event.flyerUrl);
   const [flyerPreview, setFlyerPreview] = useState<string | null>(event.flyerUrl);
@@ -127,6 +128,7 @@ export function EditEventForm({ event, locations, orgs }: EditEventFormProps) {
           datetime: resolved.datetime.toISOString(),
           endDatetime: resolved.endDatetime?.toISOString(),
           locationId,
+          locationSelected,
           orgId: selectedOrgId,
           tags,
           flyerUrl: flyerUrl ?? undefined,
@@ -322,6 +324,7 @@ export function EditEventForm({ event, locations, orgs }: EditEventFormProps) {
               value={locationId}
               onChange={(id) => {
                 setLocationId(id);
+                setLocationSelected(true);
                 clearError("location");
               }}
               error={errors.location}

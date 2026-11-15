@@ -241,6 +241,7 @@ export function OrgProfileClient({
               }
               datetime={event.datetime}
               location={event.locationName}
+              locationText={event.locationText}
               tags={event.tags}
               orgName={org.name}
               orgId={org.id}
