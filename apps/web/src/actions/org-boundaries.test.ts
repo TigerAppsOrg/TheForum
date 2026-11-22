@@ -60,3 +60,33 @@ test("upload action rejects organization logos and still signs avatar and flyer 
     assert.ok(commands.every(command => command.Bucket === "fixture-bucket"));
   `);
 });
+
+test("organization page discards oversized cursor strings instead of failing action validation", async () => {
+  await runIsolated(`
+    const calls = [];
+    mock.module("~/actions/orgs", () => ({
+      getOrgs: async (params) => {
+        if (typeof params.cursor?.value === "string" && params.cursor.value.length > 255) {
+          throw new Error("Oversized cursor reached the action");
+        }
+        calls.push(params);
+        return { items: [], total: 0, rangeStart: 0, rangeEnd: 0, previousCursor: null, nextCursor: null, hasCursor: false };
+      },
+      getBlockedOrgs: async () => [],
+      getRecommendedOrgs: async () => [],
+    }));
+    mock.module("~/components/layout/page-shell", () => ({ PageShell: () => null, PageHeading: () => null }));
+    mock.module("./src/app/(app)/orgs/orgs-client", () => ({ OrgsClient: () => null }));
+    const { default: Page } = await import("./src/app/(app)/orgs/page");
+    const id = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+    for (const [sort, key] of [["name", "after_name"], ["newest", "after_created_at"]]) {
+      for (const length of [255, 256, 1000]) {
+        const value = "a".repeat(length);
+        await Page({ searchParams: Promise.resolve({ sort, after_id: id, direction: "next", [key]: value }) });
+        assert.deepEqual(calls.at(-1).cursor, length <= 255 ? { id, direction: "next", value } : undefined);
+      }
+    }
+    await Page({ searchParams: Promise.resolve({ sort: "members", after_id: id, direction: "next", after_member_count: "42" }) });
+    assert.deepEqual(calls.at(-1).cursor, { id, direction: "next", value: 42 });
+  `);
+});

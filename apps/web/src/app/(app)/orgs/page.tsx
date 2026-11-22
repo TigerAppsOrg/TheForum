@@ -28,7 +28,7 @@ export default async function OrgsPage({
   const cursor: OrgCursor | undefined =
     idSchema.safeParse(afterId).success &&
     typeof params[valueParam] === "string" &&
-    (typeof value !== "number" || Number.isFinite(value)) &&
+    (typeof value === "number" ? Number.isFinite(value) : value.length <= 255) &&
     (direction === "next" || direction === "previous")
       ? { id: afterId, direction, value }
       : undefined;
