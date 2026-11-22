@@ -34,8 +34,9 @@ chmod 755 "$root" "$root/releases"
 # Next's runtime cache is the only path the server writes.
 mkdir -p "$dir/web/apps/web/.next/cache" && chown -R theforum:theforum "$dir/web/apps/web/.next/cache"
 
-# Additive migrations before traffic moves.
+# Additive migrations and idempotent recommendation data setup before traffic moves.
 MIGRATIONS_DIR="$dir/drizzle" "$bun" --env-file="$root/shared/environment" "$dir/tools/migrate.js"
+"$bun" --env-file="$root/shared/environment" "$dir/tools/setup-recommendations.js"
 
 previous=$(readlink -f "$root/current" || true)
 ln -sfn "$dir" "$root/current.next" && mv -Tf "$root/current.next" "$root/current"

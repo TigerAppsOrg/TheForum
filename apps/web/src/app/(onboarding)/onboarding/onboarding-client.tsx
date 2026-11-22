@@ -17,7 +17,7 @@ const ORG_ROLES = [
   {
     value: "leader",
     label: "Yes, I lead or manage an organization/club",
-    desc: "I can create events, manage an org page, and post announcements to members.",
+    desc: "I help organize events for a student organization or club.",
   },
   {
     value: "member",

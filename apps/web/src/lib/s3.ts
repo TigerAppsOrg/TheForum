@@ -6,7 +6,7 @@ import { env } from "~/env";
  * stores an uploaded image URL. Server-only.
  */
 
-export const UPLOAD_FOLDERS = ["event-flyers", "org-logos", "avatars"] as const;
+export const UPLOAD_FOLDERS = ["event-flyers", "avatars"] as const;
 export type UploadFolder = (typeof UPLOAD_FOLDERS)[number];
 
 /** Allowed upload content types → the extension used in the generated key. */

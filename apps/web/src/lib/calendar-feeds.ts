@@ -14,6 +14,7 @@ import {
   savedEvents,
   users,
 } from "@the-forum/database";
+import { formatEventLocation } from "~/lib/event-location";
 import { eventDiscoverableBy, eventVisibleTo } from "~/lib/event-visibility";
 import { type IcsEvent, buildIcsCalendar } from "~/lib/ics";
 import { SITE_URL } from "~/lib/site";
@@ -90,8 +91,10 @@ export interface FeedEventRow {
   datetime: Date;
   endDatetime: Date | null;
   updatedAt: Date;
+  locationId: string;
   locationName: string | null;
   locationDetail: string | null;
+  locationText: string | null;
   orgId: string | null;
   orgName: string | null;
 }
@@ -103,8 +106,10 @@ const columns = {
   datetime: events.datetime,
   endDatetime: events.endDatetime,
   updatedAt: events.updatedAt,
+  locationId: events.locationId,
   locationName: campusLocations.name,
   locationDetail: events.locationDetail,
+  locationText: events.locationText,
   orgId: events.orgId,
   orgName: organizations.name,
 };
@@ -236,8 +241,7 @@ export function feedToIcs(feed: { name: string; description: string; events: Fee
     title: e.title,
     start: e.datetime,
     end: e.endDatetime,
-    location: e.locationName,
-    locationDetail: e.locationDetail,
+    location: formatEventLocation(e),
     description: e.orgName ? `Hosted by ${e.orgName}\n\n${e.description}` : e.description,
     url: `${site}/events/${e.id}`,
     updatedAt: e.updatedAt,

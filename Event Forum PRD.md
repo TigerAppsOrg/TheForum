@@ -159,11 +159,14 @@ Large, visible button to encourage clicks.
 Users must be able to:
 
 * **P0:** Input title, description  
+* **P0:** Select a host organization (required) — any user can post under any organization  
 * **P0:** Select date/time  
 * **P0:** Select campus location  
 * **P0:** Add tags  
 * **P0:** Upload flyer image  
 * **P1:** Add external registration link
+
+The Edit Event form shows the same fields as Create Event, in the same order.
 
 Users can edit/delete their own events.
 
@@ -220,7 +223,7 @@ Users must be able to:
 
 ### **Clubs**
 
-Hub to search for, follow, and create student organizations.
+Hub to search for and follow student organizations supplied by InboxEngine.
 
 Requirements:
 
@@ -229,10 +232,6 @@ Requirements:
   * Organization description  
   * Officer contacts  
   * Follow button to receive notifications for new events  
-* “Create Organization” button  
-  * Only visible to people who indicated being an organization leader  
-  * Textboxes \+ image upload to edit profile  
-  * Only organization creator can edit profile and transfer ownership  
 * Organization search bar with category filters  
 * Organization recommendation feed
 

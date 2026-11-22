@@ -262,7 +262,7 @@ export function SettingsClient({ profile }: { profile: UserProfile }) {
           <span className="text-[13px] text-black">
             I lead or manage a student organization
             <span className="block text-xs text-forum-light-gray">
-              Lets you create an organization page and post events for it.
+              Let us know if you help organize events for a student organization.
             </span>
           </span>
         </label>
