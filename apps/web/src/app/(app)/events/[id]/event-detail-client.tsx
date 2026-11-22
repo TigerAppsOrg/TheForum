@@ -28,6 +28,9 @@ import {
 import { toggleFollowOrg, unblockOrg } from "~/actions/orgs";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { RichText } from "~/components/common/rich-text";
+
+import { ShareEventDialog } from "~/components/events/share-event-dialog";
+
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
 import { EventCoverArt } from "~/components/events/event-cover-art";
 import { MiniEventList } from "~/components/events/mini-event-list";
@@ -104,20 +107,6 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
         toast.error("Couldn't update saved events. Please try again.");
       }
     });
-  };
-
-  const handleShare = async () => {
-    const url = `${window.location.origin}/events/${event.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: event.title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied to clipboard");
-      }
-    } catch {
-      // Dismissing the share sheet rejects; nothing to report.
-    }
   };
 
   /* Following unhides; hiding unfollows — mirrored locally. */
@@ -305,9 +294,17 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
                 <Calendar /> Add to calendar
               </a>
             </Button>
-            <Button variant="outline" size="sm" onClick={handleShare}>
-              <Share2 /> Share
-            </Button>
+            <ShareEventDialog
+              id={event.id}
+              title={event.title}
+              information={[formatLongDate(event.datetime), formatEventLocation(event)]
+                .filter(Boolean)
+                .join(" | ")}
+            >
+              <Button variant="outline" size="sm">
+                <Share2 /> Share
+              </Button>
+            </ShareEventDialog>
             {event.orgId && event.orgName && (
               <EventActionsMenu
                 eventTitle={event.title}

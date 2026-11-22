@@ -169,10 +169,6 @@ export function MyEventsClient({ created, rsvped, saved }: MyEventsClientProps) 
                       : {})}
                     onSaveToggle={() => handleSaveToggle(event.id)}
                     onRsvpToggle={() => handleRsvpToggle(event.id)}
-                    onShare={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
-                      toast.success("Link copied to clipboard");
-                    }}
                     source="feed"
                     position={index}
                   />
