@@ -4,7 +4,7 @@ TIG-308 requests a Figma redesign for overlooked suggestions, the long organizat
 list, inconsistent row heights and description truncation, zero-follower noise,
 small logos, mixed offices and clubs, and inconsistent category labels.
 This command supplies review data. The directory now supports keyset pagination
-with 15 rows per page, Name/Member count/Date created sorts, and an independent
+with 10 rows per page, Name/Member count/Date created sorts, and an independent
 Ascending/Descending control. The remaining
 redesign work is separate.
 
@@ -25,7 +25,7 @@ There is no need to reset the database. Additional existing orgs increase the to
 
 | Review case | Fixture / action |
 | --- | --- |
-| Many pages | 312 demo organizations: 21 pages at the fixed size of 15, including a partial last page. Names span A–Z. First/Previous/Next are grouped on the right. The result range reads 1–15, 16–30, 31–45, etc. Sort, direction, filters, and keyset cursors are kept in the URL for Back and shared links. |
+| Many pages | 312 demo organizations: 32 pages at the fixed size of 10, including a partial last page. Names span A–Z. First/Previous/Next are grouped on the right. The result range reads 1–10, 16–30, 31–45, etc. Sort, direction, filters, and keyset cursors are kept in the URL for Back and shared links. |
 | Description heights and clipping | 52 null descriptions, 52 empty strings, short descriptions, and 52 long paragraphs. |
 | Logo readability and fallback | 104 each with no logo, a simple logo, and a dense logo. Assets are local and work offline. |
 | Zero and nonzero followers | Most start at zero; other rows have 1, 3, 8, or 24 followers. Counts come from actual follow records, independently of imported member counts. |

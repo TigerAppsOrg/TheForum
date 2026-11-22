@@ -34,4 +34,9 @@ if (process.env.NODE_ENV !== "production") {
 
 export const db = drizzle(client, { schema });
 
+/** Close the Postgres pool for one-shot scripts. Do not call from the web app. */
+export function closeDb() {
+  return client.end();
+}
+
 export type Database = typeof db;

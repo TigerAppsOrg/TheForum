@@ -1,5 +1,5 @@
 {
-  "id": "46e521c1-7a30-4e0c-9561-f622584d2b08",
+  "id": "8197fe6e-e2a2-46cf-b92f-c50e738dd484",
   "prevId": "2cd6094f-33e0-4aa1-a700-002ee53f3861",
   "version": "7",
   "dialect": "postgresql",
@@ -8,6 +8,13 @@
       "name": "campus_locations",
       "schema": "",
       "columns": {
+        "area": {
+          "name": "area",
+          "type": "campus_region",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "id": {
           "name": "id",
           "type": "varchar(100)",
@@ -1287,152 +1294,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "organizations_name_id_idx": {
-          "name": "organizations_name_id_idx",
-          "columns": [
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "organizations_members_id_idx": {
-          "name": "organizations_members_id_idx",
-          "columns": [
-            {
-              "expression": "coalesce(\"member_count\", '-2147483649'::bigint) desc nulls last",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "organizations_created_at_id_idx": {
-          "name": "organizations_created_at_id_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "organizations_category_name_id_idx": {
-          "name": "organizations_category_name_id_idx",
-          "columns": [
-            {
-              "expression": "category",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "organizations_category_members_id_idx": {
-          "name": "organizations_category_members_id_idx",
-          "columns": [
-            {
-              "expression": "category",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"member_count\", '-2147483649'::bigint) desc nulls last",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "organizations_category_created_at_id_idx": {
-          "name": "organizations_category_created_at_id_idx",
-          "columns": [
-            {
-              "expression": "category",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "organizations_creator_id_users_id_fk": {
           "name": "organizations_creator_id_users_id_fk",

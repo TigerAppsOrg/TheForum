@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Eye, EyeOff, Plus, Users } from "lucide-react";
+import { Check, Eye, EyeOff, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -212,13 +212,6 @@ export function OrgsClient({
           className="flex-1"
           maxLength={100}
         />
-        <Button asChild variant="cerulean" size="sm" className="h-11 rounded-full px-4">
-          <Link href="/orgs/create">
-            <Plus />
-            <span className="hidden sm:inline">New organization</span>
-            <span className="sm:hidden">New</span>
-          </Link>
-        </Button>
       </div>
 
       <FilterChipGroup label="Filter organizations by category" className="gap-1.5">
@@ -286,7 +279,13 @@ export function OrgsClient({
             <Select
               value={initialSort}
               onValueChange={(value) =>
-                navigate(searchQuery, activeCategory, value as typeof initialSort)
+                navigate(
+                  searchQuery,
+                  activeCategory,
+                  value as typeof initialSort,
+                  undefined,
+                  value === "name" ? "asc" : "desc",
+                )
               }
               disabled={isPending}
             >
@@ -379,20 +378,35 @@ export function OrgsClient({
           ) : (
             <EmptyState
               icon={Users}
-              title="No organizations found"
+              action={
+                initialOrgs.hasCursor && initialOrgs.total > 0 ? (
+                  <Button
+                    variant="outline"
+                    disabled={isPending || searchQuery.trim() !== initialSearch}
+                    onClick={() => navigate(initialSearch, activeCategory)}
+                  >
+                    Back to first page
+                  </Button>
+                ) : undefined
+              }
+              title={
+                initialOrgs.hasCursor && initialOrgs.total > 0
+                  ? "This page is no longer available"
+                  : "No organizations found"
+              }
               description={
-                searchQuery || activeCategory !== "all"
-                  ? "Try adjusting your search or filters."
-                  : "Be the first to create one!"
+                initialOrgs.hasCursor && initialOrgs.total > 0
+                  ? "This page is no longer available. Return to the first page to browse organizations."
+                  : searchQuery || activeCategory !== "all"
+                    ? "Try adjusting your search or filters."
+                    : "Campus organizations will appear here as they are synced."
               }
             />
           )}
           <nav aria-label="Organization pages" className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
-              disabled={
-                isPending || searchQuery.trim() !== initialSearch || !initialOrgs.previousCursor
-              }
+              disabled={isPending || searchQuery.trim() !== initialSearch || !initialOrgs.hasCursor}
               onClick={() => navigate(initialSearch, activeCategory)}
             >
               First

@@ -8,6 +8,7 @@ import { organizations } from "./schema";
 const url = process.env.ORG_TEST_DATABASE_URL;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 let db: Database;
+let pageSize: number;
 let loadPage: typeof import("./organization-page").loadOrganizationPage;
 
 describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
@@ -18,7 +19,9 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
     }
     process.env.DATABASE_URL = url;
     db = (await import("./db")).db;
-    loadPage = (await import("./organization-page")).loadOrganizationPage;
+    const pagination = await import("./organization-page");
+    loadPage = pagination.loadOrganizationPage;
+    pageSize = pagination.ORGANIZATION_PAGE_SIZE;
   });
 
   // Each test owns temporary rows inside a transaction that always rolls back.
@@ -71,19 +74,20 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
         do {
           const page = await loadPage({ search, sort, order: direction, cursor }, tx);
           expect(page.total).toBe(47);
-          expect(page.items.length).toBeLessThanOrEqual(10);
+          expect(page.items.length).toBeLessThanOrEqual(pageSize);
           pages.push(page);
           cursor = page.nextCursor ?? undefined;
-          if (pages.length > 5) throw new Error("Pagination did not terminate");
+          if (pages.length > Math.ceil(47 / pageSize))
+            throw new Error("Pagination did not terminate");
         } while (cursor);
-        expect(pages.map((page) => page.items.length)).toEqual([10, 10, 10, 10, 7]);
-        expect(pages.map((page) => [page.rangeStart, page.rangeEnd])).toEqual([
-          [1, 10],
-          [11, 20],
-          [21, 30],
-          [31, 40],
-          [41, 47],
+        const ranges = Array.from({ length: Math.ceil(47 / pageSize) }, (_, i) => [
+          i * pageSize + 1,
+          Math.min((i + 1) * pageSize, 47),
         ]);
+        expect(pages.map((page) => page.items.length)).toEqual(
+          ranges.map(([start, end]) => end - start + 1),
+        );
+        expect(pages.map((page) => [page.rangeStart, page.rangeEnd])).toEqual(ranges);
         expect(pages.flatMap((page) => page.items.map((org) => org.id))).toEqual(
           expected.map((org) => org.id),
         );
@@ -124,7 +128,7 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
         tx,
       );
       expect(first.total).toBe(24);
-      expect(next.items).toHaveLength(9);
+      expect(next.items).toHaveLength(Math.min(pageSize, first.total - pageSize));
       expect([...first.items, ...next.items].every((org) => org.category === "culture")).toBe(true);
       for (const changed of [
         { search, category: "academics" },
@@ -162,6 +166,31 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
     });
   });
 
+  test("a stale cursor keeps the total and exposes first-page recovery", async () => {
+    await withFixtures(async (tx, search) => {
+      const page = await loadPage(
+        {
+          search,
+          sort: "name",
+          cursor: {
+            direction: "next",
+            id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+            value: `${search} zzzz`,
+          },
+        },
+        tx,
+      );
+      expect(page.items).toHaveLength(0);
+      expect(page.total).toBe(47);
+      expect(page.hasCursor).toBe(true);
+      expect(page.previousCursor).toBeNull();
+      expect(page.nextCursor).toBeNull();
+      const first = await loadPage({ search }, tx);
+      expect(first.items).toHaveLength(pageSize);
+      expect(first.hasCursor).toBe(false);
+    });
+  });
+
   test("deleting the boundary row preserves the next page", async () => {
     await withFixtures(async (tx, search) => {
       const first = await loadPage({ search, sort: "newest" }, tx);
@@ -169,7 +198,7 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
         { search, sort: "newest", cursor: first.nextCursor as OrganizationCursor },
         tx,
       );
-      await tx.delete(organizations).where(eq(organizations.id, first.items[14].id));
+      await tx.delete(organizations).where(eq(organizations.id, first.items[pageSize - 1].id));
       const next = await loadPage(
         { search, sort: "newest", cursor: first.nextCursor as OrganizationCursor },
         tx,
@@ -209,7 +238,7 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
     }
   });
 
-  test("all sorts can seek through their matching index without a Sort node", async () => {
+  test("all sorts can seek through an ordering index", async () => {
     await db.transaction(async (tx) => {
       // Small test databases may prefer a sequential scan; check index eligibility.
       await tx.execute(sql`set local enable_seqscan = off`);
@@ -230,13 +259,16 @@ describe.skipIf(!url)("organization keyset pagination (Postgres)", () => {
             select id, name from public.organizations
             where ${filtered ? sql`category = 'culture' and` : sql``}
               (${key}, id) ${direction} (${value}, '00000000-0000-0000-0000-000000000000'::uuid)
-            order by ${key} ${order}, id ${order} limit 10`);
+            order by ${key} ${order}, id ${order} limit ${pageSize}`);
           const plan = JSON.stringify(rows[0]["QUERY PLAN"]);
           const suffix = sort === "newest" ? "created_at" : sort;
           // With few matching rows Postgres may prefer the unfiltered ordering
-          // index and apply category as a filter. Both avoid sorting the result.
+          // index and apply category as a filter. The unique name index may
+          // also use Incremental Sort for the id tie-breaker.
           expect(plan).toMatch(
-            new RegExp(`organizations_${filtered ? "(?:category_)?" : ""}${suffix}_id_idx`),
+            new RegExp(
+              `organizations_(?:${filtered ? "(?:category_)?" : ""}${suffix}_id_idx${sort === "name" ? "|name_unique" : ""})`,
+            ),
           );
           expect(plan).toContain("Index Cond");
           expect(plan).not.toContain('"Node Type":"Sort"');

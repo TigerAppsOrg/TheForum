@@ -14,6 +14,8 @@
     "db:seed:org-review": "bun --env-file=../../.env run src/seed-org-review.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
+    "db:setup-recommendations": "bun --env-file=../../.env run src/setup-recommendations.ts",
+    "db:resolve-locations": "bun --env-file=../../.env run src/resolve-locations.ts",
     "db:sync-engine": "bun --env-file=../../.env run src/sync-inbox-engine.ts"
   },
   "dependencies": {

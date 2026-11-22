@@ -1,0 +1,22 @@
+CREATE TYPE "public"."location_resolution" AS ENUM('engine', 'online', 'alias', 'gazetteer', 'fuzzy', 'manual', 'unresolved');--> statement-breakpoint
+CREATE TABLE "location_aliases" (
+	"alias_normalized" varchar(250) PRIMARY KEY NOT NULL,
+	"location_id" varchar(100) NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "source_updated_at" timestamp;--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "location_text" varchar(300);--> statement-breakpoint
+ALTER TABLE "events" ADD COLUMN "location_resolution" "location_resolution";--> statement-breakpoint
+UPDATE "events" SET "location_resolution" = CASE
+  WHEN "source_message_id" LIKE 'ie:%' AND "location_id" = 'tba' THEN 'unresolved'::"location_resolution"
+  WHEN "source_message_id" LIKE 'ie:%' AND "location_id" = 'online' THEN 'online'::"location_resolution"
+  WHEN "source_message_id" LIKE 'ie:%' THEN 'engine'::"location_resolution"
+  ELSE 'manual'::"location_resolution"
+END;--> statement-breakpoint
+UPDATE "events" SET "location_text" = "location_detail"
+WHERE "location_id" = 'tba' AND "location_detail" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "events" ALTER COLUMN "location_resolution" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "location_aliases" ADD CONSTRAINT "location_aliases_location_id_campus_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."campus_locations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "location_aliases" ADD CONSTRAINT "location_aliases_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

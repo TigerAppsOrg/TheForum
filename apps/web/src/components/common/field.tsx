@@ -6,9 +6,7 @@ import { cn } from "~/lib/utils";
 /**
  * Labelled form field with hint and error slots.
  *
- * The create-org, create-event and edit-event forms each repeated this
- * label/control/error stack with their own type scale and error colour
- * (`text-red-400` in one, `text-forum-coral` in another). One field now.
+ * Shared by event forms to keep labels, hints and errors consistent.
  *
  * The error is wired to the control with `aria-describedby`, so pass the same
  * `id` you give the input — screen readers announce the message with the field
@@ -50,13 +48,4 @@ export function Field({
       ) : null}
     </div>
   );
-}
-
-/** Props to spread onto the control inside a `Field` so errors are announced. */
-export function fieldControlProps(id: string, error?: string) {
-  return {
-    id,
-    "aria-invalid": error ? true : undefined,
-    "aria-describedby": error ? `${id}-error` : undefined,
-  } as const;
 }

@@ -24,7 +24,6 @@ export const RATE_LIMITS = {
   interaction: { limit: 120, windowMs: MINUTE },
   upload: { limit: 20, windowMs: 10 * MINUTE },
   createEvent: { limit: 20, windowMs: HOUR },
-  createOrg: { limit: 5, windowMs: HOUR },
   readEmail: { limit: 120, windowMs: MINUTE },
   /** Follow / unfollow / hide / unhide an org. */
   orgPreference: { limit: 60, windowMs: MINUTE },

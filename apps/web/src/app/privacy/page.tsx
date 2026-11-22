@@ -38,8 +38,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Activity:</strong> events you RSVP to or save, organizations you follow or help
-            run, your friends and friend requests, events and organizations you create, and your
-            notifications.
+            run, your friends and friend requests, events you create, organizations you previously
+            created, and your notifications.
           </li>
           <li>
             <strong>Interaction logs:</strong> when you view, open, RSVP to, save, share, or hide an
@@ -77,7 +77,8 @@ export default function PrivacyPage() {
             users.
           </li>
           <li>
-            Events you publish and organizations you create can be seen by other signed-in users.
+            Events you publish and organization pages, including those you previously created, can
+            be seen by other signed-in users.
           </li>
         </ul>
       </LegalSection>

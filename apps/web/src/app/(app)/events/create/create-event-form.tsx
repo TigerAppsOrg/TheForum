@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Eye, Link2, Pencil, Plus, Upload, X } from "lucide-react";
+import { ArrowUp, Eye, Link2, Pencil, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import {
   FORM_LABEL,
   LocationPicker,
   OTHER_LOCATION_ID,
+  OrgPicker,
   TagPicker,
   type WhenErrors,
   describeEventWhen,
@@ -23,22 +24,19 @@ import {
 import { EventPreviewModal } from "~/components/events/event-preview-modal";
 import { PageShell } from "~/components/layout/page-shell";
 import { Button } from "~/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Textarea } from "~/components/ui/textarea";
 import { IMAGE_ACCEPT, uploadImage } from "~/lib/upload-image";
 import { cn } from "~/lib/utils";
 
 interface CreateEventFormProps {
   locations: CampusLocation[];
-  userOrgs: { id: string; name: string }[];
+  orgs: { id: string; name: string }[];
 }
 
-const PERSONAL_ORG_VALUE = "__personal__";
-
 type FormErrors = WhenErrors &
-  Partial<Record<"title" | "description" | "location" | "link", string>>;
+  Partial<Record<"title" | "org" | "description" | "location" | "link", string>>;
 
-export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
+export function CreateEventForm({ locations, orgs }: CreateEventFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +46,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   const [description, setDescription] = useState("");
   const [when, setWhen] = useState<EventWhen>({ dateKey: "", startTime: "", endTime: "" });
   const [locationId, setLocationId] = useState("");
-  const [selectedOrgId, setSelectedOrgId] = useState(PERSONAL_ORG_VALUE);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [flyerUrl, setFlyerUrl] = useState<string | null>(null);
   const [flyerPreview, setFlyerPreview] = useState<string | null>(null);
@@ -96,6 +94,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
   const handleSubmit = () => {
     const nextErrors: FormErrors = {};
     if (!title.trim()) nextErrors.title = "Title is required";
+    if (!selectedOrgId) nextErrors.org = "Choose a host organization";
     if (!description.trim()) nextErrors.description = "Description is required";
     if (!locationId) nextErrors.location = "Choose a location, or “Other / off-campus / TBA”";
     const link = normalizeExternalLink(externalLink);
@@ -124,7 +123,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
           datetime: resolved.datetime.toISOString(),
           endDatetime: resolved.endDatetime?.toISOString(),
           locationId,
-          orgId: selectedOrgId === PERSONAL_ORG_VALUE ? undefined : selectedOrgId,
+          orgId: selectedOrgId,
           tags,
           flyerUrl: flyerUrl ?? undefined,
           coverPreset: flyerUrl ? undefined : (coverPreset ?? undefined),
@@ -259,61 +258,18 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
             {errors.title && <p className={FORM_ERROR}>{errors.title}</p>}
           </div>
 
-          {/* ── Affiliate Organizations ── */}
-          {userOrgs.length > 0 && (
-            <div className="mb-5">
-              <span className="text-[12px] font-bold text-forum-dark-gray block mb-[8px]">
-                Affiliate Organization
-              </span>
-              <div className="flex items-center gap-[10px] flex-wrap">
-                {selectedOrgId !== PERSONAL_ORG_VALUE && (
-                  <div className="flex items-center gap-[8px] border border-forum-medium-gray rounded-[6px] px-[10px] py-[6px]">
-                    <span
-                      aria-hidden
-                      className="flex w-[24px] h-[24px] items-center justify-center rounded-[4px] bg-forum-cerulean/20 text-[11px] font-bold text-forum-cerulean"
-                    >
-                      {userOrgs.find((o) => o.id === selectedOrgId)?.name[0]?.toUpperCase()}
-                    </span>
-                    <span className="text-[12px] font-bold font-dm-sans text-black">
-                      {userOrgs.find((o) => o.id === selectedOrgId)?.name}
-                    </span>
-                  </div>
-                )}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-[4px] text-[12px] font-dm-sans text-forum-cerulean hover:underline"
-                    >
-                      <Plus size={14} aria-hidden />
-                      {selectedOrgId === PERSONAL_ORG_VALUE
-                        ? "Post as an organization"
-                        : "Change organization"}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[240px] p-1" align="start">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedOrgId(PERSONAL_ORG_VALUE)}
-                      className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-forum-turquoise/10"
-                    >
-                      None (Personal)
-                    </button>
-                    {userOrgs.map((org) => (
-                      <button
-                        key={org.id}
-                        type="button"
-                        onClick={() => setSelectedOrgId(org.id)}
-                        className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-forum-turquoise/10"
-                      >
-                        {org.name}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          )}
+          {/* ── Host Organization ── */}
+          <div className="mb-5">
+            <OrgPicker
+              orgs={orgs}
+              value={selectedOrgId}
+              onChange={(id) => {
+                setSelectedOrgId(id);
+                clearError("org");
+              }}
+              error={errors.org}
+            />
+          </div>
 
           {/* ── Event Description ── */}
           <div id="section-details" className="mb-5">
@@ -444,11 +400,7 @@ export function CreateEventForm({ locations, userOrgs }: CreateEventFormProps) {
             : (locations.find((l) => l.id === locationId)?.name ?? "")
         }
         tags={tags}
-        orgName={
-          selectedOrgId !== PERSONAL_ORG_VALUE
-            ? userOrgs.find((o) => o.id === selectedOrgId)?.name
-            : undefined
-        }
+        orgName={orgs.find((o) => o.id === selectedOrgId)?.name}
         flyerPreview={flyerPreview}
         coverPreset={coverPreset}
       />

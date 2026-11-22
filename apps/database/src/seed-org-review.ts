@@ -121,6 +121,7 @@ try {
           datetime,
           endDatetime: new Date(datetime.getTime() + 3600000),
           locationId: "seed-tig-308",
+          locationResolution: "manual" as const,
         };
         let eventId = existingEvent?.id;
         if (existingEvent) {

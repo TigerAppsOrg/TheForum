@@ -19,6 +19,8 @@ const DAY = 24 * HOUR;
 const NOW = Date.parse("2026-09-28T16:00:00.000Z");
 
 const ctx = (overrides: Partial<ScoringContext> = {}): ScoringContext => ({
+  preferredAreas: new Set(),
+  profileVector: null,
   userId: "viewer",
   now: NOW,
   interestTags: new Set(),
@@ -28,6 +30,8 @@ const ctx = (overrides: Partial<ScoringContext> = {}): ScoringContext => ({
 });
 
 const event = (overrides: Partial<ScoringInput> & { id: string }): ScoringInput => ({
+  area: null,
+  vector: null,
   orgId: null,
   startsAt: NOW + 2 * DAY,
   postedAt: NOW - 10 * DAY,
@@ -212,5 +216,42 @@ describe("Recently posted", () => {
       { id: "sooner", postedAt: NOW, startsAt: NOW + DAY },
     ];
     expect([...items].sort(compareRecentlyPosted).map((e) => e.id)).toEqual(["sooner", "later"]);
+  });
+});
+
+describe("preferred places and My Events similarity", () => {
+  test("a selected area adds exactly its configured weight", () => {
+    const c = ctx({ preferredAreas: new Set(["east"]) });
+    const base = event({ id: "same" });
+    expect(scoreEvent({ ...base, area: "east" }, c) - scoreEvent(base, c)).toBeCloseTo(
+      WEIGHTS.location,
+    );
+    expect(scoreEvent({ ...base, area: "west" }, c)).toBe(scoreEvent(base, c));
+    expect(scoreEvent({ ...base, area: "east" }, ctx())).toBe(scoreEvent(base, ctx()));
+  });
+  test("cosine adds its configured weight and visibly promotes a matching event", () => {
+    const c = ctx({ profileVector: [1, 0] });
+    const base = event({ id: "same", vector: [0, 1] });
+    expect(scoreEvent({ ...base, vector: [1, 0] }, c) - scoreEvent(base, c)).toBeCloseTo(
+      WEIGHTS.similarity,
+    );
+    expect(scoreEvent({ ...base, vector: [1, 1] }, c) - scoreEvent(base, c)).toBeCloseTo(
+      WEIGHTS.similarity / Math.sqrt(2),
+    );
+    const ranked = rankForYou(
+      [event({ id: "low", vector: [0, 1] }), event({ id: "high", vector: [1, 0] })],
+      c,
+    );
+    expect(ranked.map((e) => e.id)).toEqual(["high", "low"]);
+  });
+  test("cold start and missing candidate signals preserve the base score", () => {
+    const base = event({ id: "same" });
+    expect(scoreEvent(base, ctx())).toBe(
+      scoreEvent(base, ctx({ preferredAreas: new Set(["east"]), profileVector: [1, 0] })),
+    );
+    expect(scoreEvent({ ...base, vector: [1, 0], area: "east" }, ctx())).toBe(
+      scoreEvent(base, ctx()),
+    );
+    expect(Number.isFinite(scoreEvent(base, ctx()))).toBe(true);
   });
 });

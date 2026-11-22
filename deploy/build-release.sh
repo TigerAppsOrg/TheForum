@@ -3,7 +3,8 @@
 #   deploy/build-release.sh <out.tar.gz>
 # Layout inside the tarball:
 #   web/            Next standalone server (web/apps/web/server.js) with static assets
-#   tools/          migrate.js and sync.js, bundled for Bun (no node_modules needed)
+#   tools/          migrate.js, sync.js and setup-recommendations.js, bundled for Bun
+#   tools/seeddata/ tag embeddings read by setup-recommendations.js (no node_modules needed)
 #   drizzle/        SQL migrations
 #   deploy/         host scripts, systemd units and nginx sites
 set -euo pipefail
@@ -23,6 +24,9 @@ cp -R "$root/apps/web/.next/static" "$stage/web/apps/web/.next/static"
 
 bun build "$root/apps/database/src/migrate.ts" --target=bun --outfile "$stage/tools/migrate.js" >/dev/null
 bun build "$root/apps/database/src/sync-inbox-engine.ts" --target=bun --outfile "$stage/tools/sync.js" >/dev/null
+bun build "$root/apps/database/src/setup-recommendations.ts" --target=bun --outfile "$stage/tools/setup-recommendations.js" >/dev/null
+mkdir -p "$stage/tools/seeddata"
+cp "$root/apps/database/src/seeddata/eventTags_embeddings.json" "$stage/tools/seeddata/"
 cp -R "$root/apps/database/drizzle" "$stage/drizzle"
 cp -R "$root/deploy" "$stage/deploy"
 git -C "$root" rev-parse HEAD > "$stage/REVISION"

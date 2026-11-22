@@ -13,6 +13,7 @@ import {
   savedEventIds,
 } from "~/lib/calendar-feeds";
 import { getAppOrigin } from "~/lib/cas-server";
+import { formatEventLocation } from "~/lib/event-location";
 
 export type CalendarId = "going" | "saved" | `org-${string}`;
 
@@ -33,8 +34,7 @@ export interface CalendarEvent {
   title: string;
   start: string;
   end: string | null;
-  location: string | null;
-  locationDetail: string | null;
+  location: string;
   orgName: string | null;
   /** Every calendar this event belongs to (an RSVP'd event from a followed org is in both). */
   calendars: CalendarId[];
@@ -133,8 +133,7 @@ export async function getMyCalendars(): Promise<MyCalendars> {
       title: row.title,
       start: row.datetime.toISOString(),
       end: row.endDatetime?.toISOString() ?? null,
-      location: row.locationName,
-      locationDetail: row.locationDetail,
+      location: formatEventLocation(row),
       orgName: row.orgName,
       calendars: [...cals],
     }));
