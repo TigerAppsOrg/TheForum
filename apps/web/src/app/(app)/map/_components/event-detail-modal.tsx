@@ -2,7 +2,6 @@
 
 import { X } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
-import { toast } from "sonner";
 import { type EventDetail, getEvent, toggleRsvp, toggleSave } from "~/actions/events";
 import { EventCard } from "~/components/events/event-card";
 import { Button } from "~/components/ui/button";
@@ -64,12 +63,6 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
       const result = await toggleSave(event.id);
       setEvent((prev) => (prev ? { ...prev, isSaved: result.saved } : prev));
     });
-  };
-
-  const handleShare = async () => {
-    if (!event) return;
-    await navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
-    toast.success("Link copied to clipboard");
   };
 
   return (
@@ -138,7 +131,6 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             })}
             onSaveToggle={handleSave}
             onRsvpToggle={handleRsvp}
-            onShare={handleShare}
             source="map"
             className="shadow-2xl"
           />

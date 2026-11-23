@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { logInteraction } from "~/actions/interactions";
 import { OrgAvatar } from "~/components/common/org-avatar";
 import { AttendeesDialog } from "~/components/events/attendees-dialog";
+import { ShareEventDialog } from "~/components/events/share-event-dialog";
 import { EventActionsMenu } from "~/components/orgs/org-feed-menu";
 import { AvatarStack } from "~/components/social/avatar-stack";
 import { Button } from "~/components/ui/button";
@@ -93,7 +94,6 @@ export interface EventCardProps {
    */
   onSaveToggle?: () => void | Promise<void>;
   onRsvpToggle?: () => void | Promise<void>;
-  onShare?: () => void;
   /** "Not interested in this event", in the card's "⋯" menu. */
   onHide?: () => void;
   /** When true the card collapses to a stub that can be restored. */
@@ -165,7 +165,6 @@ export function EventCard({
   isRsvped,
   onSaveToggle,
   onRsvpToggle,
-  onShare,
   onHide,
   isHidden = false,
   onUnhide,
@@ -274,9 +273,6 @@ export function EventCard({
       iconClassName={iconClassName}
     />
   );
-
-  const hasActionsMenu = Boolean(handleNotInterested || orgActions);
-  const hasUtilityRow = Boolean(onSaveToggle || onShare || hasActionsMenu);
 
   /*
    * Hidden events collapse to a stub rather than disappearing. Removing the
@@ -406,7 +402,11 @@ export function EventCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {onShare && (
+          <ShareEventDialog
+            id={id}
+            title={title}
+            information={[datetime, location].filter(Boolean).join(" | ")}
+          >
             <Button
               variant="ghost"
               size="icon-sm"
@@ -414,19 +414,18 @@ export function EventCard({
                 utilityButton,
                 "hidden md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100",
               )}
-              aria-label={`Copy link to ${title}`}
+              aria-label={`Share ${title}`}
               onClick={() => {
                 logInteraction({
                   itemId: id,
                   interactionType: "share",
                   metadata: { source, position },
                 });
-                onShare();
               }}
             >
               <Share2 />
             </Button>
-          )}
+          </ShareEventDialog>
           {actionsMenu(utilityButton)}
           {editHref && (
             <Button
@@ -603,17 +602,27 @@ export function EventCard({
                   )}
                 </Button>
               )}
-              {onShare && (
+              <ShareEventDialog
+                id={id}
+                title={title}
+                information={[datetime, location].filter(Boolean).join(" | ")}
+              >
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   className={UTILITY_HOVER}
                   aria-label={`Share ${title}`}
-                  onClick={onShare}
+                  onClick={() => {
+                    logInteraction({
+                      itemId: id,
+                      interactionType: "share",
+                      metadata: { source, position },
+                    });
+                  }}
                 >
                   <Share2 className="text-forum-coral" />
                 </Button>
-              )}
+              </ShareEventDialog>
               <Button
                 asChild
                 variant="ghost"
@@ -750,75 +759,75 @@ export function EventCard({
         of internal padding. The negative margins cancel that, putting the
         glyphs on the same left/right edges as the text below.
       */}
-      {hasUtilityRow && (
-        <div className="-mx-2 flex flex-row justify-between">
-          <div className="flex items-center gap-0.5">
-            {onSaveToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={UTILITY_HOVER}
-                aria-label={isSaved ? `Unsave ${title}` : `Save ${title}`}
-                aria-pressed={isSaved}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  logInteraction({
-                    itemId: id,
-                    interactionType: "save",
-                    metadata: { source, position },
-                  });
-                  const wasSaved = isSaved;
-                  try {
-                    await onSaveToggle();
-                  } catch {
-                    return;
-                  }
-                  toast(wasSaved ? `Removed ${title} from saved` : `Saved ${title}`);
-                }}
-              >
-                {isSaved ? (
-                  <BookmarkCheck className="text-forum-coral" />
-                ) : (
-                  <Bookmark className="text-forum-coral" />
-                )}
-              </Button>
-            )}
-            {onShare && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={UTILITY_HOVER}
-                aria-label={`Share ${title}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  logInteraction({
-                    itemId: id,
-                    interactionType: "share",
-                    metadata: { source, position },
-                  });
-                  onShare();
-                }}
-              >
-                <Share2 className="text-forum-coral" />
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-0.5">
-            {actionsMenu(UTILITY_HOVER, "text-forum-coral")}
+      <div className="-mx-2 flex flex-row justify-between">
+        <div className="flex items-center gap-0.5">
+          {onSaveToggle && (
             <Button
-              asChild
               variant="ghost"
               size="icon-sm"
               className={UTILITY_HOVER}
-              aria-label={`Open ${title}`}
+              aria-label={isSaved ? `Unsave ${title}` : `Save ${title}`}
+              aria-pressed={isSaved}
+              onClick={async (e) => {
+                e.preventDefault();
+                logInteraction({
+                  itemId: id,
+                  interactionType: "save",
+                  metadata: { source, position },
+                });
+                const wasSaved = isSaved;
+                try {
+                  await onSaveToggle();
+                } catch {
+                  return;
+                }
+                toast(wasSaved ? `Removed ${title} from saved` : `Saved ${title}`);
+              }}
             >
-              <Link href={`/events/${id}`} onClick={trackClick}>
-                <Maximize2 className="text-forum-coral" />
-              </Link>
+              {isSaved ? (
+                <BookmarkCheck className="text-forum-coral" />
+              ) : (
+                <Bookmark className="text-forum-coral" />
+              )}
             </Button>
-          </div>
+          )}
+          <ShareEventDialog
+            id={id}
+            title={title}
+            information={[datetime, location].filter(Boolean).join(" | ")}
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={UTILITY_HOVER}
+              aria-label={`Share ${title}`}
+              onClick={() => {
+                logInteraction({
+                  itemId: id,
+                  interactionType: "share",
+                  metadata: { source, position },
+                });
+              }}
+            >
+              <Share2 className="text-forum-coral" />
+            </Button>
+          </ShareEventDialog>
         </div>
-      )}
+        <div className="flex items-center gap-0.5">
+          {actionsMenu(UTILITY_HOVER, "text-forum-coral")}
+          <Button
+            asChild
+            variant="ghost"
+            size="icon-sm"
+            className={UTILITY_HOVER}
+            aria-label={`Open ${title}`}
+          >
+            <Link href={`/events/${id}`} onClick={trackClick}>
+              <Maximize2 className="text-forum-coral" />
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {/*
         Org + title, with the event photo as a thumbnail beside them when one
