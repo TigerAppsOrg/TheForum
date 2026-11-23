@@ -48,7 +48,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { buildGCalUrl } from "~/lib/calendar";
-import { formatLongDate, formatTime } from "~/lib/date-format";
+import { formatEventDateTime, formatLongDate, formatTime } from "~/lib/date-format";
 import { formatEventLocation, originalLocationDiffers } from "~/lib/event-location";
 import { eventPhotoUrl } from "~/lib/event-media";
 import { cn } from "~/lib/utils";
@@ -297,7 +297,7 @@ export function EventDetailClient({ event, similarEvents }: EventDetailClientPro
             <ShareEventDialog
               id={event.id}
               title={event.title}
-              information={[formatLongDate(event.datetime), formatEventLocation(event)]
+              information={[formatEventDateTime(event.datetime), formatEventLocation(event)]
                 .filter(Boolean)
                 .join(" | ")}
             >
