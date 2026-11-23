@@ -12,6 +12,7 @@
     "db:studio": "bun --env-file=../../.env run drizzle-kit studio",
     "db:setup-recommendations": "bun --env-file=../../.env run src/setup-recommendations.ts",
     "db:seed": "bun --env-file=../../.env run src/seed.ts",
+    "db:seed:org-review": "bun --env-file=../../.env run src/seed-org-review.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
     "db:sync-engine": "bun --env-file=../../.env run src/sync-inbox-engine.ts",

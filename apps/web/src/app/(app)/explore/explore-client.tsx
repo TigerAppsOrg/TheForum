@@ -510,10 +510,6 @@ export function ExploreClient({
                   position={index}
                   onSaveToggle={() => handleSaveToggle(event.id)}
                   onRsvpToggle={() => handleRsvpToggle(event.id)}
-                  onShare={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
-                    toast.success("Link copied to clipboard");
-                  }}
                   isFollowingOrg={event.isFollowingOrg}
                   onToggleFollowOrg={
                     event.orgId && event.orgName

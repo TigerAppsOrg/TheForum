@@ -16,6 +16,7 @@
     "db:studio": "turbo db:studio",
     "db:setup-recommendations": "bun run --cwd apps/database db:setup-recommendations",
     "db:seed": "turbo db:seed",
+    "db:seed:org-review": "bun run --cwd apps/database db:seed:org-review",
     "prepare": "husky",
     "db:sync-engine": "turbo db:sync-engine",
     "db:resolve-locations": "cd apps/database && bun run db:resolve-locations"
