@@ -10,13 +10,13 @@
     "db:migrate": "bun --env-file=../../.env run drizzle-kit migrate",
     "db:push": "bun --env-file=../../.env run src/ensure-extensions.ts && bun --env-file=../../.env run drizzle-kit push",
     "db:studio": "bun --env-file=../../.env run drizzle-kit studio",
+    "db:setup-recommendations": "bun --env-file=../../.env run src/setup-recommendations.ts",
     "db:seed": "bun --env-file=../../.env run src/seed.ts",
     "db:seed:org-review": "bun --env-file=../../.env run src/seed-org-review.ts",
     "lint": "biome check .",
     "check-types": "tsc --noEmit",
-    "db:setup-recommendations": "bun --env-file=../../.env run src/setup-recommendations.ts",
-    "db:resolve-locations": "bun --env-file=../../.env run src/resolve-locations.ts",
-    "db:sync-engine": "bun --env-file=../../.env run src/sync-inbox-engine.ts"
+    "db:sync-engine": "bun --env-file=../../.env run src/sync-inbox-engine.ts",
+    "db:resolve-locations": "bun --env-file=../../.env run src/resolve-locations.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
