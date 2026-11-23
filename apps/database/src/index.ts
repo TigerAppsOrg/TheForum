@@ -1,6 +1,8 @@
 export { db } from "./db";
 export type { Database } from "./db";
 export * from "./schema";
+export { loadOrganizationPage } from "./organization-page";
+export type { OrganizationSort } from "./organization-page";
 export {
   eq,
   and,

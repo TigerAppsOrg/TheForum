@@ -2,12 +2,12 @@
   "name": "the-forum",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "bun run db:up && bun run db:push && bun run --cwd apps/web dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "format": "biome format --write .",
     "check": "biome check --write .",
-    "db:up": "docker compose up -d",
+    "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
     "db:generate": "turbo db:generate",
@@ -16,6 +16,7 @@
     "db:studio": "turbo db:studio",
     "db:setup-recommendations": "bun run --cwd apps/database db:setup-recommendations",
     "db:seed": "turbo db:seed",
+    "db:seed:org-review": "bun run --cwd apps/database db:seed:org-review",
     "prepare": "husky",
     "db:sync-engine": "turbo db:sync-engine",
     "db:resolve-locations": "cd apps/database && bun run db:resolve-locations"

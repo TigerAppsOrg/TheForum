@@ -4,7 +4,7 @@ import { z } from "zod";
 export const env = createEnv({
   /**
    * Server-side environment variables — never exposed to the browser.
-   * Add new server vars here + to .env.local and .env.example.
+   * Add new server vars here + to the root .env and .env.example.
    */
   server: {
     DATABASE_URL: z.string().url(),
@@ -27,7 +27,7 @@ export const env = createEnv({
 
   /**
    * Client-side environment variables — must be prefixed with NEXT_PUBLIC_.
-   * Add new client vars here + to .env.local and .env.example.
+   * Add new client vars here + to the root .env and .env.example.
    */
   client: {
     NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk."),
